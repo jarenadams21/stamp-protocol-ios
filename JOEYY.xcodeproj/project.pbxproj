@@ -1,0 +1,528 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0AE40CE81EB3D058744663BE /* JOEYYApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A8122B47320AC805049C54 /* JOEYYApp.swift */; };
+		6C16A57EC183B1BD2EC905D9 /* CardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D9BCABE63DCED664EEC11C /* CardsView.swift */; };
+		6E1812456CEA0A3F746F5D50 /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC52EFBA230B52325227C9D /* Design.swift */; };
+		8AF9B82D553BD351DA6982F2 /* PlaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96C2DB9236447E63FC45ED7 /* PlaceDetailView.swift */; };
+		E668508D76237D04711F6D97 /* RedeemedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817F18B0E7D7309548BD39A4 /* RedeemedView.swift */; };
+		E7C8BB6CA0A2FE3E90B199EF /* CustomerFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */; };
+		EB078FDA7D8BF4295EF9C3E6 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3F4D363E0DBCF5E83D8A2D /* ProfileView.swift */; };
+		F4B3E721804645C1B2918F35 /* LoyaltyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA38619749D36CC949E79A1D /* LoyaltyStoreTests.swift */; };
+		F84AA413204EB9FADEA32AF0 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE72D5F2CE3CBA00AA892630 /* Models.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1205B6BF6F8396E0EBF62245 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C81FFECE394C92A97750021 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0488B1AA61C4D54EB491D1E2;
+			remoteInfo = JOEYY;
+		};
+		DDCF28E4EE0C789064BF5BC1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1C81FFECE394C92A97750021 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0488B1AA61C4D54EB491D1E2;
+			remoteInfo = JOEYY;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerFlowTests.swift; sourceTree = "<group>"; };
+		1523FF0DC91EDFC744C47B16 /* JOEYYTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JOEYYTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		15A8122B47320AC805049C54 /* JOEYYApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JOEYYApp.swift; sourceTree = "<group>"; };
+		15C985A4505B0427E1090BEE /* JOEYYUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JOEYYUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		23D3EF8BD1328AD3353C93C8 /* JOEYY.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = JOEYY.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F3F4D363E0DBCF5E83D8A2D /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		80D9BCABE63DCED664EEC11C /* CardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardsView.swift; sourceTree = "<group>"; };
+		817F18B0E7D7309548BD39A4 /* RedeemedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedeemedView.swift; sourceTree = "<group>"; };
+		9FC52EFBA230B52325227C9D /* Design.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design.swift; sourceTree = "<group>"; };
+		B96C2DB9236447E63FC45ED7 /* PlaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailView.swift; sourceTree = "<group>"; };
+		DE72D5F2CE3CBA00AA892630 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		EA38619749D36CC949E79A1D /* LoyaltyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoyaltyStoreTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		2466E33A082364CEFE9B2DC0 /* JOEYYUITests */ = {
+			isa = PBXGroup;
+			children = (
+				12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */,
+			);
+			path = JOEYYUITests;
+			sourceTree = "<group>";
+		};
+		2828BB4E75C0D48774B3F74D /* JOEYY */ = {
+			isa = PBXGroup;
+			children = (
+				80D9BCABE63DCED664EEC11C /* CardsView.swift */,
+				9FC52EFBA230B52325227C9D /* Design.swift */,
+				15A8122B47320AC805049C54 /* JOEYYApp.swift */,
+				DE72D5F2CE3CBA00AA892630 /* Models.swift */,
+				B96C2DB9236447E63FC45ED7 /* PlaceDetailView.swift */,
+				4F3F4D363E0DBCF5E83D8A2D /* ProfileView.swift */,
+				817F18B0E7D7309548BD39A4 /* RedeemedView.swift */,
+			);
+			path = JOEYY;
+			sourceTree = "<group>";
+		};
+		2D2172147D3B20315605CAF0 = {
+			isa = PBXGroup;
+			children = (
+				2828BB4E75C0D48774B3F74D /* JOEYY */,
+				630BE1519460C50D7FE235FD /* JOEYYTests */,
+				2466E33A082364CEFE9B2DC0 /* JOEYYUITests */,
+				E6F4DCB301D94BCA6B69278D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		630BE1519460C50D7FE235FD /* JOEYYTests */ = {
+			isa = PBXGroup;
+			children = (
+				EA38619749D36CC949E79A1D /* LoyaltyStoreTests.swift */,
+			);
+			path = JOEYYTests;
+			sourceTree = "<group>";
+		};
+		E6F4DCB301D94BCA6B69278D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				23D3EF8BD1328AD3353C93C8 /* JOEYY.app */,
+				1523FF0DC91EDFC744C47B16 /* JOEYYTests.xctest */,
+				15C985A4505B0427E1090BEE /* JOEYYUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0488B1AA61C4D54EB491D1E2 /* JOEYY */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 46CED749DE7288C8A58F9C10 /* Build configuration list for PBXNativeTarget "JOEYY" */;
+			buildPhases = (
+				EBD2221F8E23F135EF7101AC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JOEYY;
+			packageProductDependencies = (
+			);
+			productName = JOEYY;
+			productReference = 23D3EF8BD1328AD3353C93C8 /* JOEYY.app */;
+			productType = "com.apple.product-type.application";
+		};
+		96AC310143C59DA767C25B36 /* JOEYYUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 35298AE1781C7698A4BE9219 /* Build configuration list for PBXNativeTarget "JOEYYUITests" */;
+			buildPhases = (
+				6A7F7149A200BC601810A9FC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2F39DA2455B68F306284C428 /* PBXTargetDependency */,
+			);
+			name = JOEYYUITests;
+			packageProductDependencies = (
+			);
+			productName = JOEYYUITests;
+			productReference = 15C985A4505B0427E1090BEE /* JOEYYUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		A745812AADE98B139303F2FE /* JOEYYTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A6E1A2033379162254A3B9AB /* Build configuration list for PBXNativeTarget "JOEYYTests" */;
+			buildPhases = (
+				F5669746B6722D6A22EAD5C5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1AFA01139BA01B467BDC91B4 /* PBXTargetDependency */,
+			);
+			name = JOEYYTests;
+			packageProductDependencies = (
+			);
+			productName = JOEYYTests;
+			productReference = 1523FF0DC91EDFC744C47B16 /* JOEYYTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1C81FFECE394C92A97750021 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0488B1AA61C4D54EB491D1E2 = {
+						DevelopmentTeam = "";
+					};
+					96AC310143C59DA767C25B36 = {
+						DevelopmentTeam = "";
+						TestTargetID = 0488B1AA61C4D54EB491D1E2;
+					};
+					A745812AADE98B139303F2FE = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 0DE3483838BF458BE5C76957 /* Build configuration list for PBXProject "JOEYY" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 2D2172147D3B20315605CAF0;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = E6F4DCB301D94BCA6B69278D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0488B1AA61C4D54EB491D1E2 /* JOEYY */,
+				A745812AADE98B139303F2FE /* JOEYYTests */,
+				96AC310143C59DA767C25B36 /* JOEYYUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6A7F7149A200BC601810A9FC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E7C8BB6CA0A2FE3E90B199EF /* CustomerFlowTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EBD2221F8E23F135EF7101AC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6C16A57EC183B1BD2EC905D9 /* CardsView.swift in Sources */,
+				6E1812456CEA0A3F746F5D50 /* Design.swift in Sources */,
+				0AE40CE81EB3D058744663BE /* JOEYYApp.swift in Sources */,
+				F84AA413204EB9FADEA32AF0 /* Models.swift in Sources */,
+				8AF9B82D553BD351DA6982F2 /* PlaceDetailView.swift in Sources */,
+				EB078FDA7D8BF4295EF9C3E6 /* ProfileView.swift in Sources */,
+				E668508D76237D04711F6D97 /* RedeemedView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F5669746B6722D6A22EAD5C5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F4B3E721804645C1B2918F35 /* LoyaltyStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1AFA01139BA01B467BDC91B4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0488B1AA61C4D54EB491D1E2 /* JOEYY */;
+			targetProxy = DDCF28E4EE0C789064BF5BC1 /* PBXContainerItemProxy */;
+		};
+		2F39DA2455B68F306284C428 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0488B1AA61C4D54EB491D1E2 /* JOEYY */;
+			targetProxy = 1205B6BF6F8396E0EBF62245 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		246D53E4CA5A998CDC885A37 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.joeyy.JOEYYUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = JOEYY;
+			};
+			name = Debug;
+		};
+		4D55428DD0CC68CA42C4E065 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.joeyy.JOEYYTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/JOEYY.app/JOEYY";
+			};
+			name = Release;
+		};
+		521887586055412907A1CBD7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.joeyy.JOEYYTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/JOEYY.app/JOEYY";
+			};
+			name = Debug;
+		};
+		55B099C74613B0D495726752 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8EF720483EFE961B46699BD7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.joeyy.JOEYYUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = JOEYY;
+			};
+			name = Release;
+		};
+		BCA0B47BD0EC1026AF679941 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.joeyy.customer;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C45347A3BADDD206C0B0BDB8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.joeyy.customer;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D460AF4E2528F31A52A7A168 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0DE3483838BF458BE5C76957 /* Build configuration list for PBXProject "JOEYY" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55B099C74613B0D495726752 /* Debug */,
+				D460AF4E2528F31A52A7A168 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		35298AE1781C7698A4BE9219 /* Build configuration list for PBXNativeTarget "JOEYYUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				246D53E4CA5A998CDC885A37 /* Debug */,
+				8EF720483EFE961B46699BD7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		46CED749DE7288C8A58F9C10 /* Build configuration list for PBXNativeTarget "JOEYY" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C45347A3BADDD206C0B0BDB8 /* Debug */,
+				BCA0B47BD0EC1026AF679941 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A6E1A2033379162254A3B9AB /* Build configuration list for PBXNativeTarget "JOEYYTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				521887586055412907A1CBD7 /* Debug */,
+				4D55428DD0CC68CA42C4E065 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1C81FFECE394C92A97750021 /* Project object */;
+}
