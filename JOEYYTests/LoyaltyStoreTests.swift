@@ -54,11 +54,42 @@ final class LoyaltyStoreTests: XCTestCase {
         XCTAssertEqual(restored.redemptions, coupons)
     }
 
-    func testFullCardRejectsMoreStampsWithoutChangingHistory() throws {
+    func testStampOnFullCardSavesRewardAndStartsNewCard() throws {
         let place = Place.samples[1]
-        let before = store.memberships
-        XCTAssertThrowsError(try store.addStamp(to: place))
-        XCTAssertEqual(store.memberships, before)
+        let before = try XCTUnwrap(store.membership(for: place))
+        XCTAssertEqual(before.stamps, place.requiredPunches)
+        let couponCount = store.redemptions.count
+        let outcome = try store.addStamp(to: place)
+        guard case .startedNewCard(let coupon) = outcome else {
+            return XCTFail("Expected a new card, got \(outcome)")
+        }
+        let membership = try XCTUnwrap(store.membership(for: place))
+        XCTAssertEqual(membership.stamps, 1)
+        XCTAssertEqual(membership.events.count, before.events.count + 2)
+        XCTAssertEqual(membership.events.first?.kind, .stamp)
+        XCTAssertEqual(membership.events.dropFirst().first?.kind, .reward)
+        XCTAssertEqual(membership.events.dropFirst().first?.stampCost, place.requiredPunches)
+        XCTAssertEqual(store.redemptions.count, couponCount + 1)
+        XCTAssertTrue(store.redemptions.contains { $0.id == coupon.id && $0.isAvailable })
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).membership(for: place), membership)
+    }
+
+    func testStampOnPartialCardDoesNotIssueReward() throws {
+        let place = Place.samples[0]
+        let coupons = store.redemptions
+        XCTAssertEqual(try store.addStamp(to: place), .collected)
+        XCTAssertEqual(store.redemptions, coupons)
+    }
+
+    func testRewardsStackAcrossRolledOverCards() throws {
+        let place = Place.samples[1]
+        let start = store.redemptions.filter(\.isAvailable).count
+        try store.addStamp(to: place)
+        for _ in 1..<place.requiredPunches { try store.addStamp(to: place) }
+        XCTAssertEqual(store.membership(for: place)?.stamps, place.requiredPunches)
+        try store.addStamp(to: place)
+        XCTAssertEqual(store.membership(for: place)?.stamps, 1)
+        XCTAssertEqual(store.redemptions.filter(\.isAvailable).count, start + 2)
     }
 
     func testClaimIssuesOneCouponResetsCardAndPersists() throws {

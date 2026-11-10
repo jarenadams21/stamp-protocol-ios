@@ -203,17 +203,17 @@ struct PlaceDetailView: View {
                     Button("Claim reward") { confirmingRedemption = true }
                         .buttonStyle(PrimaryButton())
                         .accessibilityIdentifier("detail.claim")
+                }
+                if complete {
+                    stampButton.buttonStyle(SecondaryButton())
                 } else {
-                    Button("Add demo stamp") {
-                        do {
-                            try withAnimation(reduceMotion || !theme.allowsMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
-                                try store.addStamp(to: place)
-                            }
-                            stampFeedback.toggle()
-                        } catch { failure = error.localizedDescription }
-                    }
-                    .buttonStyle(PrimaryButton())
-                    .accessibilityIdentifier("detail.simulateVisit")
+                    stampButton.buttonStyle(PrimaryButton())
+                }
+                if complete {
+                    Text("Your reward is saved even if you keep collecting. The next stamp starts a new card.")
+                        .font(.footnote).foregroundStyle(Color.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("detail.rolloverNote")
                 }
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) { customerCodeButton; walletButton }
@@ -228,6 +228,19 @@ struct PlaceDetailView: View {
             Text("Demo program. Not a real offer.")
                 .font(.footnote.weight(.medium)).foregroundStyle(Color.primary)
         }
+    }
+
+    private var stampButton: some View {
+        Button(complete ? "Add stamp to a new card" : "Add demo stamp") {
+            do {
+                let outcome = try withAnimation(reduceMotion || !theme.allowsMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
+                    try store.addStamp(to: place)
+                }
+                stampFeedback.toggle()
+                if case .startedNewCard(let coupon) = outcome { sheet = .coupon(coupon.id) }
+            } catch { failure = error.localizedDescription }
+        }
+        .accessibilityIdentifier("detail.simulateVisit")
     }
 
     private var customerCodeButton: some View {

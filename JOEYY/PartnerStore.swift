@@ -144,6 +144,25 @@ final class PartnerStore {
 
     // MARK: Dashboard
 
+    /// Rewards earned on full cards that customers haven't redeemed yet, across all time.
+    /// A full card never blocks collecting: the next stamp starts a new card and the reward keeps waiting.
+    var rewardsWaiting: Int {
+        guard let businessID = state.business?.id else { return 0 }
+        return state.rewards.filter { $0.businessID == businessID && $0.redeemedAt == nil }.count
+    }
+
+    /// Customers holding more than one unredeemed reward.
+    var customersWithStackedRewards: Int {
+        guard let businessID = state.business?.id else { return 0 }
+        let cardOwners = Dictionary(
+            state.cards.filter { $0.businessID == businessID }.map { ($0.id, $0.customerID) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let waiting = state.rewards.filter { $0.businessID == businessID && $0.redeemedAt == nil }
+        let perCustomer = Dictionary(grouping: waiting.compactMap { cardOwners[$0.cardID] }, by: { $0 })
+        return perCustomer.values.filter { $0.count > 1 }.count
+    }
+
     func summary(for period: ReportPeriod) -> DashboardSummary {
         let end = now()
         return summary(from: period.start(now: end), to: end)

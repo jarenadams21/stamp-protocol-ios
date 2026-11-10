@@ -3,6 +3,19 @@ import XCTest
 @MainActor
 final class CustomerFlowTests: XCTestCase {
     private let places = ["monorail-pike", "cloud-city", "five-stones-kirkland"]
+    /// Generous so busy CI simulators don't fail; waits still return as soon as the condition holds.
+    private let uiTimeout: TimeInterval = 10
+
+    override func setUp() async throws {
+        continueAfterFailure = false
+    }
+
+    /// Lets navigation, sheet, and appearance transitions finish before auditing or measuring.
+    private func settle(_ seconds: TimeInterval = 0.8) {
+        let idle = XCTestExpectation(description: "settle")
+        idle.isInverted = true
+        _ = XCTWaiter.wait(for: [idle], timeout: seconds)
+    }
 
     private func launch(welcome: Bool = false, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
@@ -24,7 +37,7 @@ final class CustomerFlowTests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label == %@", value), object: progress
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: uiTimeout), .completed, "Expected \(value)")
     }
 
     private func contentBottom(in app: XCUIApplication) -> CGFloat {
@@ -73,7 +86,7 @@ final class CustomerFlowTests: XCTestCase {
         openCard("monorail-pike", in: app)
         let heading = app.staticTexts["Monorail Espresso"]
         let progress = app.descendants(matching: .any).matching(identifier: "card.progress").firstMatch
-        XCTAssertTrue(heading.waitForExistence(timeout: 3))
+        XCTAssertTrue(heading.waitForExistence(timeout: uiTimeout))
         XCTAssertGreaterThan(progress.frame.minX, heading.frame.maxX)
         XCTAssertLessThan(progress.frame.midY, heading.frame.minY)
         expectProgress("5 of 8 stamps", in: app)
@@ -81,11 +94,11 @@ final class CustomerFlowTests: XCTestCase {
         try audit(app)
     }
 
-    func testFullCardWaitsForClaimAndCancellationKeepsItFull() {
+    func testFullCardOffersOptionalClaimAndCancellationKeepsItFull() {
         let app = launch()
         openCard("cloud-city", in: app)
         expectProgress("6 of 6 stamps", in: app)
-        XCTAssertFalse(app.buttons["detail.simulateVisit"].exists)
+        XCTAssertEqual(app.buttons["detail.simulateVisit"].label, "Add stamp to a new card")
         capture("Cloud City - complete card", app: app)
         app.buttons["detail.claim"].tap()
         app.alerts.buttons["Cancel"].tap()
@@ -97,13 +110,29 @@ final class CustomerFlowTests: XCTestCase {
         expectProgress("6 of 6 stamps", in: app)
         app.buttons["detail.claim"].tap()
         app.alerts.buttons["Claim reward"].tap()
-        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: uiTimeout))
         XCTAssertEqual(app.staticTexts["coupon.title"].label, "Brewed coffee")
         capture("Cloud City - claimed coupon", app: app)
         app.buttons["Done"].tap()
         expectProgress("0 of 6 stamps", in: app)
         XCTAssertFalse(app.buttons["detail.claim"].exists)
         XCTAssertTrue(app.buttons["detail.simulateVisit"].exists)
+        app.tabBars.buttons["Redeemed"].tap()
+        XCTAssertEqual(app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'coupon.cloud-city.'"
+        )).count, 2)
+    }
+
+    func testStampOnFullCardSavesRewardAndStartsNewCard() {
+        let app = launch()
+        openCard("cloud-city", in: app)
+        expectProgress("6 of 6 stamps", in: app)
+        app.buttons["detail.simulateVisit"].tap()
+        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["coupon.title"].label, "Brewed coffee")
+        app.buttons["Done"].tap()
+        expectProgress("1 of 6 stamps", in: app)
+        XCTAssertFalse(app.buttons["detail.claim"].exists)
         app.tabBars.buttons["Redeemed"].tap()
         XCTAssertEqual(app.buttons.matching(NSPredicate(
             format: "identifier BEGINSWITH 'coupon.cloud-city.'"
@@ -117,7 +146,7 @@ final class CustomerFlowTests: XCTestCase {
         for _ in 0..<3 { app.buttons["detail.simulateVisit"].tap() }
         expectProgress("8 of 8 stamps", in: app)
         XCTAssertTrue(app.buttons["detail.claim"].exists)
-        XCTAssertFalse(app.buttons["detail.simulateVisit"].exists)
+        XCTAssertEqual(app.buttons["detail.simulateVisit"].label, "Add stamp to a new card")
         capture("Monorail - full punch card", app: app)
         app.tabBars.buttons["Redeemed"].tap()
         XCTAssertEqual(app.buttons.matching(NSPredicate(
@@ -137,7 +166,7 @@ final class CustomerFlowTests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'coupon.cloud-city.'")).firstMatch.tap()
         XCTAssertEqual(app.staticTexts["coupon.title"].label, "Brewed coffee")
         app.buttons["coupon.wallet"].tap()
-        XCTAssertTrue(app.staticTexts["Apple Wallet coupon passes aren't implemented yet."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Apple Wallet coupon passes aren't implemented yet."].waitForExistence(timeout: uiTimeout))
         app.buttons["Done"].tap()
         app.buttons["coupon.use"].tap()
         app.alerts.buttons["Cancel"].tap()
@@ -147,7 +176,7 @@ final class CustomerFlowTests: XCTestCase {
         let used = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label == 'USED'"), object: app.staticTexts["coupon.status"]
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [used], timeout: 3), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [used], timeout: uiTimeout), .completed)
         XCTAssertFalse(app.buttons["coupon.use"].exists)
         app.navigationBars.buttons["Back"].tap()
         XCTAssertTrue(app.staticTexts["Used"].exists)
@@ -163,7 +192,7 @@ final class CustomerFlowTests: XCTestCase {
         let search = app.textFields["search.query"]
         search.tap()
         search.typeText("6a2e3d81-7b49-4f12-a0c3-819d62e00101")
-        XCTAssertTrue(app.buttons["search.monorail-pike"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["search.monorail-pike"].waitForExistence(timeout: uiTimeout))
         XCTAssertFalse(app.buttons["search.cloud-city"].exists)
         app.buttons["Clear search"].tap()
         search.tap()
@@ -176,7 +205,7 @@ final class CustomerFlowTests: XCTestCase {
         app.buttons["search.five-stones-kirkland"].tap()
         expectProgress("2 of 10 stamps", in: app)
         app.buttons["detail.wallet"].tap()
-        XCTAssertTrue(app.staticTexts["Apple Wallet isn't implemented yet."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Apple Wallet isn't implemented yet."].waitForExistence(timeout: uiTimeout))
     }
 
     func testDiscoveryGallerySwipesAndAddsACardWithoutChangingExistingCards() {
@@ -184,7 +213,7 @@ final class CustomerFlowTests: XCTestCase {
         XCTAssertFalse(app.buttons["card.gloom-coffee"].exists)
         app.tabBars.buttons["Search"].tap()
         let gallery = app.scrollViews["search.discovery"]
-        XCTAssertTrue(gallery.waitForExistence(timeout: 3))
+        XCTAssertTrue(gallery.waitForExistence(timeout: uiTimeout))
         XCTAssertTrue(app.buttons["discover.saint-bread"].isHittable)
         capture("Discoverable - Saint Bread", app: app)
         gallery.swipeLeft()
@@ -202,7 +231,7 @@ final class CustomerFlowTests: XCTestCase {
         app.buttons["detail.simulateVisit"].tap()
         expectProgress("1 of 8 stamps", in: app)
         app.tabBars.buttons["Home"].tap()
-        XCTAssertTrue(app.buttons["card.gloom-coffee"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["card.gloom-coffee"].waitForExistence(timeout: uiTimeout))
         openCard("monorail-pike", in: app)
         expectProgress("5 of 8 stamps", in: app)
         app.terminate()
@@ -224,7 +253,7 @@ final class CustomerFlowTests: XCTestCase {
             app.buttons[mode].tap()
             app.tabBars.buttons["Search"].tap()
             let gallery = app.scrollViews["search.discovery"]
-            XCTAssertTrue(gallery.waitForExistence(timeout: 3))
+            XCTAssertTrue(gallery.waitForExistence(timeout: uiTimeout))
             for id in ["saint-bread", "book-larder", "gloom-coffee"] {
                 let poster = app.buttons["discover.\(id)"]
                 reach(poster, in: app)
@@ -255,7 +284,7 @@ final class CustomerFlowTests: XCTestCase {
         activity.tap()
         let joined = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label BEGINSWITH %@", "Program joined")).firstMatch
-        XCTAssertTrue(joined.waitForExistence(timeout: 3))
+        XCTAssertTrue(joined.waitForExistence(timeout: uiTimeout))
     }
 
     func testFreshInstallChoosesCustomerAndRemembersCompletion() {
@@ -266,31 +295,31 @@ final class CustomerFlowTests: XCTestCase {
         XCTAssertFalse(app.buttons["setup.close"].exists)
         capture("Setup - Customer and Business", app: app)
         app.buttons["setup.customer"].tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
         app.terminate()
         app.launchArguments = ["-ui-testing"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
         XCTAssertFalse(app.buttons["setup.customer"].exists)
     }
 
     func testBusinessChoiceOpensBusinessSideAndIsRemembered() {
         let app = launch(welcome: true)
         app.buttons["setup.business"].tap()
-        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: uiTimeout))
         capture("Setup - Business destination", app: app)
         app.terminate()
         app.launchArguments = ["-ui-testing"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: uiTimeout))
         app.buttons["business.switch"].tap()
-        XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: uiTimeout))
         app.buttons["setup.customer"].tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
         app.terminate()
         app.launchArguments = ["-ui-testing"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
     }
 
     func testSetupSupportsLargestTextAndReduceMotion() {
@@ -303,16 +332,16 @@ final class CustomerFlowTests: XCTestCase {
         XCTAssertTrue(business.isHittable)
         capture("Setup - largest text and Reduce Motion", app: app)
         business.tap()
-        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: uiTimeout))
         let switchSide = app.buttons["business.switch"]
         for _ in 0..<6 where !switchSide.isHittable { app.swipeDown() }
         switchSide.tap()
         let customer = app.buttons["setup.customer"]
-        XCTAssertTrue(customer.waitForExistence(timeout: 3))
+        XCTAssertTrue(customer.waitForExistence(timeout: uiTimeout))
         for _ in 0..<6 where !customer.isHittable { app.swipeDown() }
         XCTAssertTrue(customer.isHittable)
         customer.tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
     }
 
     func testSetupAndSettingsContrastInLightAndDark() throws {
@@ -328,19 +357,19 @@ final class CustomerFlowTests: XCTestCase {
                 try audit(app)
             }
             setup.tap()
-            XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: 3))
+            XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: uiTimeout))
             try audit(app)
             capture("Role landing - \(mode)", app: app)
             app.buttons["setup.business"].tap()
-            XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: 3))
+            XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: uiTimeout))
             // Business dismisses the setup cover; audit once it has finished sliding away.
-            XCTAssertTrue(app.buttons["setup.customer"].waitForNonExistence(timeout: 3))
+            XCTAssertTrue(app.buttons["setup.customer"].waitForNonExistence(timeout: uiTimeout))
             try audit(app)
             capture("Business welcome - \(mode)", app: app)
             app.buttons["business.switch"].tap()
-            XCTAssertTrue(app.buttons["setup.close"].waitForExistence(timeout: 3))
+            XCTAssertTrue(app.buttons["setup.close"].waitForExistence(timeout: uiTimeout))
             app.buttons["setup.customer"].tap()
-            XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+            XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
         }
     }
 
@@ -379,13 +408,13 @@ final class CustomerFlowTests: XCTestCase {
         reach(setup, in: app)
         capture("You - appearance, notifications and setup", app: app)
         setup.tap()
-        XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: uiTimeout))
         app.buttons["setup.business"].tap()
-        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.businessWelcome"].waitForExistence(timeout: uiTimeout))
         app.buttons["business.switch"].tap()
-        XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["setup.customer"].waitForExistence(timeout: uiTimeout))
         app.buttons["setup.customer"].tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
     }
 
     func testArchiveCanBeRestored() {
@@ -396,7 +425,7 @@ final class CustomerFlowTests: XCTestCase {
         app.buttons["Archive card"].tap()
         app.buttons["Archived cards"].tap()
         app.buttons["Restore"].tap()
-        XCTAssertTrue(app.staticTexts["No archived cards"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No archived cards"].waitForExistence(timeout: uiTimeout))
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["card.monorail-pike"].exists)
     }
@@ -416,7 +445,7 @@ final class CustomerFlowTests: XCTestCase {
         reach(setup, in: app)
         setup.tap()
         app.buttons["setup.customer"].tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
         XCTAssertTrue(app.tabBars.buttons["Home"].isSelected)
         XCTAssertTrue(app.buttons["home.collection"].label.contains("All places"))
         XCTAssertFalse(app.buttons["detail.simulateVisit"].exists)
@@ -439,23 +468,30 @@ final class CustomerFlowTests: XCTestCase {
             app.buttons["settings.appearance"].tap()
             app.buttons[mode].tap()
             app.tabBars.buttons["Home"].tap()
+            XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
             try audit(app)
             capture("Home - \(mode)", app: app)
             for id in places {
                 openCard(id, in: app)
+                XCTAssertTrue(app.descendants(matching: .any)["detail.cover"].waitForExistence(timeout: uiTimeout))
                 try audit(app)
                 capture("\(id) - \(mode)", app: app)
                 app.navigationBars.buttons["Back"].tap()
+                XCTAssertTrue(app.descendants(matching: .any)["detail.cover"].waitForNonExistence(timeout: uiTimeout))
             }
             app.tabBars.buttons["Redeemed"].tap()
             try audit(app)
             for id in places {
-                app.buttons.matching(NSPredicate(
+                let coupon = app.buttons.matching(NSPredicate(
                     format: "identifier BEGINSWITH %@", "coupon.\(id)."
-                )).firstMatch.tap()
+                )).firstMatch
+                XCTAssertTrue(coupon.waitForExistence(timeout: uiTimeout))
+                coupon.tap()
+                XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: uiTimeout))
                 try audit(app)
                 capture("\(id) coupon - \(mode)", app: app)
                 app.navigationBars.buttons["Back"].tap()
+                XCTAssertTrue(app.staticTexts["coupon.title"].waitForNonExistence(timeout: uiTimeout))
             }
         }
     }
@@ -472,12 +508,12 @@ final class CustomerFlowTests: XCTestCase {
         capture("Cloud City - largest text", app: app)
         claim.tap()
         app.alerts.buttons["Claim reward"].tap()
-        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: uiTimeout))
         let use = app.buttons["coupon.use"]
         reach(use, in: app)
         capture("Coupon - largest text", app: app)
         use.tap()
-        XCTAssertTrue(app.alerts.buttons["Mark as used"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.alerts.buttons["Mark as used"].waitForExistence(timeout: uiTimeout))
         app.alerts.buttons["Cancel"].tap()
         app.buttons["Done"].tap()
         expectProgress("0 of 6 stamps", in: app)
@@ -494,7 +530,7 @@ final class CustomerFlowTests: XCTestCase {
         expectProgress("8 of 8 stamps", in: app)
         app.buttons["detail.claim"].tap()
         app.alerts.buttons["Claim reward"].tap()
-        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: uiTimeout))
         XCTAssertEqual(app.staticTexts["coupon.title"].label, "Espresso")
     }
 
@@ -531,7 +567,7 @@ final class CustomerFlowTests: XCTestCase {
             XCTAssertEqual(toggle.value as? String, "1")
         }
         app.buttons["group.save"].tap()
-        XCTAssertTrue(app.buttons["group.edit.Weekends"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["group.edit.Weekends"].waitForExistence(timeout: uiTimeout))
         app.buttons["Done"].tap()
         app.buttons["home.collection"].tap()
         app.buttons["Weekends"].tap()
@@ -547,7 +583,7 @@ final class CustomerFlowTests: XCTestCase {
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "Saturday")
         app.buttons["group.save"].tap()
         let group = app.buttons["group.edit.Saturday"]
-        XCTAssertTrue(group.waitForExistence(timeout: 3))
+        XCTAssertTrue(group.waitForExistence(timeout: uiTimeout))
         group.tap()
         app.buttons["group.delete"].tap()
         app.alerts.buttons["group.cancelDelete"].firstMatch.tap()
@@ -575,7 +611,7 @@ final class CustomerFlowTests: XCTestCase {
         app.textFields["group.name"].tap()
         app.textFields["group.name"].typeText("Nearby")
         app.buttons["group.save"].tap()
-        XCTAssertTrue(app.buttons["group.edit.Nearby"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["group.edit.Nearby"].waitForExistence(timeout: uiTimeout))
         app.buttons["group.options.Nearby"].tap()
         app.buttons["Delete group"].tap()
         app.alerts.buttons["group.cancelDelete"].firstMatch.tap()
@@ -583,7 +619,7 @@ final class CustomerFlowTests: XCTestCase {
         app.buttons["group.options.Nearby"].tap()
         app.buttons["Delete group"].tap()
         app.alerts.buttons["group.confirmDelete"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["No groups"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No groups"].waitForExistence(timeout: uiTimeout))
         app.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["card.monorail-pike"].exists)
     }
@@ -601,7 +637,7 @@ final class CustomerFlowTests: XCTestCase {
         url.tap()
         url.typeText("http://example.com/image.jpg")
         app.buttons["branding.applyURL"].tap()
-        XCTAssertTrue(app.alerts["Couldn't update artwork"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.alerts["Couldn't update artwork"].waitForExistence(timeout: uiTimeout))
         XCTAssertTrue(app.staticTexts["Use an HTTPS image URL without embedded credentials."].exists)
         app.alerts.buttons["OK"].tap()
         url.tap()
@@ -631,7 +667,7 @@ final class CustomerFlowTests: XCTestCase {
         app.textFields["group.name"].typeText("Nearby")
         app.buttons["group.save"].tap()
         let toggle = app.switches["Nearby"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertTrue(toggle.waitForExistence(timeout: uiTimeout))
         XCTAssertEqual(toggle.value as? String, "1")
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(toggle.value as? String, "0")
@@ -639,10 +675,21 @@ final class CustomerFlowTests: XCTestCase {
         app.navigationBars.buttons["Back"].tap()
         app.buttons["home.collection"].tap()
         app.buttons["Nearby"].tap()
-        XCTAssertTrue(app.staticTexts["No places in this group"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No places in this group"].waitForExistence(timeout: uiTimeout))
     }
 
     private func audit(_ app: XCUIApplication) throws {
+        settle()
+        do {
+            try performAudit(app)
+        } catch let error as NSError where error.code == -56 {
+            // "Audit failed to complete in time" is a runner timeout, not an app issue; retry once.
+            settle()
+            try performAudit(app)
+        }
+    }
+
+    private func performAudit(_ app: XCUIApplication) throws {
         try app.performAccessibilityAudit(for: [.contrast, .textClipped]) { issue in
             guard issue.auditType == .contrast, let element = issue.element else { return false }
             let underTabBar = app.tabBars.firstMatch.exists &&

@@ -10,7 +10,7 @@ final class MerchantFlowTests: XCTestCase {
         app.launchArguments = ["-ui-testing", "-reset-demo"] + extra
         app.launch()
         let business = app.buttons["setup.business"]
-        XCTAssertTrue(business.waitForExistence(timeout: 5))
+        XCTAssertTrue(business.waitForExistence(timeout: 10))
         for _ in 0..<6 where !business.isHittable { app.swipeUp() }
         business.tap()
         return app
@@ -19,10 +19,10 @@ final class MerchantFlowTests: XCTestCase {
     private func launchSample() -> XCUIApplication {
         let app = launchBusiness()
         let sample = app.buttons["business.sample"]
-        XCTAssertTrue(sample.waitForExistence(timeout: 5))
+        XCTAssertTrue(sample.waitForExistence(timeout: 10))
         for _ in 0..<6 where !sample.isHittable { app.swipeUp() }
         sample.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["overview.metric.enrolled"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["overview.metric.enrolled"].waitForExistence(timeout: 10))
         return app
     }
 
@@ -70,10 +70,13 @@ final class MerchantFlowTests: XCTestCase {
         let app = launchSample()
         XCTAssertTrue(app.staticTexts["Norema Cafe"].exists)
         XCTAssertTrue(app.buttons["overview.program"].exists)
+        let waiting = app.descendants(matching: .any).matching(identifier: "overview.rewardsWaiting").firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 10))
+        XCTAssertTrue(waiting.label.contains("rewards to redeem"))
         capture("Business - Overview", app: app)
 
         app.tabBars.buttons["Card"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["card.preview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["card.preview"].waitForExistence(timeout: 10))
         capture("Business - Card designer", app: app)
 
         let stepper = app.steppers["card.punches"]
@@ -89,16 +92,16 @@ final class MerchantFlowTests: XCTestCase {
         let confirm = app.buttons.matching(
             NSPredicate(format: "label == %@ AND identifier != %@", "Publish version 2", "card.publish")
         ).firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10))
         confirm.tap()
 
         let feedback = app.descendants(matching: .any).matching(identifier: "card.feedback").firstMatch
-        XCTAssertTrue(feedback.waitForExistence(timeout: 5))
+        XCTAssertTrue(feedback.waitForExistence(timeout: 10))
         XCTAssertTrue(feedback.label.contains("Version 2 published."))
 
         app.tabBars.buttons["Overview"].tap()
         let finishing = app.descendants(matching: .any).matching(identifier: "overview.finishing").firstMatch
-        XCTAssertTrue(finishing.waitForExistence(timeout: 5))
+        XCTAssertTrue(finishing.waitForExistence(timeout: 10))
         XCTAssertTrue(finishing.label.contains("still finishing older versions"))
     }
 
@@ -106,11 +109,11 @@ final class MerchantFlowTests: XCTestCase {
         let app = launchBusiness()
         app.buttons["business.setup"].tap()
         let name = app.textFields["business.name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertTrue(name.waitForExistence(timeout: 10))
         name.tap()
         name.typeText("Norema Cafe")
         app.buttons["business.save"].tap()
-        XCTAssertTrue(app.tabBars.buttons["Card"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["Card"].waitForExistence(timeout: 10))
         app.buttons["overview.design"].tap()
         let publish = app.buttons["card.publish"]
         scrollTo(publish, in: app)
@@ -121,9 +124,9 @@ final class MerchantFlowTests: XCTestCase {
     func testBugButtonOpensPrefilledReport() {
         let app = launchSample()
         let bug = app.buttons["bug.report"].firstMatch
-        XCTAssertTrue(bug.waitForExistence(timeout: 5))
+        XCTAssertTrue(bug.waitForExistence(timeout: 10))
         bug.tap()
-        XCTAssertTrue(app.textFields["bug.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["bug.title"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["bug.continue"].isEnabled)
         app.textFields["bug.title"].tap()
         app.textFields["bug.title"].typeText("Sample issue")
@@ -138,13 +141,13 @@ final class MerchantFlowTests: XCTestCase {
         scrollTo(setup, in: app)
         setup.tap()
         app.buttons["setup.customer"].tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 10))
         app.tabBars.buttons["You"].tap()
         let customerSetup = app.buttons["settings.setup"]
         scrollTo(customerSetup, in: app)
         customerSetup.tap()
         app.buttons["setup.business"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["overview.metric.enrolled"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["overview.metric.enrolled"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Norema Cafe"].exists)
     }
 

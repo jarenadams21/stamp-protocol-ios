@@ -149,7 +149,7 @@ struct Redemption: Identifiable, Hashable {
 }
 
 enum DemoError: LocalizedError {
-    case notJoined, insufficientStamps, unknownProgram, cardComplete, archivedCard
+    case notJoined, insufficientStamps, unknownProgram, archivedCard
     case couponNotFound, couponAlreadyUsed
     case invalidGroupName, duplicateGroupName, invalidGroup
 
@@ -158,7 +158,6 @@ enum DemoError: LocalizedError {
         case .notJoined: "Join this card first."
         case .insufficientStamps: "Fill this card before claiming the reward."
         case .unknownProgram: "This program could not be found."
-        case .cardComplete: "This card is full. Claim the reward before collecting again."
         case .archivedCard: "Restore this card before collecting stamps or claiming a reward."
         case .couponNotFound: "This coupon could not be found."
         case .couponAlreadyUsed: "This coupon has already been used."
@@ -309,16 +308,38 @@ final class LoyaltyStore {
         save()
     }
 
-    func addStamp(to place: Place) throws {
+    /// The result of collecting a stamp.
+    enum StampOutcome: Equatable {
+        case collected
+        /// The card was already full: its reward was saved as a coupon and the stamp started a new card.
+        case startedNewCard(Coupon)
+    }
+
+    /// Adds one stamp. A stamp on a full card never waits for a claim: the full card's reward is
+    /// saved as an available coupon and the stamp becomes the first punch on a new card.
+    @discardableResult
+    func addStamp(to place: Place) throws -> StampOutcome {
         guard Place.catalog.contains(place) else { throw DemoError.unknownProgram }
         guard let index = memberships.firstIndex(where: { $0.id == place.id }) else {
             throw DemoError.notJoined
         }
         guard !memberships[index].archived else { throw DemoError.archivedCard }
-        guard memberships[index].stamps < place.requiredPunches else { throw DemoError.cardComplete }
+        var outcome = StampOutcome.collected
+        if memberships[index].stamps >= place.requiredPunches {
+            let reward = VisitEvent(
+                kind: .reward, date: .now,
+                rewardTitle: place.rewardDescription, stampCost: place.requiredPunches
+            )
+            let coupon = Coupon(id: reward.id)
+            memberships[index].events.insert(reward, at: 0)
+            memberships[index].coupons.insert(coupon, at: 0)
+            memberships[index].stamps = 0
+            outcome = .startedNewCard(coupon)
+        }
         memberships[index].stamps += 1
         memberships[index].events.insert(VisitEvent(kind: .stamp, date: .now), at: 0)
         save()
+        return outcome
     }
 
     @discardableResult
