@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish sideloadable IPA
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Build unsigned app
+        run: |
+          set +e
+          VERSION="${GITHUB_REF_NAME#v}"
+          xcodebuild build -project JOEYY.xcodeproj -scheme JOEYY \
+            -configuration Release -sdk iphoneos -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            > release-build.log 2>&1
+          status=$?
+          grep -E "error:|\*\* BUILD" release-build.log | tail -100
+          exit $status
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/JOEYY.app Payload/
+          zip -qry "JOEYY-${GITHUB_REF_NAME}.ipa" Payload
+          ls -lh "JOEYY-${GITHUB_REF_NAME}.ipa"
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<EOF
+          Unsigned build of JOEYY ${GITHUB_REF_NAME} (customer and business sides) for sideloading. Uses sample data only.
+
+          ## Install on iPhone
+          1. Download \`JOEYY-${GITHUB_REF_NAME}.ipa\` below.
+          2. Open [Sideloadly](https://sideloadly.io) on your computer, connect your iPhone, drag in the IPA, and sign in with your Apple ID.
+          3. On iPhone, trust the developer profile in **Settings > General > VPN & Device Management**, and turn on **Developer Mode** if prompted.
+
+          With a free Apple ID, sideloaded apps expire after 7 days; reinstall to refresh.
+          EOF
+          gh release create "$GITHUB_REF_NAME" "JOEYY-${GITHUB_REF_NAME}.ipa" \
+            --title "JOEYY ${GITHUB_REF_NAME}" --notes-file release-notes.md --prerelease
