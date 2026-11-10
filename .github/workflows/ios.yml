@@ -77,10 +77,10 @@ jobs:
           # Simulator UI tests can hit runner hiccups; a test passes only if it passes on a rerun.
           xcodebuild test-without-building -project JOEYY.xcodeproj -scheme JOEYY \
             -destination "id=${{ steps.simulator.outputs.udid }}" -derivedDataPath DerivedData \
-            -only-testing:JOEYYUITests -retry-tests-on-failure -test-iterations 2 \
+            -only-testing:JOEYYUITests \
             -resultBundlePath UITests.xcresult > ui.log 2>&1
           status=$?
-          grep -E "error:|Test Case .* (failed|passed .* on retry)|Executed|\*\* TEST" ui.log | tail -120
+          grep -E "error:|Test Case .* failed|Executed|\*\* TEST" ui.log | tail -120
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()

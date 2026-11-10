@@ -222,7 +222,7 @@ xcodebuild test -project JOEYY.xcodeproj -scheme JOEYY \
 
 GitHub Actions (`.github/workflows/ios.yml`) runs on every push to `main` and every pull
 request: it fails if `JOEYY.xcodeproj` differs from `xcodegen generate`, then builds and runs
-unit tests and UI tests on an iPhone simulator (a failing UI test is retried once). Results
+unit tests and UI tests on an iPhone simulator. Results
 are uploaded as an artifact. Keep `main` green; open a pull request for changes.
 
 `-skip-welcome -reset-demo` supports repeatable walkthroughs.

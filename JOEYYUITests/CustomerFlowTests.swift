@@ -467,8 +467,11 @@ final class CustomerFlowTests: XCTestCase {
             app.tabBars.buttons["You"].tap()
             app.buttons["settings.appearance"].tap()
             app.buttons[mode].tap()
+            settle(1.5)
             app.tabBars.buttons["Home"].tap()
-            XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: uiTimeout))
+            let heading = app.staticTexts["heading.home"]
+            XCTAssertTrue(heading.waitForExistence(timeout: uiTimeout))
+            for _ in 0..<6 where !heading.isHittable { app.swipeDown() }
             try audit(app)
             capture("Home - \(mode)", app: app)
             for id in places {
@@ -682,9 +685,10 @@ final class CustomerFlowTests: XCTestCase {
         settle()
         do {
             try performAudit(app)
-        } catch let error as NSError where error.code == -56 {
-            // "Audit failed to complete in time" is a runner timeout, not an app issue; retry once.
-            settle()
+        } catch {
+            // Appearance changes cross-fade colors, and a busy runner can time out an audit (-56).
+            // Both clear once the screen is idle; a real contrast or clipping issue fails again.
+            settle(2)
             try performAudit(app)
         }
     }
