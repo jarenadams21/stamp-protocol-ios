@@ -99,7 +99,7 @@ final class BusinessStoreTests: XCTestCase {
         let impact = store.publishImpact()
         XCTAssertEqual(impact.keepRules + impact.switchToNew, usageBefore.inProgress)
         XCTAssertGreaterThan(impact.keepRules, 0)
-        XCTAssertGreaterThan(impact.switchToNew, 0, "Sample data includes fresh cards with no punches")
+        XCTAssertGreaterThan(impact.switchToNew, 0, "Sample data includes customers who added the card before their first stamp")
         let startedCards = store.state.cards.filter { $0.status == .active && $0.punches > 0 }
 
         var draft = ProgramDraft(version: original)
@@ -206,6 +206,38 @@ final class BusinessStoreTests: XCTestCase {
             }
         }
         XCTAssertTrue(data.punches.allSatisfy { $0.occurredAt < now })
+    }
+
+    func testSampleCardsRollOverOnlyWhenTheNextStampArrives() throws {
+        let data = SampleData.norema(now: now, logoPNG: nil)
+        let byCustomer = Dictionary(grouping: data.cards, by: \.customerID)
+        for (_, cards) in byCustomer {
+            let ordered = cards.sorted { $0.createdAt < $1.createdAt }
+            // Every card except the newest is full; a full card is never followed by an empty one.
+            XCTAssertTrue(ordered.dropLast().allSatisfy { $0.status == .completed })
+            if ordered.count > 1 { XCTAssertGreaterThan(try XCTUnwrap(ordered.last).punches, 0) }
+            for (full, next) in zip(ordered, ordered.dropFirst()) {
+                let lastPunch = data.punches.filter { $0.cardID == full.id }.map(\.occurredAt).max()
+                let firstPunch = data.punches.filter { $0.cardID == next.id }.map(\.occurredAt).min()
+                XCTAssertEqual(next.createdAt, firstPunch, "The next card is created by its first stamp")
+                XCTAssertLessThan(try XCTUnwrap(lastPunch), try XCTUnwrap(firstPunch))
+            }
+        }
+    }
+
+    func testRewardsWaitingCountsUnredeemedRewardsAndStacking() throws {
+        let store = makeStore()
+        XCTAssertEqual(store.rewardsWaiting, 0)
+        store.loadNoremaSample()
+        let waiting = store.state.rewards.filter { $0.redeemedAt == nil }
+        XCTAssertEqual(store.rewardsWaiting, waiting.count)
+        XCTAssertGreaterThan(store.rewardsWaiting, 0)
+        let owners = Dictionary(uniqueKeysWithValues: store.state.cards.map { ($0.id, $0.customerID) })
+        let stacked = Dictionary(grouping: waiting, by: { owners[$0.cardID] }).values.filter { $0.count > 1 }.count
+        XCTAssertEqual(store.customersWithStackedRewards, stacked)
+        store.startOver()
+        XCTAssertEqual(store.rewardsWaiting, 0)
+        XCTAssertEqual(store.customersWithStackedRewards, 0)
     }
 
     func testDataPersistsAcrossLaunches() throws {

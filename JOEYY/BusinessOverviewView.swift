@@ -60,6 +60,18 @@ struct OverviewView: View {
                             .accessibilityIdentifier("overview.design")
                     }
 
+                    if store.currentProgram != nil, store.rewardsWaiting > 0 {
+                        Notice(
+                            symbol: "gift",
+                            title: "\(store.rewardsWaiting) rewards to redeem",
+                            message: store.customersWithStackedRewards > 0
+                                ? "Full cards roll over to a new card at the next stamp, so rewards can stack. \(store.customersWithStackedRewards) customers have more than one waiting."
+                                : "Full cards roll over to a new card at the next stamp, so rewards keep waiting until they're redeemed."
+                        )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("overview.rewardsWaiting")
+                    }
+
                     VStack(alignment: .leading, spacing: 18) {
                         SectionHeading(title: "Activity", detail: period.title)
                         Picker("Period", selection: $period) {

@@ -41,12 +41,18 @@ enum SampleData {
             let customer = UUID.random(using: &rng)
             let joinedDaysAgo = Double(Int.random(in: 1...140, using: &rng))
             var time = now.addingTimeInterval(-joinedDaysAgo * day + Double.random(in: 0..<36_000, using: &rng))
-            let visitLimit = Int.random(in: 1...36, using: &rng)
+            // Some customers add the card in the app before their first purchase.
+            let visitLimit = Double.random(in: 0..<1, using: &rng) < 0.08 ? 0 : Int.random(in: 1...36, using: &rng)
             let gaps = Int.random(in: 1...5, using: &rng)...Int.random(in: 6...16, using: &rng)
             var card = newCard(for: customer, at: time)
             var visits = 0
 
             while time < now && visits < visitLimit {
+                if card.status == .completed {
+                    // A stamp on a full card starts the next card; the full card's reward keeps waiting.
+                    cards.append(card)
+                    card = newCard(for: customer, at: time)
+                }
                 card.punches += 1
                 visits += 1
                 punches.append(PunchEvent(
@@ -55,14 +61,12 @@ enum SampleData {
                 ))
                 if card.punches == version.requiredPunches {
                     card.status = .completed
-                    cards.append(card)
                     let redeemedAt = time.addingTimeInterval(Double.random(in: 0.2...12, using: &rng) * day)
                     let redeemed = redeemedAt < now && Double.random(in: 0..<1, using: &rng) < 0.85
                     rewards.append(Reward(
                         id: .random(using: &rng), businessID: noremaBusinessID, cardID: card.id,
                         earnedAt: time, redeemedAt: redeemed ? redeemedAt : nil
                     ))
-                    card = newCard(for: customer, at: time)
                 }
                 time = time.addingTimeInterval(
                     Double(Int.random(in: gaps, using: &rng)) * day + Double.random(in: -7_200...7_200, using: &rng)

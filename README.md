@@ -60,15 +60,18 @@ Each business has one reward and a fixed
 target between 3 and 12 stamps, matching the merchant model's `requiredPunches`
 and `rewardDescription`.
 
-Open Monorail and tap **Add demo stamp** three times. A full card stays full
-until **Claim reward** is confirmed. Claiming saves a coupon in **Redeemed**
-and starts the next card at zero. Cancel leaves the full card untouched.
-The prototype blocks additional stamps while full; it does not discard stamps,
-bank overflow, or automatically reset a completed card.
+Open Monorail and tap **Add demo stamp** three times. A full card stays full,
+and collecting never waits for a claim:
 
-This claim-triggered reset is a customer-flow decision, not an implemented
-shared backend contract. The merchant app's automatic reward/reset behavior
-still needs to be reconciled before integration.
+- **Claim reward** (optional) saves the coupon in **Redeemed** and starts the next card at zero.
+  Cancel leaves the full card untouched.
+- **Add stamp to a new card** (a purchase while the card is full) saves the full card's reward
+  as an available coupon and starts a new card with that stamp as its first.
+
+Rewards stack: a customer can hold several unredeemed coupons. In production the stamp
+arrives from an NFC tap at checkout and updates the Wallet pass; the backend notifies the
+business that a new card started and a reward is waiting. See
+[docs/backend-spec.md](docs/backend-spec.md).
 
 **Redeemed** separates available and used coupons. Three historical sample
 coupons are included. Marking a coupon used is a local demo action, happens
@@ -114,7 +117,9 @@ customer app, so the card designer previews exactly what customers see.
 
 - **Welcome**: set up a business, or explore **Norema Cafe** sample data (fictional activity).
 - **Overview**: lifetime cardholders, plus stamps, rewards earned, and rewards redeemed for
-  Today / 7 / 30 / 90 days / All. Shows the live card as a Home collection tile.
+  Today / 7 / 30 / 90 days / All. Shows the live card as a Home collection tile and
+  **rewards to redeem**: rewards on full cards not yet redeemed, including customers with
+  stacked rewards. A full card rolls over to a new card at the customer's next stamp.
 - **Card**: stamps for a reward (3–12, `Place.punchRange`), the reward, and the card's
   `MerchantTheme`: contrast-checked light/dark color pairs, typeface, card stock
   (Clipped `rail`, Rounded `cloud`, Square `stone`), cover photo, and motion. The preview uses
@@ -129,7 +134,8 @@ customer app, so the card designer previews exactly what customers see.
   repository with the app version, device, iOS version, and current screen.
 
 Business data is JSON in Application Support, separate from customer data. There is no business
-sign-in, server, or link between published business cards and customer search yet; location
+sign-in, server, or link between published business cards and customer search yet (planned in
+[docs/backend-spec.md](docs/backend-spec.md)); location
 search text is sent to Apple Maps. Apple Wallet is unavailable for the same signing reason above.
 `-ui-testing -reset-demo` also clears business test data; add `-business-sample` to load Norema.
 
@@ -203,7 +209,8 @@ package with "Signature is missing". A fictional reward still needs a signed
 rendered into pass images later, within Apple's native pass layout.
 
 Product > Test runs model and simulator UI checks: full-card persistence,
-claim/cancel/reset, duplicate claim rejection, one-time coupon use, migration,
+full-card rollover and reward stacking, optional claim/cancel/reset, duplicate claim
+rejection, one-time coupon use, migration,
 search, archive/restore, model deletion, role setup/replay, settings, large text, Reduce Motion, and
 light/dark contrast, Favorites, Groups, branding validation, image loading,
 local photo persistence, and photo-picker cancellation. UI tests use isolated defaults.
@@ -212,6 +219,11 @@ local photo persistence, and photo-picker cancellation. UI tests use isolated de
 xcodebuild test -project JOEYY.xcodeproj -scheme JOEYY \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'
 ```
+
+GitHub Actions (`.github/workflows/ios.yml`) runs on every push to `main` and every pull
+request: it fails if `JOEYY.xcodeproj` differs from `xcodegen generate`, then builds and runs
+unit tests and UI tests on an iPhone simulator. Results
+are uploaded as an artifact. Keep `main` green; open a pull request for changes.
 
 `-skip-welcome -reset-demo` supports repeatable walkthroughs.
 `-ui-testing` isolates defaults; `-reset-demo` then clears only test state.
