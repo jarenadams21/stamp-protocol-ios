@@ -1,10 +1,11 @@
 # JOEYY backend specification (MVP)
 
 Status: **specification only — not implemented.** Both apps run on local sample data today.
-This document defines what the shared backend must do so the customer app and the business
-(partner) app can move off sample data. It follows the agreed partner MVP request-flow diagram
-(sign in → authenticated route → handler → database) and extends it to the customer and NFC
-flows that the diagram marks as external.
+This document defines the **one shared backend** that both the customer app and the business
+(partner) app will use once they move off sample data. It follows the agreed Partner MVP
+Excalidraw diagram (sign in → authenticated route → handler → database) and extends the same
+design to the customer app, NFC readers, and Apple Wallet. Section 2 is the architecture diagram;
+the rest of this document specifies each numbered flow in it.
 
 ## 1. Scope
 
@@ -24,21 +25,57 @@ authorization UI, and analytics workers or caches.
 
 ## 2. Architecture
 
-```
-Customer iOS app ─┐                        ┌─ Business handler ──────┐
-Partner iOS app ──┤                        ├─ Program handler ───────┤
-NFC reader ───────┼─ HTTPS ─ API routes ───┼─ Dashboard handler ─────┼─ Loyalty DB (Postgres)
-Apple Wallet ─────┘   verify token,        ├─ Customer handler ──────┤
-                      resolve caller,      ├─ Punch handler ─────────┼─ Image storage (private)
-                      authorize, validate  ├─ Wallet handler ────────┤
-                                           └─ Notification handler ──┴─ APNs (Wallet and app push)
-```
+![JOEYY shared backend: request flows and data model](architecture/shared-backend.svg)
 
+Diagram sources (open or edit at [excalidraw.com](https://excalidraw.com) via **Open**):
+
+- [`architecture/shared-backend.excalidraw`](architecture/shared-backend.excalidraw): the shared
+  backend for both apps (the diagram above).
+- [`architecture/partner-mvp.excalidraw`](architecture/partner-mvp.excalidraw): the original
+  agreed Partner MVP diagram it evolved from, kept for reference.
+
+What carries over from the Partner MVP diagram unchanged:
+
+- **One backend application.** Handlers are logical modules in one deployable API, not
+  separate services. No analytics worker or cache.
+- **The same request path** for every caller: an authenticated route, then a handler, then the
+  database. Responses return on the same connection.
+- **API routes** verify the token, resolve the caller, authorize every read and write, validate
+  input, and never trust a client-sent `businessId`.
+- **Flows 1–3** (business setup, card rules, dashboard), the image storage flow, and the
+  Business, ProgramVersion, Card, PunchEvent, and Reward tables keep their original shape.
+- **Boundaries**: one business and one active program per owner; no POS, employee roles,
+  campaigns, or manual punch authorization; NFC never writes directly to the database.
+
+What changes to make it shared:
+
+| Diagram change | Why |
+| --- | --- |
+| The customer app signs in with the same auth provider and calls the same API (flows 4–5) | One backend and one database for both apps; no separate customer service |
+| The API also resolves `customer → customerId` and `reader → businessId` | Every caller type is authorized the same way |
+| The program version becomes the **card configuration** (`MerchantTheme`, 3–12 punches) | The customer app reads exactly what the business published |
+| The external "Customer / NFC integration" becomes flow 6 (punch handler) | Rollover, deduplication, and notifications need one owner |
+| Adds Wallet handler and APNs | Pass issuance and live updates after every punch |
+| Adds the Customer, Reader, WalletRegistration, Notification, and Group tables | Customer accounts, reader credentials, push registration, and business notifications |
+| Flow 3 adds notifications and redemption | The business sees new cards and rewards to redeem |
+
+Flows in the diagram and where they are specified:
+
+| # | Caller | Flow | Handler | Spec |
+| --- | --- | --- | --- | --- |
+| 1 | Business app | Set up or edit the business | Business handler | 8.1 |
+| 2 | Business app | Read or publish the card configuration | Program handler | 3.1, 4, 8.1 |
+| 3 | Business app | Dashboard, notifications, redemption | Dashboard and notification handler | 7, 8.1, 8.4 |
+| 4 | Customer app | Discover, enroll, view cards and rewards | Customer handler | 4, 8.2 |
+| 5 | Customer app | Add to Apple Wallet | Wallet handler | 6 |
+| 6 | NFC reader | Punch at checkout | Punch handler | 4, 5 |
+
+Components:
 - **Auth provider**: an OIDC provider issues access tokens (Entra External ID was prototyped).
   The API verifies signature, issuer, audience, and expiry using the provider's published keys.
   There is no separate auth service.
 - **API routes**: every request is authenticated and the caller is resolved
-  (`ownerSubject → businessId` for partners, `subject → customerId` for customers). Every read
+  (`ownerSubject → businessId` for business owners, `subject → customerId` for customers, and the reader credential `→ businessId` for NFC readers). Every read
   and write is authorized against that identity, and input is validated. Failures return `401`,
   `403`, or `400`. **Never trust a `businessId` or `customerId` sent by a client.**
 - **Image storage**: private object storage. The backend validates and uploads images and returns

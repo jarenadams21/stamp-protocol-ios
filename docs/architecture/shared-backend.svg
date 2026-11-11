@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2608 2555" width="2608" height="2555" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#262626"/></marker>
+<marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#697586"/></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="60" y="62" font-size="32" fill="#262626" xml:space="preserve"><tspan x="60" dy="0">JOEYY - SHARED BACKEND (BUSINESS APP + CUSTOMER APP) - REQUEST FLOWS + DATA MODEL</tspan></text>
+<text x="60" y="104" font-size="18" fill="#262626" xml:space="preserve"><tspan x="60" dy="0">Evolved from the agreed Partner MVP diagram: same sign-in -&gt; authenticated route -&gt; handler -&gt; database flow, now serving both apps, NFC readers, and Apple Wallet.</tspan></text>
+<text x="60" y="134" font-size="18" fill="#262626" xml:space="preserve"><tspan x="60" dy="0">Read left to right: caller -&gt; API routes -&gt; handler -&gt; database. Highlighted handlers and tables are SHARED: written by one app, read by both.</tspan></text>
+<rect x="60" y="440" width="260" height="250" fill="none" stroke="#262626"/>
+<text x="78" y="474" font-size="20" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">Business iOS app</tspan></text>
+<text x="78" y="507" font-size="15" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">Business profile editor</tspan><tspan x="78" dy="20.25">Card designer + rules</tspan><tspan x="78" dy="20.25">Dashboard + date filter</tspan><tspan x="78" dy="20.25">Rewards to redeem</tspan><tspan x="78" dy="20.25"> </tspan><tspan x="78" dy="20.25">No cashier approval UI</tspan></text>
+<rect x="60" y="1180" width="260" height="250" fill="none" stroke="#262626"/>
+<text x="78" y="1214" font-size="20" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">Customer iOS app</tspan></text>
+<text x="78" y="1247" font-size="15" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">Discover + search</tspan><tspan x="78" dy="20.25">Add card (enroll)</tspan><tspan x="78" dy="20.25">Cards, rewards, groups</tspan><tspan x="78" dy="20.25">Optional claim</tspan><tspan x="78" dy="20.25">Add to Apple Wallet</tspan></text>
+<rect x="60" y="1860" width="260" height="190" fill="#f4f6f8" stroke="#697586" stroke-dasharray="10 7"/>
+<text x="78" y="1894" font-size="20" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">NFC reader</tspan></text>
+<text x="78" y="1927" font-size="15" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">At checkout</tspan><tspan x="78" dy="20.25">Reads the Wallet pass</tspan><tspan x="78" dy="20.25">Sends punch event</tspan><tspan x="78" dy="20.25">Own revocable credential</tspan></text>
+<rect x="60" y="2150" width="260" height="160" fill="#f4f6f8" stroke="#697586" stroke-dasharray="10 7"/>
+<text x="78" y="2184" font-size="20" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">Apple Wallet</tspan></text>
+<text x="78" y="2217" font-size="15" fill="#262626" xml:space="preserve"><tspan x="78" dy="0">Customer's iPhone</tspan><tspan x="78" dy="20.25">Pass shows progress</tspan><tspan x="78" dy="20.25">Tapped on the reader</tspan></text>
+<polyline points="190,2150 190,2060" fill="none" stroke="#697586" stroke-dasharray="10 7" marker-end="url(#m)"/>
+<text x="200" y="2112" font-size="14" fill="#697586" xml:space="preserve"><tspan x="200" dy="0">tap</tspan></text>
+<rect x="465" y="175" width="290" height="115" fill="none" stroke="#262626"/>
+<text x="483" y="209" font-size="20" fill="#262626" xml:space="preserve"><tspan x="483" dy="0">Auth provider (OIDC)</tspan></text>
+<text x="483" y="242" font-size="15" fill="#262626" xml:space="preserve"><tspan x="483" dy="0">Returns access token</tspan><tspan x="483" dy="20.25">for business + customer users</tspan></text>
+<polyline points="190,440 190,232 458,232" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<polyline points="60,1240 32,1240 32,232 458,232" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<text x="60" y="218" font-size="18" fill="#262626" xml:space="preserve"><tspan x="60" dy="0">Sign in (both apps)</tspan></text>
+<text x="790" y="205" font-size="15" fill="#262626" xml:space="preserve"><tspan x="790" dy="0">API verifies signature / issuer / audience / expiry</tspan><tspan x="790" dy="20.25">using the provider's keys (no extra auth service)</tspan></text>
+<rect x="425" y="320" width="1100" height="2040" fill="none" stroke="#bbc3cb" stroke-dasharray="10 7"/>
+<text x="450" y="350" font-size="16" fill="#697586" xml:space="preserve"><tspan x="450" dy="0">ONE BACKEND APPLICATION - handlers are logical modules, NOT separate services</tspan></text>
+<rect x="465" y="380" width="200" height="1950" fill="#f7fbfa" stroke="#262626"/>
+<text x="490" y="420" font-size="20" fill="#262626" xml:space="preserve"><tspan x="490" dy="0">API routes</tspan></text>
+<text x="482" y="460" font-size="15" fill="#262626" xml:space="preserve"><tspan x="482" dy="0">Verify token</tspan><tspan x="482" dy="20.25">(or reader</tspan><tspan x="482" dy="20.25">credential)</tspan><tspan x="482" dy="20.25"> </tspan><tspan x="482" dy="20.25">Resolve caller:</tspan><tspan x="482" dy="20.25">owner</tspan><tspan x="482" dy="20.25">-&gt; businessId</tspan><tspan x="482" dy="20.25">customer</tspan><tspan x="482" dy="20.25">-&gt; customerId</tspan><tspan x="482" dy="20.25">reader</tspan><tspan x="482" dy="20.25">-&gt; businessId</tspan><tspan x="482" dy="20.25"> </tspan><tspan x="482" dy="20.25">Authorize every</tspan><tspan x="482" dy="20.25">read / write</tspan><tspan x="482" dy="20.25"> </tspan><tspan x="482" dy="20.25">Validate input</tspan><tspan x="482" dy="20.25"> </tspan><tspan x="482" dy="20.25">401 / 403 /</tspan><tspan x="482" dy="20.25">400 on failure</tspan></text>
+<text x="482" y="875" font-size="15" fill="#262626" xml:space="preserve"><tspan x="482" dy="0">Never trust a</tspan><tspan x="482" dy="20.25">businessId or</tspan><tspan x="482" dy="20.25">customerId sent</tspan><tspan x="482" dy="20.25">by a client.</tspan></text>
+<polyline points="320,565 458,565" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<polyline points="320,1305 458,1305" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<polyline points="320,1955 458,1955" fill="none" stroke="#697586" stroke-dasharray="10 7" marker-end="url(#m)"/>
+<text x="326" y="1939" font-size="14" fill="#697586" xml:space="preserve"><tspan x="326" dy="0">HTTPS</tspan></text>
+<text x="326" y="549" font-size="14" fill="#262626" xml:space="preserve"><tspan x="326" dy="0">HTTPS</tspan></text>
+<text x="326" y="1289" font-size="14" fill="#262626" xml:space="preserve"><tspan x="326" dy="0">HTTPS</tspan></text>
+<text x="740" y="396" font-size="16" fill="#697586" xml:space="preserve"><tspan x="740" dy="0">BUSINESS APP</tspan></text>
+<ellipse cx="707" cy="427" rx="17" ry="17" fill="#d3f0e9" stroke="#262626"/>
+<text x="702" y="432" font-size="16" fill="#262626" xml:space="preserve"><tspan x="702" dy="0">1</tspan></text>
+<text x="740" y="433" font-size="18" fill="#262626" xml:space="preserve"><tspan x="740" dy="0">SET UP / EDIT BUSINESS</tspan></text>
+<text x="690" y="474" font-size="14" fill="#262626" xml:space="preserve"><tspan x="690" dy="0">GET  /v1/partner/business</tspan><tspan x="690" dy="18.900000000000002">PUT  /v1/partner/business</tspan><tspan x="690" dy="18.900000000000002">POST /v1/partner/images</tspan></text>
+<polyline points="672,427 682,427" fill="none" stroke="#262626"/>
+<polyline points="1005,515 1093,515" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1100" y="440" width="390" height="150" fill="#fff4d6" stroke="#262626"/>
+<text x="1118" y="474" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Business handler</tspan></text>
+<text x="1118" y="507" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Create / update owner's business</tspan><tspan x="1118" dy="20.25">Validate + upload logo / cover</tspan><tspan x="1118" dy="20.25">Return saved business</tspan></text>
+<polyline points="1498,515 1548,515 1548,1000 1610,1000" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<ellipse cx="707" cy="657" rx="17" ry="17" fill="#d3f0e9" stroke="#262626"/>
+<text x="702" y="662" font-size="16" fill="#262626" xml:space="preserve"><tspan x="702" dy="0">2</tspan></text>
+<text x="740" y="663" font-size="18" fill="#262626" xml:space="preserve"><tspan x="740" dy="0">READ / PUBLISH CARD CONFIGURATION</tspan></text>
+<text x="690" y="704" font-size="14" fill="#262626" xml:space="preserve"><tspan x="690" dy="0">GET  /v1/partner/program</tspan><tspan x="690" dy="18.900000000000002">GET  /v1/partner/program/versions</tspan><tspan x="690" dy="18.900000000000002">GET  .../program/publish-impact</tspan><tspan x="690" dy="18.900000000000002">POST /v1/partner/program/versions</tspan><tspan x="690" dy="18.900000000000002"> </tspan><tspan x="690" dy="18.900000000000002">{ requiredPunches: 10,</tspan><tspan x="690" dy="18.900000000000002">reward: &quot;One handcrafted drink&quot;,</tspan><tspan x="690" dy="18.900000000000002">theme: { MerchantTheme } }</tspan><tspan x="690" dy="18.900000000000002">-&gt; { versionId, version: 2 }</tspan></text>
+<polyline points="672,657 682,657" fill="none" stroke="#262626"/>
+<polyline points="1005,775 1093,775" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1100" y="670" width="390" height="210" fill="#fff4d6" stroke="#262626"/>
+<text x="1118" y="704" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Program handler</tspan></text>
+<text x="1118" y="737" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Validate 3-12 punches + reward</tspan><tspan x="1118" dy="20.25">Theme contrast &gt;= 4.5:1</tspan><tspan x="1118" dy="20.25">Txn: insert immutable version</tspan><tspan x="1118" dy="20.25">+ move live pointer</tspan><tspan x="1118" dy="20.25">0-punch cards move to new version</tspan><tspan x="1118" dy="20.25">Started cards keep their version</tspan></text>
+<polyline points="1498,775 1548,775 1548,1000 1610,1000" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<ellipse cx="707" cy="977" rx="17" ry="17" fill="#d3f0e9" stroke="#262626"/>
+<text x="702" y="982" font-size="16" fill="#262626" xml:space="preserve"><tspan x="702" dy="0">3</tspan></text>
+<text x="740" y="983" font-size="18" fill="#262626" xml:space="preserve"><tspan x="740" dy="0">VIEW DASHBOARD + NOTIFICATIONS</tspan></text>
+<text x="690" y="1024" font-size="14" fill="#262626" xml:space="preserve"><tspan x="690" dy="0">GET  /v1/partner/dashboard</tspan><tspan x="690" dy="18.900000000000002">?from=&lt;UTC&gt;&amp;to=&lt;UTC&gt;</tspan><tspan x="690" dy="18.900000000000002">GET  /v1/partner/notifications</tspan><tspan x="690" dy="18.900000000000002">POST /v1/partner/rewards/{id}/redeem</tspan></text>
+<polyline points="672,977 682,977" fill="none" stroke="#262626"/>
+<polyline points="1005,1075 1093,1075" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1100" y="990" width="390" height="170" fill="none" stroke="#262626"/>
+<text x="1118" y="1024" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Dashboard + notification handler</tspan></text>
+<text x="1118" y="1057" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Read-only SQL aggregates</tspan><tspan x="1118" dy="20.25">Scoped to the business</tspan><tspan x="1118" dy="20.25">Rewards waiting / stacked</tspan><tspan x="1118" dy="20.25">'New card' + 'reward waiting' feed</tspan></text>
+<polyline points="1498,1075 1548,1075 1548,1000 1610,1000" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<text x="740" y="1206" font-size="16" fill="#697586" xml:space="preserve"><tspan x="740" dy="0">CUSTOMER APP</tspan></text>
+<ellipse cx="707" cy="1237" rx="17" ry="17" fill="#d3f0e9" stroke="#262626"/>
+<text x="702" y="1242" font-size="16" fill="#262626" xml:space="preserve"><tspan x="702" dy="0">4</tspan></text>
+<text x="740" y="1243" font-size="18" fill="#262626" xml:space="preserve"><tspan x="740" dy="0">DISCOVER + ENROLL + VIEW CARDS</tspan></text>
+<text x="690" y="1284" font-size="14" fill="#262626" xml:space="preserve"><tspan x="690" dy="0">GET   /v1/places?query=</tspan><tspan x="690" dy="18.900000000000002">GET   /v1/places/{placeId}</tspan><tspan x="690" dy="18.900000000000002">POST  /v1/customer/cards</tspan><tspan x="690" dy="18.900000000000002">GET   /v1/customer/cards</tspan><tspan x="690" dy="18.900000000000002">GET   /v1/customer/rewards</tspan><tspan x="690" dy="18.900000000000002">POST  .../cards/{id}/claim</tspan><tspan x="690" dy="18.900000000000002">PATCH .../cards/{id}, groups</tspan></text>
+<polyline points="672,1237 682,1237" fill="none" stroke="#262626"/>
+<polyline points="1005,1355 1093,1355" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1100" y="1250" width="390" height="210" fill="none" stroke="#262626"/>
+<text x="1118" y="1284" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Customer handler</tspan></text>
+<text x="1118" y="1317" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Search name / exact client ID</tspan><tspan x="1118" dy="20.25">Reads the SAME card config</tspan><tspan x="1118" dy="20.25">the business published</tspan><tspan x="1118" dy="20.25">Enroll idempotently</tspan><tspan x="1118" dy="20.25">(1 open card per business)</tspan><tspan x="1118" dy="20.25">Claim, archive, favorite, groups</tspan></text>
+<polyline points="1498,1355 1548,1355 1548,1000 1610,1000" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<ellipse cx="707" cy="1557" rx="17" ry="17" fill="#d3f0e9" stroke="#262626"/>
+<text x="702" y="1562" font-size="16" fill="#262626" xml:space="preserve"><tspan x="702" dy="0">5</tspan></text>
+<text x="740" y="1563" font-size="18" fill="#262626" xml:space="preserve"><tspan x="740" dy="0">ADD TO APPLE WALLET</tspan></text>
+<text x="690" y="1604" font-size="14" fill="#262626" xml:space="preserve"><tspan x="690" dy="0">POST /v1/customer/cards/{id}/pass</tspan><tspan x="690" dy="18.900000000000002">/v1/wallet/*</tspan><tspan x="690" dy="18.900000000000002">(PassKit web service)</tspan></text>
+<polyline points="672,1557 682,1557" fill="none" stroke="#262626"/>
+<polyline points="1005,1645 1093,1645" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1100" y="1570" width="390" height="150" fill="none" stroke="#262626"/>
+<text x="1118" y="1604" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Wallet handler</tspan></text>
+<text x="1118" y="1637" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Sign .pkpass (cert server-only)</tspan><tspan x="1118" dy="20.25">Render from card config</tspan><tspan x="1118" dy="20.25">Register devices for updates</tspan></text>
+<polyline points="1498,1645 1548,1645 1548,1000 1610,1000" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<text x="740" y="1816" font-size="16" fill="#697586" xml:space="preserve"><tspan x="740" dy="0">DEVICES (EXTERNAL - NFC NEVER WRITES TO THE DB)</tspan></text>
+<ellipse cx="707" cy="1847" rx="17" ry="17" fill="#d3f0e9" stroke="#262626"/>
+<text x="702" y="1852" font-size="16" fill="#262626" xml:space="preserve"><tspan x="702" dy="0">6</tspan></text>
+<text x="740" y="1853" font-size="18" fill="#262626" xml:space="preserve"><tspan x="740" dy="0">NFC PUNCH AT CHECKOUT</tspan></text>
+<text x="690" y="1894" font-size="14" fill="#262626" xml:space="preserve"><tspan x="690" dy="0">POST /v1/punches</tspan><tspan x="690" dy="18.900000000000002">{ eventId, readerId,</tspan><tspan x="690" dy="18.900000000000002">passPayload, occurredAt }</tspan><tspan x="690" dy="18.900000000000002">-&gt; { cardId, punches,</tspan><tspan x="690" dy="18.900000000000002">startedNewCard,</tspan><tspan x="690" dy="18.900000000000002">rewardsAvailable }</tspan></text>
+<polyline points="672,1847 682,1847" fill="none" stroke="#262626"/>
+<polyline points="1005,1995 1093,1995" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1100" y="1860" width="390" height="270" fill="#fff4d6" stroke="#262626"/>
+<text x="1118" y="1894" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Punch handler</tspan></text>
+<text x="1118" y="1927" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1118" dy="0">Verify reader + signed pass</tspan><tspan x="1118" dy="20.25">Dedupe eventId, cooldown</tspan><tspan x="1118" dy="20.25">ONE transaction:</tspan><tspan x="1118" dy="20.25">+1 punch; full -&gt; earn reward</tspan><tspan x="1118" dy="20.25">punch on full card -&gt; NEW card</tspan><tspan x="1118" dy="20.25">(punches = 1), reward kept</tspan><tspan x="1118" dy="20.25">Then: Wallet push +</tspan><tspan x="1118" dy="20.25">business notification</tspan></text>
+<polyline points="1498,1995 1548,1995 1548,1000 1610,1000" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<rect x="1610" y="175" width="270" height="115" fill="none" stroke="#262626"/>
+<text x="1628" y="209" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1628" dy="0">Image storage</tspan></text>
+<text x="1628" y="242" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1628" dy="0">Private object storage</tspan><tspan x="1628" dy="20.25">Signed URLs to both apps</tspan></text>
+<polyline points="1498,485 1745,485 1745,298" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<ellipse cx="1745" cy="1000" rx="135" ry="95" fill="#fcfcfc" stroke="#262626"/>
+<text x="1660" y="970" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1660" dy="0">Loyalty DB</tspan></text>
+<text x="1660" y="1000" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1660" dy="0">(Postgres)</tspan><tspan x="1660" dy="20.25">single source</tspan><tspan x="1660" dy="20.25">of truth for</tspan><tspan x="1660" dy="20.25">both apps</tspan></text>
+<rect x="1610" y="1920" width="270" height="150" fill="none" stroke="#262626"/>
+<text x="1628" y="1954" font-size="20" fill="#262626" xml:space="preserve"><tspan x="1628" dy="0">APNs</tspan></text>
+<text x="1628" y="1987" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1628" dy="0">Wallet pass updates</tspan><tspan x="1628" dy="20.25">Business app pushes</tspan></text>
+<polyline points="1498,1975 1610,1975" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<polyline points="1498,1665 1578,1665 1578,2055 1610,2055" fill="none" stroke="#262626" marker-end="url(#a)"/>
+<polyline points="1745,2070 1745,2390 190,2390 190,2310" fill="none" stroke="#697586" stroke-dasharray="10 7" marker-end="url(#m)"/>
+<text x="700" y="2415" font-size="15" fill="#697586" xml:space="preserve"><tspan x="700" dy="0">Push: pass updated / new card started / rewards waiting (also to the business app)</tspan></text>
+<text x="1960" y="322" font-size="22" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">TABLES / KEY FIELDS</tspan></text>
+<text x="1960" y="351" font-size="15" fill="#697586" xml:space="preserve"><tspan x="1960" dy="0">Highlighted = shared by both apps</tspan></text>
+<rect x="1948" y="370" width="600" height="106" fill="#fff4d6" stroke="#bbc3cb"/>
+<text x="1960" y="398" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Business</tspan></text>
+<text x="1960" y="424" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), ownerSubject (UNIQUE), clientId (UNIQUE)</tspan><tspan x="1960" dy="18.900000000000002">name, location, logoKey, timeZone</tspan><tspan x="1960" dy="18.900000000000002">currentProgramVersionId (FK)</tspan></text>
+<rect x="1948" y="494" width="600" height="146" fill="#fff4d6" stroke="#bbc3cb"/>
+<text x="1960" y="522" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">ProgramVersion (immutable) = card configuration</tspan></text>
+<text x="1960" y="548" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), businessId (FK), version</tspan><tspan x="1960" dy="18.900000000000002">requiredPunches (3-12), rewardDescription</tspan><tspan x="1960" dy="18.900000000000002">theme { light/dark paper + ink, typeface,</tspan><tspan x="1960" dy="18.900000000000002">artwork, allowsMotion }, coverKey</tspan><tspan x="1960" dy="18.900000000000002">publishedAt; UNIQUE(businessId, version)</tspan></text>
+<rect x="1948" y="658" width="600" height="66" fill="none" stroke="#bbc3cb"/>
+<text x="1960" y="686" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Customer</tspan></text>
+<text x="1960" y="712" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), subject (UNIQUE), createdAt</tspan></text>
+<rect x="1948" y="742" width="600" height="126" fill="#fff4d6" stroke="#bbc3cb"/>
+<text x="1960" y="770" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Card</tspan></text>
+<text x="1960" y="796" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), businessId, customerId, programVersionId</tspan><tspan x="1960" dy="18.900000000000002">punches, status (active / completed / closed)</tspan><tspan x="1960" dy="18.900000000000002">archived, favorite, createdAt, completedAt</tspan><tspan x="1960" dy="18.900000000000002">&lt;= 1 active card per customer + business</tspan></text>
+<rect x="1948" y="886" width="600" height="106" fill="#fff4d6" stroke="#bbc3cb"/>
+<text x="1960" y="914" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">PunchEvent</tspan></text>
+<text x="1960" y="940" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), businessId, cardId, readerId</tspan><tspan x="1960" dy="18.900000000000002">eventId (UNIQUE), occurredAt</tspan><tspan x="1960" dy="18.900000000000002">Deduplicates validated reader events</tspan></text>
+<rect x="1948" y="1010" width="600" height="106" fill="#fff4d6" stroke="#bbc3cb"/>
+<text x="1960" y="1038" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Reward</tspan></text>
+<text x="1960" y="1064" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), businessId, cardId (UNIQUE), customerId</tspan><tspan x="1960" dy="18.900000000000002">earnedAt, redeemedAt (nullable)</tspan><tspan x="1960" dy="18.900000000000002">One per completed card; rewards stack</tspan></text>
+<rect x="1948" y="1134" width="600" height="66" fill="none" stroke="#bbc3cb"/>
+<text x="1960" y="1162" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Reader</tspan></text>
+<text x="1960" y="1188" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), businessId, credentialHash, revokedAt</tspan></text>
+<rect x="1948" y="1218" width="600" height="66" fill="none" stroke="#bbc3cb"/>
+<text x="1960" y="1246" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">WalletRegistration</tspan></text>
+<text x="1960" y="1272" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">deviceLibraryId, pushToken, passSerial, cardId</tspan></text>
+<rect x="1948" y="1302" width="600" height="66" fill="none" stroke="#bbc3cb"/>
+<text x="1960" y="1330" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Notification</tspan></text>
+<text x="1960" y="1356" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">id (PK), businessId, kind, payload, createdAt, readAt</tspan></text>
+<rect x="1948" y="1386" width="600" height="66" fill="none" stroke="#bbc3cb"/>
+<text x="1960" y="1414" font-size="18" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Group / GroupMember</tspan></text>
+<text x="1960" y="1440" font-size="14" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Customer-owned groups of cards</tspan></text>
+<text x="1960" y="1522" font-size="22" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">FULL-CARD ROLLOVER</tspan></text>
+<text x="1960" y="1555" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Full card (e.g. 10/10) stays full; reward earned.</tspan><tspan x="1960" dy="20.25">Next punch -&gt; NEW card with punches = 1.</tspan><tspan x="1960" dy="20.25">No claim or redemption required; rewards stack.</tspan><tspan x="1960" dy="20.25">Business is notified: new card + reward waiting.</tspan><tspan x="1960" dy="20.25">Example: v1 = 10, v2 = 8. Card A (v1) still</tspan><tspan x="1960" dy="20.25">needs 10; new and rollover cards use v2.</tspan></text>
+<text x="1960" y="1712" font-size="22" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">DASHBOARD COUNT SEMANTICS</tspan></text>
+<text x="1960" y="1745" font-size="15" fill="#262626" xml:space="preserve"><tspan x="1960" dy="0">Enrolled = lifetime unique customers,</tspan><tspan x="1960" dy="20.25">not cards (cards roll over).</tspan><tspan x="1960" dy="20.25">Activity = from &lt;= timestamp &lt; to.</tspan><tspan x="1960" dy="20.25">Earned -&gt; earnedAt; redeemed -&gt; redeemedAt.</tspan><tspan x="1960" dy="20.25">Rewards waiting = all-time unredeemed.</tspan><tspan x="1960" dy="20.25">Apps pick periods in business time zone;</tspan><tspan x="1960" dy="20.25">API accepts UTC instants.</tspan></text>
+<text x="60" y="2488" font-size="18" fill="#262626" xml:space="preserve"><tspan x="60" dy="0">BOUNDARIES: one business + one active program per owner. No POS, employee roles, campaigns, or manual punch authorization. NFC readers never write to the database directly.</tspan></text>
+</svg>
