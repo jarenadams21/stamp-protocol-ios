@@ -103,7 +103,7 @@ struct BusinessCardTile: View {
         let theme = design.theme
         VStack(alignment: .leading, spacing: 0) {
             BusinessCover(theme: theme, coverJPEG: design.coverJPEG)
-                .frame(height: theme.galleryHeight)
+                .frame(height: theme.stackCoverHeight)
             VStack(alignment: .leading, spacing: 10) {
                 Text(name)
                     .font(.system(.title2, design: theme.fontDesign).weight(.medium))
