@@ -85,6 +85,10 @@ struct ProfileView: View {
                     .accessibilityIdentifier("settings.setup")
                 } header: {
                     Text("App setup").foregroundStyle(.tint)
+                } footer: {
+                    Text("Local demo. Rewards are not valid in store. Businesses are unaffiliated.")
+                        .foregroundStyle(Color.muted)
+                        .accessibilityIdentifier("settings.demoDisclosure")
                 }
             }
             .scrollContentBackground(.hidden)

@@ -1,4 +1,153 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+struct CardOrderTransfer: Codable, Transferable {
+    let placeID: String
+    let collection: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
+    }
+}
+
+struct CardOrderModifier: ViewModifier {
+    let placeID: String
+    let places: [Place]
+    let collection: CardOrderCollection
+    var enabled = true
+    @Environment(LoyaltyStore.self) private var store
+    @State private var failure: String?
+
+    func body(content: Content) -> some View {
+        if enabled && places.count > 1 {
+            content
+                .draggable(CardOrderTransfer(placeID: placeID, collection: collection.key))
+                .dropDestination(for: CardOrderTransfer.self) { items, _ in
+                    guard items.count == 1, let item = items.first,
+                          item.collection == collection.key,
+                          places.contains(where: { $0.id == item.placeID }) else { return false }
+                    return move(item.placeID, to: placeID)
+                }
+                .accessibilityHint("Opens the card. Touch and hold to rearrange.")
+                .accessibilityActions {
+                    if let index = places.firstIndex(where: { $0.id == placeID }) {
+                        if index > 0 {
+                            Button("Move earlier") { _ = move(placeID, to: places[index - 1].id) }
+                            Button("Move to front") { _ = move(placeID, to: places[0].id) }
+                        }
+                        if index < places.count - 1 {
+                            Button("Move later") { _ = move(placeID, to: places[index + 1].id) }
+                            Button("Move to back") { _ = move(placeID, to: places[places.count - 1].id) }
+                        }
+                    }
+                }
+                .alert("Couldn't reorder cards", isPresented: Binding(
+                    get: { failure != nil }, set: { if !$0 { failure = nil } }
+                )) {
+                    Button("OK") { failure = nil }
+                } message: { Text(failure ?? "") }
+        } else {
+            content
+        }
+    }
+
+    private func move(_ source: String, to target: String) -> Bool {
+        do {
+            try store.moveCard(source, to: target, in: collection)
+            return true
+        } catch {
+            failure = error.localizedDescription
+            return false
+        }
+    }
+}
+
+struct CollectionPager: View {
+    @Binding var page: Int
+    let count: Int
+    let size: Int
+    let identifier: String
+    var onCardDrop: ((CardOrderTransfer, Int) -> Bool)?
+
+    var body: some View {
+        let window = CollectionWindow(count: count, page: page, size: size)
+        if window.pages > 1 {
+            HStack(spacing: 12) {
+                Button {
+                    page = window.index - 1
+                } label: {
+                    Image(systemName: "chevron.left").frame(width: 44, height: 44)
+                }
+                .disabled(window.index == 0)
+                .accessibilityLabel("Previous page")
+                .accessibilityIdentifier("\(identifier).previous")
+                .dropDestination(for: CardOrderTransfer.self) { items, _ in
+                    guard items.count == 1, let item = items.first,
+                          onCardDrop?(item, window.index - 1) == true else { return false }
+                    page = window.index - 1
+                    return true
+                }
+                .accessibilityHint(onCardDrop == nil ? "" : "Drop a card here to move it to the previous page.")
+                Spacer(minLength: 0)
+                Text("\(window.index + 1) of \(window.pages)")
+                    .font(.subheadline.monospacedDigit())
+                    .accessibilityLabel("Page")
+                    .accessibilityValue("\(window.index + 1) of \(window.pages)")
+                    .accessibilityIdentifier("\(identifier).position")
+                Spacer(minLength: 0)
+                Button {
+                    page = window.index + 1
+                } label: {
+                    Image(systemName: "chevron.right").frame(width: 44, height: 44)
+                }
+                .disabled(window.index == window.pages - 1)
+                .accessibilityLabel("Next page")
+                .accessibilityIdentifier("\(identifier).next")
+                .dropDestination(for: CardOrderTransfer.self) { items, _ in
+                    guard items.count == 1, let item = items.first,
+                          onCardDrop?(item, window.index + 1) == true else { return false }
+                    page = window.index + 1
+                    return true
+                }
+                .accessibilityHint(onCardDrop == nil ? "" : "Drop a card here to move it to the next page.")
+            }
+        }
+    }
+}
+
+struct SelectionRow: View {
+    let title: String
+    var subtitle: String? = nil
+    let selected: Bool
+    var partiallySelected = false
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).fixedSize(horizontal: false, vertical: true)
+                    if let subtitle {
+                        Text(subtitle).font(.caption).foregroundStyle(Color.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: selected ? "checkmark.circle.fill" : partiallySelected ? "minus.circle.fill" : "circle")
+                    .font(.title3).accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(selected ? "Selected" : partiallySelected ? "Some selected" : "Not selected")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
+    }
+}
 
 enum AppAccent: String, CaseIterable, Identifiable, Sendable {
     case orange = "Orange"
@@ -240,6 +389,8 @@ struct PunchCard: View {
     var reward: String? = nil
     /// Renders an unpublished theme, such as the business side's card preview.
     var themeOverride: MerchantTheme? = nil
+    var target: Int? = nil
+    var rewardIdentifier = ""
     @Environment(\.reduceCardMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(MerchantBrandingStore.self) private var branding
@@ -248,6 +399,7 @@ struct PunchCard: View {
     private var theme: MerchantTheme { themeOverride ?? branding.theme(for: place) }
     private var allowsMotion: Bool { !reduceMotion && theme.allowsMotion }
     private var stock: PunchCardStock { PunchCardStock(artwork: theme.artwork) }
+    private var requiredPunches: Int { target ?? place.requiredPunches }
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 16 : 24) {
@@ -266,7 +418,7 @@ struct PunchCard: View {
                 columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columns),
                 spacing: compact ? 12 : 22
             ) {
-                ForEach(0..<place.requiredPunches, id: \.self) { index in
+                ForEach(0..<requiredPunches, id: \.self) { index in
                     ZStack {
                         if index < stamps {
                             PunchHole(seed: index)
@@ -284,7 +436,7 @@ struct PunchCard: View {
                         } else {
                             Circle()
                                 .strokeBorder(theme.ink, lineWidth: 1)
-                            if index == place.requiredPunches - 1 {
+                            if index == requiredPunches - 1 {
                                 Circle().strokeBorder(theme.ink, lineWidth: 1)
                                     .padding(compact ? 3 : 4)
                             }
@@ -297,12 +449,30 @@ struct PunchCard: View {
                     .frame(width: compact ? 24 : min(diameter, 54), height: compact ? 24 : min(diameter, 54))
                     .rotationEffect(.degrees(index < stamps ? Double((index * 7) % 5) - 2 : 0))
                     .offset(y: index < stamps ? CGFloat(index % 3 - 1) * 1.5 : 0)
+                    .animation(allowsMotion ? .easeIn(duration: 0.12).delay(0.14) : nil, value: stamps)
+                    .overlay {
+                        if !compact {
+                            PunchTool()
+                                .frame(width: 42, height: 94)
+                                .phaseAnimator([0, 1, 2, 3], trigger: stamps) { tool, phase in
+                                    tool
+                                        .rotationEffect(.degrees(phase == 1 ? -18 : -8), anchor: .bottom)
+                                        .offset(x: 8, y: phase == 1 ? -62 : -26)
+                                        .opacity(allowsMotion && index == stamps - 1 && (phase == 1 || phase == 2) ? 1 : 0)
+                                        .scaleEffect(y: phase == 2 ? 0.8 : 1, anchor: .bottom)
+                                } animation: { phase in
+                                    allowsMotion ? .easeInOut(duration: phase == 2 ? 0.12 : 0.18) : nil
+                                }
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .accessibilityHidden(true)
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(stamps) of \(place.requiredPunches) stamps")
-            .accessibilityValue(stamps == place.requiredPunches ? "Complete" : "Collecting")
+            .accessibilityLabel("\(stamps) of \(requiredPunches) stamps")
+            .accessibilityValue(stamps == requiredPunches ? "Complete" : "Collecting")
             .accessibilityIdentifier("card.progress")
         }
         .foregroundStyle(theme.ink)
@@ -339,19 +509,44 @@ struct PunchCard: View {
         }
     }
 
+    private struct PunchTool: View {
+        var body: some View {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(LinearGradient(
+                        colors: [.gray, .white, .gray],
+                        startPoint: .leading, endPoint: .trailing
+                    ))
+                    .frame(width: 30, height: 38)
+                Capsule()
+                    .fill(Color(white: 0.2).gradient)
+                    .frame(width: 18, height: 78)
+                    .rotationEffect(.degrees(-12), anchor: .bottom)
+                    .offset(y: -14)
+                Circle()
+                    .fill(Color(white: 0.65).gradient)
+                    .frame(width: 12, height: 12)
+                    .overlay(Circle().stroke(.black.opacity(0.5)))
+                    .offset(y: -20)
+            }
+            .shadow(color: .black.opacity(0.3), radius: 3, x: 2, y: 4)
+        }
+    }
+
     private var rewardTitle: some View {
         Text(reward ?? place.rewardDescription)
             .font(.system(compact ? .subheadline : .title2, design: theme.fontDesign).weight(.semibold))
             .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier(rewardIdentifier)
     }
 
     private var rewardTarget: some View {
-        Text("\(place.requiredPunches) stamps").font(.caption.monospacedDigit()).fixedSize()
+        Text("\(requiredPunches) stamps").font(.caption.monospacedDigit()).fixedSize()
     }
 
     private var columns: Int {
-        if compact && !typeSize.isAccessibilitySize { return place.requiredPunches }
-        return typeSize.isAccessibilitySize ? 3 : (place.requiredPunches + 1) / 2
+        if compact && !typeSize.isAccessibilitySize { return min(requiredPunches, 6) }
+        return typeSize.isAccessibilitySize ? 3 : (requiredPunches + 1) / 2
     }
 }
 

@@ -49,8 +49,6 @@ struct PlaceDetailView: View {
                         if let url = URL(string: place.website) {
                             Link("Business website", destination: url)
                         }
-                        Text("One stamp per visit. Claiming saves a coupon in Redeemed and starts a new card. No expiry.")
-                        Text("Demo offers, artwork, and client IDs. Not affiliated with these businesses.")
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Client ID").font(.caption).foregroundStyle(.tint)
                             Text(place.clientID)
@@ -69,19 +67,23 @@ struct PlaceDetailView: View {
                     .padding(.top, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
-                    Text("Program details").font(.subheadline.weight(.medium))
+                    Text("Place details").font(.subheadline.weight(.medium))
                 }
                 .padding(20)
                 .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
 
                 if let membership {
-                    VStack(alignment: .leading, spacing: 18) {
-                        SectionHeading(title: "Activity")
-                        ForEach(membership.events.prefix(3)) { HistoryRow(event: $0) }
-                        if membership.events.count > 3 {
-                            Button("See all activity") { sheet = .history }
-                                .font(.subheadline).frame(minHeight: 44)
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 18) {
+                            ForEach(membership.events.prefix(3)) { HistoryRow(event: $0) }
+                            if membership.events.count > 3 {
+                                Button("See all activity") { sheet = .history }
+                                    .font(.subheadline).frame(minHeight: 44)
+                            }
                         }
+                        .padding(.top, 16)
+                    } label: {
+                        Text("Activity").font(.subheadline.weight(.medium))
                     }
                     .padding(20)
                     .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
@@ -105,7 +107,14 @@ struct PlaceDetailView: View {
                         }
                         Button("Groups", systemImage: "folder") { sheet = .groups }
                         Button("Preview branding", systemImage: "photo") { sheet = .branding }
-                        Button("Archive card", systemImage: "archivebox") { confirmingArchive = true }
+                        Button("Queue demo stamp", systemImage: "clock.badge.plus") {
+                            do {
+                                try store.enqueueStamp(to: place, id: UUID())
+                                feedback = "Stamp received."
+                            } catch { failure = error.localizedDescription }
+                        }
+                        .accessibilityIdentifier("detail.queueStamp")
+                        Button("Move to Memories", systemImage: "tray.and.arrow.down") { confirmingArchive = true }
                     } label: {
                         Image(systemName: "ellipsis").frame(width: 44, height: 44)
                     }
@@ -119,10 +128,6 @@ struct PlaceDetailView: View {
                 BrandingPreviewView(place: place)
             case .groups:
                 GroupMembershipView(place: place)
-            case .wallet:
-                WalletStatusView()
-            case .showCard:
-                CounterCardView(place: place)
             case .history:
                 NavigationStack {
                     List(membership?.events ?? []) { event in
@@ -160,15 +165,15 @@ struct PlaceDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Save a demo coupon in Redeemed and start a fresh card.")
+            Text("Save the ticket in Redeemed and start your next card.")
         }
-        .confirmationDialog("Archive this card?", isPresented: $confirmingArchive, titleVisibility: .visible) {
-            Button("Archive card") {
+        .confirmationDialog("Move this card to Memories?", isPresented: $confirmingArchive, titleVisibility: .visible) {
+            Button("Move to Memories") {
                 store.setArchived(true, for: place)
                 dismiss()
             }
         } message: {
-            Text("Stamps and activity are retained. Restore the card from Archived cards on Home.")
+            Text("Keep this card's current punches in Memories. Available rewards stay usable.")
         }
         .alert("Unable to update card", isPresented: Binding(
             get: { failure != nil },
@@ -199,69 +204,55 @@ struct PlaceDetailView: View {
         VStack(alignment: .leading, spacing: 18) {
             PunchCard(place: place, stamps: stamps)
             if active {
+                if let membership {
+                    if !membership.pendingStamps.isEmpty {
+                        Label(
+                            "\(membership.pendingStamps.count) \(membership.pendingStamps.count == 1 ? "stamp" : "stamps") queued",
+                            systemImage: "clock"
+                        )
+                        .font(.subheadline)
+                        .accessibilityIdentifier("detail.pendingStamps")
+                    }
+                    let available = membership.coupons.filter { $0.usedAt == nil }.count
+                    if available > 0 {
+                        Text("\(available) available \(available == 1 ? "reward" : "rewards") in Redeemed")
+                            .font(.subheadline)
+                            .accessibilityIdentifier("detail.availableRewards")
+                    }
+                }
                 if complete {
                     Button("Claim reward") { confirmingRedemption = true }
                         .buttonStyle(PrimaryButton())
                         .accessibilityIdentifier("detail.claim")
-                }
-                if complete {
-                    stampButton.buttonStyle(SecondaryButton())
                 } else {
-                    stampButton.buttonStyle(PrimaryButton())
+                    Button("Add demo stamp") {
+                        do {
+                            try withAnimation(reduceMotion || !theme.allowsMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
+                                try store.addStamp(to: place)
+                            }
+                            stampFeedback.toggle()
+                        } catch { failure = error.localizedDescription }
+                    }
+                    .buttonStyle(PrimaryButton())
+                    .accessibilityIdentifier("detail.simulateVisit")
                 }
-                if complete {
-                    Text("Your reward is saved even if you keep collecting. The next stamp starts a new card.")
-                        .font(.footnote).foregroundStyle(Color.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("detail.rolloverNote")
-                }
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) { customerCodeButton; walletButton }
-                    VStack(spacing: 12) { customerCodeButton; walletButton }
-                }
-                .buttonStyle(SecondaryButton())
             } else {
                 Button(membership == nil ? "Add card" : "Restore card") { store.join(place) }
                     .buttonStyle(PrimaryButton())
                     .accessibilityIdentifier("detail.join")
             }
-            Text("Demo program. Not a real offer.")
-                .font(.footnote.weight(.medium)).foregroundStyle(Color.primary)
         }
-    }
-
-    private var stampButton: some View {
-        Button(complete ? "Add stamp to a new card" : "Add demo stamp") {
-            do {
-                let outcome = try withAnimation(reduceMotion || !theme.allowsMotion ? nil : .spring(response: 0.25, dampingFraction: 0.8)) {
-                    try store.addStamp(to: place)
-                }
-                stampFeedback.toggle()
-                if case .startedNewCard(let coupon) = outcome { sheet = .coupon(coupon.id) }
-            } catch { failure = error.localizedDescription }
-        }
-        .accessibilityIdentifier("detail.simulateVisit")
-    }
-
-    private var customerCodeButton: some View {
-        Button("Show card") { sheet = .showCard }.accessibilityIdentifier("detail.showCard")
-    }
-
-    private var walletButton: some View {
-        Button("Apple Wallet") { sheet = .wallet }.accessibilityIdentifier("detail.wallet")
     }
 }
 
 private enum DetailSheet: Identifiable {
-    case wallet, showCard, history, branding, groups
+    case history, branding, groups
     case coupon(UUID)
 
     var id: String {
         switch self {
         case .branding: "branding"
         case .groups: "groups"
-        case .wallet: "wallet"
-        case .showCard: "showCard"
         case .history: "history"
         case .coupon(let id): "coupon.\(id.uuidString)"
         }
@@ -304,57 +295,5 @@ struct HistoryRow: View {
         }
         .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
-    }
-}
-
-struct WalletStatusView: View {
-    var message = "Apple Wallet isn't implemented yet."
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 24) {
-                Image(systemName: "wallet.bifold").font(.largeTitle).foregroundStyle(.tint)
-                PageTitle(text: message, size: 28)
-                    .accessibilityIdentifier("wallet.status")
-            }
-            .padding(28)
-            .frame(maxWidth: 560, maxHeight: .infinity, alignment: .topLeading)
-            .frame(maxWidth: .infinity)
-            .background { AppBackground() }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-private struct CounterCardView: View {
-    let place: Place
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    PlaceMark(place: place, size: 44).foregroundStyle(.tint)
-                    PageTitle(text: place.name, size: 30)
-                    Text("Customer codes aren't implemented yet.")
-                        .foregroundStyle(Color.muted)
-                }
-                .padding(28)
-                .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background { AppBackground() }
-            .appNavigationTitle("Customer card")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
     }
 }

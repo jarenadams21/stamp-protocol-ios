@@ -25,9 +25,28 @@ struct JOEYYApp: App {
         self.defaults = defaults
         _appearance = AppStorage(wrappedValue: "System", "appearance", store: defaults)
         _accent = AppStorage(wrappedValue: AppAccent.orange.rawValue, "accent", store: defaults)
-        _store = State(initialValue: LoyaltyStore(
-            defaults: defaults, reset: arguments.contains("-reset-demo")
-        ))
+        let store = LoyaltyStore(defaults: defaults, reset: arguments.contains("-reset-demo"))
+        if arguments.contains("-ui-testing") && arguments.contains("-reset-demo") &&
+            arguments.contains("-many-groups") {
+            do {
+                for index in 1...64 {
+                    try store.saveGroup(name: String(format: "Collection %03d", index), placeIDs: [])
+                }
+            } catch { assertionFailure("Could not create test groups: \(error.localizedDescription)") }
+        }
+        if arguments.contains("-ui-testing") && arguments.contains("-reset-demo") &&
+            arguments.contains("-many-rewards") {
+            do {
+                let place = Place.samples[1]
+                for _ in 0..<12 {
+                    if store.membership(for: place)?.stamps != place.requiredPunches {
+                        for _ in 0..<place.requiredPunches { try store.addStamp(to: place) }
+                    }
+                    try store.claimReward(at: place)
+                }
+            } catch { assertionFailure("Could not create test rewards: \(error.localizedDescription)") }
+        }
+        _store = State(initialValue: store)
         let directory = URL.applicationSupportDirectory.appendingPathComponent(
             arguments.contains("-ui-testing") ? "TestBrandingPreviews" : "BrandingPreviews"
         )

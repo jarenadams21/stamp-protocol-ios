@@ -42,6 +42,243 @@ final class LoyaltyStoreTests: XCTestCase {
         XCTAssertTrue(store.redemptions.allSatisfy(\.isAvailable))
     }
 
+    func testCardOrderingPersistsWithoutChangingLoyaltyOrGroupMembers() throws {
+        let group = try store.saveGroup(name: "Coffee", placeIDs: Place.samples.map(\.id))
+        let memberships = store.memberships
+        let groups = store.groups
+        try store.moveCard("five-stones-kirkland", to: "monorail-pike", in: .home)
+        try store.moveCard("cloud-city", to: "monorail-pike", in: .group(group.id))
+        try store.moveCard("monorail-pike", to: "five-stones-kirkland", in: .redeemed)
+        XCTAssertEqual(store.ordered(store.activePlaces, in: .home).map(\.id),
+                       ["five-stones-kirkland", "monorail-pike", "cloud-city"])
+        XCTAssertEqual(store.places(in: group).map(\.id),
+                       ["cloud-city", "monorail-pike", "five-stones-kirkland"])
+        XCTAssertEqual(store.ordered(Place.samples, in: .redeemed).map(\.id),
+                       ["cloud-city", "five-stones-kirkland", "monorail-pike"])
+        XCTAssertEqual(store.memberships, memberships)
+        XCTAssertEqual(store.groups, groups)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertEqual(restored.cardOrders, store.cardOrders)
+        XCTAssertEqual(restored.memberships, memberships)
+        XCTAssertEqual(restored.places(in: group), store.places(in: group))
+    }
+
+    func testFilteredMovesKeepHiddenCardsAndArchivedPositions() throws {
+        try store.moveCard("five-stones-kirkland", to: "monorail-pike", in: .home)
+        store.setArchived(true, for: Place.samples[0])
+        try store.moveCard("cloud-city", to: "five-stones-kirkland", in: .home)
+        XCTAssertEqual(store.ordered(store.activePlaces, in: .home).map(\.id),
+                       ["cloud-city", "five-stones-kirkland"])
+        store.setArchived(false, for: Place.samples[0])
+        XCTAssertEqual(store.ordered(store.activePlaces, in: .home).map(\.id),
+                       ["cloud-city", "five-stones-kirkland", "monorail-pike"])
+        store.join(Place.discoverable[0])
+        XCTAssertEqual(store.ordered(store.activePlaces, in: .home).last, Place.discoverable[0])
+    }
+
+    func testRedeemedReorderingUsesCurrentRewardRecencyAndSurvivesUse() throws {
+        try store.claimReward(at: Place.samples[1])
+        try store.moveCard("five-stones-kirkland", to: "cloud-city", in: .redeemed)
+        XCTAssertEqual(store.ordered(Place.samples, in: .redeemed).map(\.id),
+                       ["five-stones-kirkland", "cloud-city", "monorail-pike"])
+        let coupon = try XCTUnwrap(store.membership(for: Place.samples[1])?.coupons.first)
+        try store.useCoupon(coupon.id)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).cardOrders, store.cardOrders)
+    }
+
+    func testInvalidCardMovesDoNotWriteOrMutateAnyCollection() throws {
+        let group = try store.saveGroup(name: "One", placeIDs: [Place.samples[0].id])
+        let before = store.memberships
+        XCTAssertThrowsError(try store.moveCard("unknown", to: "cloud-city", in: .home))
+        XCTAssertThrowsError(try store.moveCard("cloud-city", to: "monorail-pike", in: .group(group.id)))
+        XCTAssertThrowsError(try store.moveCard("cloud-city", to: "monorail-pike", in: .group(UUID())))
+        XCTAssertNil(defaults.data(forKey: "joeyy.card-orders.v1"))
+        XCTAssertEqual(store.cardOrders, [:])
+        XCTAssertEqual(store.memberships, before)
+    }
+
+    func testAdjacentMovesWorkInBothDirectionsAndSeparateGroupsKeepTheirOrders() throws {
+        let first = try store.saveGroup(name: "First", placeIDs: Place.samples.map(\.id))
+        let second = try store.saveGroup(name: "Second", placeIDs: Place.samples.map(\.id))
+        try store.moveCard("monorail-pike", to: "cloud-city", in: .group(first.id))
+        XCTAssertEqual(store.places(in: first).map(\.id),
+                       ["cloud-city", "monorail-pike", "five-stones-kirkland"])
+        XCTAssertEqual(store.places(in: second), Place.samples)
+        try store.moveCard("monorail-pike", to: "cloud-city", in: .group(first.id))
+        XCTAssertEqual(store.places(in: first), Place.samples)
+        try store.moveCard("five-stones-kirkland", to: "monorail-pike", in: .group(first.id))
+        let renamed = try store.saveGroup(id: first.id, name: "Renamed", placeIDs: first.placeIDs)
+        XCTAssertEqual(store.places(in: renamed).first, Place.samples[2])
+    }
+
+    func testRedeemedDefaultOrderIsSharedWhenAvailableAndUsedRecencyDiffer() throws {
+        let coupon = try store.claimReward(at: Place.samples[1])
+        try store.useCoupon(coupon.id)
+        let reversed = [Place.samples[0], Place.samples[1], Place.samples[2]]
+        XCTAssertEqual(store.ordered(reversed, in: .redeemed).first, Place.samples[1])
+        try store.moveCard("monorail-pike", to: "cloud-city", in: .redeemed)
+        XCTAssertEqual(store.ordered(reversed, in: .redeemed), reversed)
+    }
+
+    func testCorruptAndDuplicateCardOrdersArePreservedWithoutBlockingLoyaltyReads() throws {
+        let invalidOrders: [Any] = [
+            Data("invalid".utf8),
+            try JSONEncoder().encode(["home": ["cloud-city", "cloud-city"]]),
+            try JSONEncoder().encode(["home": ["missing"]]),
+            "not an encoded order"
+        ]
+        for saved in invalidOrders {
+            defaults.set(saved, forKey: "joeyy.card-orders.v1")
+            let restored = LoyaltyStore(defaults: defaults)
+            XCTAssertNotNil(restored.storageError)
+            XCTAssertEqual(restored.memberships, store.memberships)
+            XCTAssertThrowsError(try restored.moveCard("cloud-city", to: "monorail-pike", in: .home))
+            XCTAssertEqual(defaults.data(forKey: "joeyy.card-orders.v1"), saved as? Data)
+            XCTAssertEqual(defaults.string(forKey: "joeyy.card-orders.v1"), saved as? String)
+        }
+    }
+
+    func testResetAndFreshStartRemoveCustomOrder() throws {
+        try store.moveCard("cloud-city", to: "monorail-pike", in: .home)
+        store.resetDemo()
+        XCTAssertEqual(store.cardOrders, [:])
+        XCTAssertNil(defaults.data(forKey: "joeyy.card-orders.v1"))
+        try store.moveCard("cloud-city", to: "monorail-pike", in: .home)
+        store.deleteLocalCards()
+        XCTAssertEqual(store.cardOrders, [:])
+        XCTAssertNil(defaults.data(forKey: "joeyy.card-orders.v1"))
+    }
+
+    func testMemoriesAutomaticallyIncludeCompletedCardsWithoutConsumingRewards() throws {
+        let place = Place.samples[1]
+        let coupon = try store.claimReward(at: place)
+        let memory = try XCTUnwrap(store.memories.first { $0.id == coupon.id })
+        XCTAssertEqual(memory.stamps, 6)
+        XCTAssertEqual(memory.target, 6)
+        XCTAssertEqual(memory.status, "Available")
+        try store.addStamp(to: place)
+        XCTAssertEqual(store.memories.first { $0.id == coupon.id }, memory)
+        try store.useCoupon(coupon.id)
+        let used = try XCTUnwrap(store.memories.first { $0.id == coupon.id })
+        XCTAssertEqual(used.status, "Used")
+        XCTAssertEqual(used.stamps, memory.stamps)
+        XCTAssertEqual(used.target, memory.target)
+        XCTAssertEqual(store.membership(for: place)?.stamps, 1)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memories, store.memories)
+    }
+
+    func testUnfinishedMemoriesAreIndependentSnapshotsAcrossReturnsAndNewVisits() throws {
+        let place = Place.samples[0]
+        store.setArchived(true, for: place)
+        let first = try XCTUnwrap(store.memories.first { $0.place == place && $0.redemption == nil })
+        XCTAssertEqual(first.stamps, 5)
+        XCTAssertEqual(first.target, 8)
+        store.setArchived(true, for: place)
+        XCTAssertEqual(store.membership(for: place)?.savedCards.count, 1)
+        store.join(place)
+        try store.addStamp(to: place)
+        store.setArchived(true, for: place)
+        XCTAssertEqual(store.membership(for: place)?.savedCards.count, 2)
+        XCTAssertEqual(store.memories.first { $0.id == first.id }, first)
+        XCTAssertEqual(store.membership(for: place)?.savedCards.first?.stamps, 6)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memories, store.memories)
+    }
+
+    func testLegacyPausedMembershipGetsOneSnapshotWithoutInventingADate() throws {
+        let place = Place.samples[0]
+        var object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: XCTUnwrap(defaults.data(forKey: key))) as? [[String: Any]]
+        )
+        for index in object.indices { object[index].removeValue(forKey: "savedCards") }
+        object[0]["archived"] = true
+        defaults.set(try JSONSerialization.data(withJSONObject: object), forKey: key)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertNil(restored.storageError)
+        let cards = try XCTUnwrap(restored.membership(for: place)).savedCards
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(cards[0].stamps, 5)
+        XCTAssertNil(cards[0].savedAt)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).membership(for: place)?.savedCards, cards)
+        restored.join(place)
+        XCTAssertEqual(restored.membership(for: place)?.savedCards, cards)
+    }
+
+    func testManyCompletedMemoriesKeepUniqueIDsAndIndependentUse() throws {
+        let place = Place.samples[1]
+        for _ in 0..<24 {
+            if store.membership(for: place)?.stamps == 0 {
+                for _ in 0..<place.requiredPunches { try store.addStamp(to: place) }
+            }
+            try store.claimReward(at: place)
+        }
+        let memories = store.memories.filter { $0.place == place }
+        XCTAssertEqual(memories.count, 25)
+        XCTAssertEqual(Set(memories.map(\.id)).count, 25)
+        XCTAssertTrue(memories.allSatisfy { $0.stamps == 6 && $0.target == 6 })
+        try store.useCoupon(memories[12].id)
+        XCTAssertEqual(store.memories.filter { $0.place == place && $0.status == "Used" }.count, 1)
+        XCTAssertEqual(store.memories.filter { $0.place == place && $0.status == "Available" }.count, 24)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memories, store.memories)
+    }
+
+    func testSavedMemoryIDsCannotBeReusedForStampUpdates() throws {
+        let place = Place.samples[0]
+        store.setArchived(true, for: place)
+        let id = try XCTUnwrap(store.membership(for: place)?.savedCards.first?.id)
+        let before = store.memberships
+        XCTAssertThrowsError(try store.enqueueStamp(to: place, id: id))
+        XCTAssertEqual(store.memberships, before)
+    }
+
+    func testInvalidSavedSnapshotsDoNotReplaceStoredData() throws {
+        var members = store.memberships
+        members[0].savedCards = [SavedCard(stamps: 9, target: 8, reward: "Espresso", savedAt: .now)]
+        let data = try JSONEncoder().encode(members)
+        defaults.set(data, forKey: key)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertNotNil(restored.storageError)
+        XCTAssertTrue(restored.memberships.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: key), data)
+    }
+
+    func testCollectionWindowsBoundEveryPageAndClampAfterFiltering() {
+        for count in [0, 1, 3, 6, 7, 64, 256] {
+            var visited: [Int] = []
+            let first = CollectionWindow(count: count, page: 0, size: 6)
+            for page in 0..<first.pages {
+                let window = CollectionWindow(count: count, page: page, size: 6)
+                XCTAssertLessThanOrEqual(window.range.count, 6)
+                visited.append(contentsOf: window.range)
+            }
+            XCTAssertEqual(visited, Array(0..<count))
+            let clamped = CollectionWindow(count: count, page: 1_000, size: 6)
+            XCTAssertEqual(clamped.index, clamped.pages - 1)
+        }
+        XCTAssertEqual(CollectionWindow(count: 2, page: 10, size: 1).range, 1..<2)
+        XCTAssertEqual(CollectionWindow(count: 2, page: -1, size: 1).range, 0..<1)
+    }
+
+    func testCollectionSearchMatchesNamesAndLocationsWithoutChangingMemberships() {
+        let before = store.memberships
+        XCTAssertEqual(store.activePlaces.filter { $0.matchesCollectionSearch("  MAPLE leaf\n") }, [Place.samples[1]])
+        XCTAssertEqual(store.activePlaces.filter { $0.matchesCollectionSearch("espresso") }, [Place.samples[0]])
+        XCTAssertEqual(store.activePlaces.filter { $0.matchesCollectionSearch(" \n ") }, store.activePlaces)
+        XCTAssertTrue(store.activePlaces.filter { $0.matchesCollectionSearch("missing place") }.isEmpty)
+        XCTAssertEqual(store.memberships, before)
+    }
+
+    func testCollectionSearchFindsLatePlaceInBoundedLargeCollection() {
+        let places = (1...256).map { index in
+            Place(
+                id: "place-\(index)", clientID: UUID().uuidString, name: "Place \(index)",
+                neighborhood: "Neighborhood \(index)", address: "", requiredPunches: 8,
+                rewardDescription: "Coffee", website: "", cardStyle: .rail
+            )
+        }
+        XCTAssertEqual(places.filter { $0.matchesCollectionSearch("Place 256") }.map(\.id), ["place-256"])
+        XCTAssertEqual(places.filter { $0.matchesCollectionSearch("Neighborhood 255") }.map(\.id), ["place-255"])
+    }
+
     func testCollectingToFullPersistsWithoutIssuingOrResetting() throws {
         let place = Place.samples[0]
         let coupons = store.redemptions
@@ -54,40 +291,29 @@ final class LoyaltyStoreTests: XCTestCase {
         XCTAssertEqual(restored.redemptions, coupons)
     }
 
-    func testStampOnFullCardSavesRewardAndStartsNewCard() throws {
+    func testFullCardRejectsMoreStampsWithoutChangingHistory() throws {
         let place = Place.samples[1]
-        let before = try XCTUnwrap(store.membership(for: place))
-        XCTAssertEqual(before.stamps, place.requiredPunches)
-        let couponCount = store.redemptions.count
-        let outcome = try store.addStamp(to: place)
-        guard case .startedNewCard(let coupon) = outcome else {
-            return XCTFail("Expected a new card, got \(outcome)")
-        }
-        let membership = try XCTUnwrap(store.membership(for: place))
-        XCTAssertEqual(membership.stamps, 1)
-        XCTAssertEqual(membership.events.count, before.events.count + 2)
-        XCTAssertEqual(membership.events.first?.kind, .stamp)
-        XCTAssertEqual(membership.events.dropFirst().first?.kind, .reward)
-        XCTAssertEqual(membership.events.dropFirst().first?.stampCost, place.requiredPunches)
-        XCTAssertEqual(store.redemptions.count, couponCount + 1)
-        XCTAssertTrue(store.redemptions.contains { $0.id == coupon.id && $0.isAvailable })
-        XCTAssertEqual(LoyaltyStore(defaults: defaults).membership(for: place), membership)
+        let before = store.memberships
+        XCTAssertThrowsError(try store.addStamp(to: place))
+        XCTAssertEqual(store.memberships, before)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memberships, before)
     }
 
     func testStampOnPartialCardDoesNotIssueReward() throws {
         let place = Place.samples[0]
         let coupons = store.redemptions
-        XCTAssertEqual(try store.addStamp(to: place), .collected)
+        try store.addStamp(to: place)
+        XCTAssertEqual(store.membership(for: place)?.stamps, 6)
         XCTAssertEqual(store.redemptions, coupons)
     }
 
-    func testRewardsStackAcrossRolledOverCards() throws {
+    func testRewardsStackAcrossClaimedQueuedCards() throws {
         let place = Place.samples[1]
         let start = store.redemptions.filter(\.isAvailable).count
-        try store.addStamp(to: place)
-        for _ in 1..<place.requiredPunches { try store.addStamp(to: place) }
+        for _ in 0...place.requiredPunches { try store.enqueueStamp(to: place, id: UUID()) }
+        try store.claimReward(at: place)
         XCTAssertEqual(store.membership(for: place)?.stamps, place.requiredPunches)
-        try store.addStamp(to: place)
+        try store.claimReward(at: place)
         XCTAssertEqual(store.membership(for: place)?.stamps, 1)
         XCTAssertEqual(store.redemptions.filter(\.isAvailable).count, start + 2)
     }
@@ -142,6 +368,9 @@ final class LoyaltyStoreTests: XCTestCase {
         let before = store.memberships
         XCTAssertThrowsError(try store.claimReward(at: altered))
         XCTAssertThrowsError(try store.addStamp(to: altered))
+        XCTAssertThrowsError(try store.enqueueStamp(to: altered, id: UUID()))
+        store.join(altered)
+        XCTAssertEqual(store.storageError, DemoError.unknownProgram.localizedDescription)
         XCTAssertEqual(store.memberships, before)
     }
 
@@ -315,13 +544,17 @@ final class LoyaltyStoreTests: XCTestCase {
 
     func testArchiveRestoreAndDuplicateJoinPreserveStampsAndCoupons() {
         let place = Place.samples[0]
-        let before = store.membership(for: place)
+        var expected = store.membership(for: place)
         store.setArchived(true, for: place)
         XCTAssertFalse(store.activePlaces.contains(place))
+        let snapshots = store.membership(for: place)?.savedCards ?? []
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshots.first?.stamps, expected?.stamps)
+        expected?.savedCards = snapshots
         store.join(place)
         store.join(place)
         XCTAssertEqual(store.memberships.filter { $0.id == place.id }.count, 1)
-        XCTAssertEqual(store.membership(for: place), before)
+        XCTAssertEqual(store.membership(for: place), expected)
     }
 
     func testDeletedProgramCanBeRejoinedWithAnEmptyCard() {
@@ -384,6 +617,163 @@ final class LoyaltyStoreTests: XCTestCase {
         XCTAssertNil(restored.storageError)
         XCTAssertEqual(restored.memberships.first?.stamps, 3)
         XCTAssertEqual(restored.memberships.first?.isFavorite, false)
+        XCTAssertEqual(restored.memberships.first?.pendingStamps, [])
+    }
+
+    func testQueuedStampIsIdempotentBeforeAndAfterRelaunch() throws {
+        let place = Place.samples[0]
+        let id = UUID()
+        XCTAssertTrue(try store.enqueueStamp(to: place, id: id))
+        XCTAssertEqual(store.membership(for: place)?.stamps, 6)
+        XCTAssertFalse(try store.enqueueStamp(to: place, id: id))
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertFalse(try restored.enqueueStamp(to: place, id: id))
+        XCTAssertEqual(restored.membership(for: place)?.events.filter { $0.id == id }.count, 1)
+        XCTAssertEqual(restored.membership(for: place)?.stamps, 6)
+    }
+
+    func testFullCardQueuesWithoutResetAndClaimDrainsOnlyNextCardCapacity() throws {
+        let place = Place.samples[1]
+        let ids = (0..<8).map { _ in UUID() }
+        for id in ids { XCTAssertTrue(try store.enqueueStamp(to: place, id: id)) }
+        XCTAssertEqual(store.membership(for: place)?.stamps, 6)
+        XCTAssertEqual(store.membership(for: place)?.pendingStamps.map(\.id), ids)
+        XCTAssertFalse(try store.enqueueStamp(to: place, id: ids[0]))
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertNil(restored.storageError)
+        XCTAssertEqual(restored.membership(for: place)?.pendingStamps.map(\.id), ids)
+        let before = restored.redemptions.count
+        try restored.claimReward(at: place)
+        XCTAssertEqual(restored.redemptions.count, before + 1)
+        XCTAssertEqual(restored.membership(for: place)?.stamps, 6)
+        XCTAssertEqual(restored.membership(for: place)?.pendingStamps.map(\.id), Array(ids.suffix(2)))
+        try restored.claimReward(at: place)
+        XCTAssertEqual(restored.membership(for: place)?.stamps, 2)
+        XCTAssertEqual(restored.membership(for: place)?.pendingStamps, [])
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memberships, restored.memberships)
+    }
+
+    func testArchivedQueueWaitsAcrossRelaunchAndRestoreAppliesInArrivalOrder() throws {
+        let place = Place.samples[0]
+        store.setArchived(true, for: place)
+        let ids = (0..<4).map { _ in UUID() }
+        for (index, id) in ids.enumerated() {
+            try store.enqueueStamp(to: place, id: id, receivedAt: Date(timeIntervalSince1970: Double(index)))
+        }
+        XCTAssertEqual(store.membership(for: place)?.stamps, 5)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertEqual(restored.membership(for: place)?.pendingStamps.map(\.id), ids)
+        restored.join(place)
+        XCTAssertEqual(restored.membership(for: place)?.stamps, 8)
+        XCTAssertEqual(restored.membership(for: place)?.pendingStamps.map(\.id), [ids[3]])
+        XCTAssertEqual(restored.membership(for: place)?.events.prefix(3).map(\.id), Array(ids.prefix(3).reversed()))
+        XCTAssertEqual(restored.membership(for: place)?.events.first?.date, Date(timeIntervalSince1970: 2))
+    }
+
+    func testInterruptedQueuedWriteIsProcessedOnLaunchOnlyOnce() throws {
+        let id = UUID()
+        var saved = store.memberships
+        saved[0].pendingStamps = [StampUpdate(id: id, receivedAt: .now)]
+        defaults.set(try JSONEncoder().encode(saved), forKey: key)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertNil(restored.storageError)
+        XCTAssertEqual(restored.memberships[0].stamps, 6)
+        XCTAssertTrue(restored.memberships[0].pendingStamps.isEmpty)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memberships, restored.memberships)
+    }
+
+    func testLegacyDisabledStackingLoadsWithoutBlockingClaimsOrLosingData() throws {
+        let place = Place.samples[1]
+        store.setArchived(true, for: place)
+        store.join(place)
+        try store.saveGroup(name: "Coffee", placeIDs: [place.id])
+        try store.moveCard(place.id, to: Place.samples[0].id, in: .home)
+        try store.enqueueStamp(to: place, id: UUID())
+        let before = store.memberships
+        var records = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(before)) as? [[String: Any]]
+        )
+        for index in records.indices {
+            records[index]["stacksRewards"] = false
+        }
+        defaults.set(try JSONSerialization.data(withJSONObject: records), forKey: key)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertNil(restored.storageError)
+        XCTAssertEqual(restored.memberships, before)
+        XCTAssertEqual(restored.groups, store.groups)
+        XCTAssertEqual(restored.cardOrders, store.cardOrders)
+        let previous = try XCTUnwrap(restored.membership(for: place))
+        let coupon = try restored.claimReward(at: place)
+        XCTAssertEqual(restored.membership(for: place)?.stamps, 1)
+        XCTAssertEqual(restored.membership(for: place)?.pendingStamps, [])
+        XCTAssertEqual(restored.membership(for: place)?.savedCards, previous.savedCards)
+        XCTAssertEqual(restored.membership(for: place)?.coupons, [coupon] + previous.coupons)
+        XCTAssertEqual(restored.redemptions.filter { $0.place == place && $0.isAvailable }.count, 2)
+        let reloaded = LoyaltyStore(defaults: defaults)
+        XCTAssertEqual(reloaded.memberships, restored.memberships)
+        XCTAssertEqual(reloaded.groups, store.groups)
+        XCTAssertEqual(reloaded.cardOrders, store.cardOrders)
+        let saved = try XCTUnwrap(defaults.data(forKey: key))
+        let rewritten = try XCTUnwrap(JSONSerialization.jsonObject(with: saved) as? [[String: Any]])
+        XCTAssertTrue(rewritten.allSatisfy { $0["stacksRewards"] == nil })
+    }
+
+    func testImplicitStackingRetainsPreviouslyIssuedRewardsAcrossRelaunch() throws {
+        let place = Place.samples[1]
+        try store.claimReward(at: place)
+        XCTAssertEqual(store.redemptions.filter { $0.place == place && $0.isAvailable }.count, 2)
+        let restored = LoyaltyStore(defaults: defaults)
+        XCTAssertEqual(restored.memberships, store.memberships)
+        let coupon = try XCTUnwrap(restored.membership(for: place)?.coupons.first)
+        try restored.useCoupon(coupon.id)
+        XCTAssertEqual(restored.redemptions.filter { $0.place == place && $0.isAvailable }.count, 1)
+        XCTAssertEqual(restored.membership(for: place)?.stamps, 0)
+    }
+
+    func testQueueRejectsUnjoinedPrograms() {
+        let before = store.memberships
+        XCTAssertThrowsError(try store.enqueueStamp(to: Place.discoverable[0], id: UUID()))
+        XCTAssertEqual(store.memberships, before)
+        store.deleteLocalCards()
+        XCTAssertThrowsError(try store.enqueueStamp(to: Place.samples[0], id: UUID()))
+    }
+
+    func testQueueRejectsCrossCardIDsRewardIDsAndInvalidDatesWithoutMutation() throws {
+        let place = Place.samples[0]
+        let id = UUID()
+        try store.enqueueStamp(to: place, id: id)
+        let rewardID = try XCTUnwrap(store.membership(for: place)?.coupons.first?.id)
+        let before = store.memberships
+        XCTAssertThrowsError(try store.enqueueStamp(to: Place.samples[1], id: id))
+        XCTAssertThrowsError(try store.enqueueStamp(to: place, id: rewardID))
+        XCTAssertThrowsError(try store.enqueueStamp(
+            to: place, id: UUID(), receivedAt: Date(timeIntervalSinceReferenceDate: .infinity)
+        ))
+        XCTAssertEqual(store.memberships, before)
+        XCTAssertEqual(LoyaltyStore(defaults: defaults).memberships, before)
+    }
+
+    func testInvalidQueuesAndHistoricalTargetsDoNotOverwriteSavedData() throws {
+        let update = StampUpdate(id: UUID(), receivedAt: .now)
+        var duplicate = store.memberships
+        duplicate[0].pendingStamps = [update, update]
+        var collision = store.memberships
+        collision[0].pendingStamps = [StampUpdate(id: try XCTUnwrap(collision[1].events.first).id, receivedAt: .now)]
+        var crossCard = store.memberships
+        crossCard[0].pendingStamps = [update]
+        crossCard[1].pendingStamps = [update]
+        var invalidTarget = store.memberships
+        invalidTarget[0].events.append(VisitEvent(kind: .reward, date: .now, rewardTitle: "Invalid", stampCost: Int.max))
+        for saved in [duplicate, collision, crossCard, invalidTarget] {
+            let data = try JSONEncoder().encode(saved)
+            defaults.set(data, forKey: key)
+            let restored = LoyaltyStore(defaults: defaults)
+            XCTAssertNotNil(restored.storageError)
+            XCTAssertTrue(restored.memberships.isEmpty)
+            restored.join(Place.discoverable[0])
+            XCTAssertThrowsError(try restored.enqueueStamp(to: Place.samples[0], id: UUID()))
+            XCTAssertEqual(defaults.data(forKey: key), data)
+        }
     }
 
     func testGroupsPersistRenameAndAllowOneCardInMultipleGroups() throws {

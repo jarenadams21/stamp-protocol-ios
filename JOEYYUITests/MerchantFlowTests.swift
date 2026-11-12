@@ -134,14 +134,33 @@ final class MerchantFlowTests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
-    func testSwitchingBackToCustomerKeepsBusinessData() {
+    func testSwitchingExperiencesPreservesBothDataSetsAcrossRelaunch() {
         let app = launchSample()
+        let enrolled = app.descendants(matching: .any)["overview.metric.enrolled"].label
         app.tabBars.buttons["You"].tap()
         let setup = app.buttons["settings.setup"]
         scrollTo(setup, in: app)
         setup.tap()
         app.buttons["setup.customer"].tap()
-        XCTAssertTrue(app.staticTexts["heading.home"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["home.collection"].waitForExistence(timeout: 10))
+        let card = app.buttons["card.cloud-city"]
+        scrollTo(card, in: app)
+        card.tap()
+        let progress = app.descendants(matching: .any)["card.progress"]
+        XCTAssertEqual(progress.label, "6 of 6 stamps")
+        app.buttons["Card options"].tap()
+        app.buttons["Favorite"].tap()
+        app.buttons["Card options"].tap()
+        app.buttons["detail.queueStamp"].tap()
+        XCTAssertEqual(app.staticTexts["detail.pendingStamps"].label, "1 stamp queued")
+        app.buttons["detail.claim"].tap()
+        app.alerts.buttons["Claim reward"].tap()
+        XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: 10))
+        app.buttons["coupon.use"].tap()
+        app.alerts.buttons["Mark as used"].tap()
+        XCTAssertEqual(app.staticTexts["coupon.status"].label, "USED")
+        app.buttons["Done"].tap()
+        XCTAssertEqual(progress.label, "1 of 6 stamps")
         app.tabBars.buttons["You"].tap()
         let customerSetup = app.buttons["settings.setup"]
         scrollTo(customerSetup, in: app)
@@ -149,6 +168,27 @@ final class MerchantFlowTests: XCTestCase {
         app.buttons["setup.business"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["overview.metric.enrolled"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Norema Cafe"].exists)
+        XCTAssertEqual(app.descendants(matching: .any)["overview.metric.enrolled"].label, enrolled)
+        app.terminate()
+        app.launchArguments = ["-ui-testing"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["overview.metric.enrolled"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.descendants(matching: .any)["overview.metric.enrolled"].label, enrolled)
+        app.tabBars.buttons["You"].tap()
+        scrollTo(setup, in: app)
+        setup.tap()
+        app.buttons["setup.customer"].tap()
+        XCTAssertTrue(app.buttons["home.collection"].waitForExistence(timeout: 10))
+        scrollTo(card, in: app)
+        XCTAssertTrue((card.value as? String)?.contains("Favorite") == true)
+        card.tap()
+        XCTAssertEqual(progress.label, "1 of 6 stamps")
+        XCTAssertFalse(app.staticTexts["detail.pendingStamps"].exists)
+        app.tabBars.buttons["Redeemed"].tap()
+        app.segmentedControls["redeemed.collection"].buttons["Used"].tap()
+        app.buttons["coupon.cloud-city.stack"].tap()
+        XCTAssertEqual(app.staticTexts["coupon.status"].label, "USED")
+        XCTAssertFalse(app.buttons["coupon.use"].exists)
     }
 
     func testBusinessScreensContrastInLightAndDark() throws {

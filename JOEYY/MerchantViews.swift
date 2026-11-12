@@ -13,7 +13,7 @@ extension MerchantTheme {
         }
     }
 
-    var galleryHeight: CGFloat {
+    var stackCoverHeight: CGFloat {
         switch artwork {
         case .rail: 180
         case .cloud: 210
@@ -87,7 +87,7 @@ struct MerchantCover: View {
                 guard let decoded = UIImage(data: data) else { throw BrandingError.invalidImage }
                 image = decoded
             } catch is CancellationError {
-                // A reused gallery cell no longer needs its previous image.
+                // A reused card no longer needs its previous image.
             } catch {
                 guard !Task.isCancelled else { return }
                 failure = error.localizedDescription
@@ -161,236 +161,412 @@ private struct DiscoveryArtwork: View {
     let theme: MerchantTheme
 
     var body: some View {
-        LinearGradient(
-            colors: [theme.paper, theme.paper.mix(with: theme.ink, by: 0.22)],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
-        .overlay {
-            Canvas { context, size in
-                let scale = size.width / 320
-                context.scaleBy(x: scale, y: scale)
-                context.fill(
-                    Path(ellipseIn: CGRect(x: -70, y: -90, width: 380, height: 380)),
-                    with: .radialGradient(
-                        Gradient(colors: [.white.opacity(0.35), .clear]),
-                        center: CGPoint(x: 90, y: 80), startRadius: 0, endRadius: 250
-                    )
-                )
-                context.stroke(
-                    Path(ellipseIn: CGRect(x: 30, y: 20, width: 270, height: 270)),
-                    with: .color(theme.ink.opacity(0.16)), lineWidth: 1
-                )
-                switch theme.artwork {
-                case .rail: drawBread(in: context)
-                case .stone: drawBooks(in: context)
-                case .cloud: drawCoffee(in: context)
-                }
-                for index in 0..<120 {
-                    let x = CGFloat((index * 73) % 320)
-                    let y = CGFloat((index * 97) % 420)
-                    context.fill(
-                        Path(ellipseIn: CGRect(x: x, y: y, width: 1, height: 1)),
-                        with: .color(theme.ink.opacity(0.12))
-                    )
-                }
+        GeometryReader { geometry in
+            ZStack {
+                theme.paper
+                Circle()
+                    .strokeBorder(theme.ink.opacity(0.14), lineWidth: 1)
+                    .padding(geometry.size.width * 0.14)
+                Image(systemName: symbol)
+                    .font(.system(size: min(geometry.size.width, geometry.size.height) * 0.32,
+                                  weight: .light))
+                    .foregroundStyle(theme.ink)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .accessibilityHidden(true)
     }
 
-    private func drawBread(in context: GraphicsContext) {
-        context.drawLayer { bread in
-            bread.translateBy(x: 160, y: 150)
-            bread.rotate(by: .degrees(-28))
-            bread.translateBy(x: -160, y: -150)
-            bread.addFilter(.shadow(color: .black.opacity(0.28), radius: 12, x: 8, y: 18))
-            let loaf = Path(roundedRect: CGRect(x: 48, y: 70, width: 224, height: 150), cornerRadius: 75)
-            bread.fill(loaf, with: .linearGradient(
-                Gradient(colors: [Color(hex: 0xFFE2A0), Color(hex: 0xD58B32), Color(hex: 0x8B421C)]),
-                startPoint: CGPoint(x: 90, y: 70), endPoint: CGPoint(x: 230, y: 220)
-            ))
-            bread.stroke(loaf, with: .color(Color(hex: 0x75401E).opacity(0.35)), lineWidth: 1)
-            for index in 0..<4 {
-                let x = CGFloat(index) * 39 + 83
-                var cut = Path()
-                cut.move(to: CGPoint(x: x + 5, y: 101))
-                cut.addQuadCurve(
-                    to: CGPoint(x: x + 12, y: 183),
-                    control: CGPoint(x: x - 15, y: 145)
-                )
-                bread.stroke(cut, with: .color(Color(hex: 0x9B5424)), style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                bread.stroke(cut, with: .color(Color(hex: 0xFFE5AD)), style: StrokeStyle(lineWidth: 8, lineCap: .round))
-            }
-        }
-    }
-
-    private func drawBooks(in context: GraphicsContext) {
-        for index in (0..<3).reversed() {
-            context.drawLayer { book in
-                book.translateBy(x: 160, y: 150)
-                book.rotate(by: .degrees(Double(index) * 15 - 18))
-                book.translateBy(x: -160, y: -150)
-                book.addFilter(.shadow(color: .black.opacity(0.25), radius: 7, x: 6, y: 12))
-                let x = CGFloat(index) * 9 + 69
-                let y = CGFloat(index) * 4 + 49
-                book.fill(
-                    Path(roundedRect: CGRect(x: x + 5, y: y + 10, width: 165, height: 202), cornerRadius: 5),
-                    with: .color(Color(hex: 0xF5E9CD))
-                )
-                let cover = Path(roundedRect: CGRect(x: x, y: y, width: 166, height: 202), cornerRadius: 5)
-                let color = [Color(hex: 0x375544), Color(hex: 0xC2704B), Color(hex: 0xDDBD68)][index]
-                book.fill(cover, with: .linearGradient(
-                    Gradient(colors: [color.mix(with: .white, by: 0.12), color]),
-                    startPoint: CGPoint(x: x, y: y), endPoint: CGPoint(x: x + 166, y: y + 202)
-                ))
-                book.fill(
-                    Path(CGRect(x: x + 9, y: y, width: 5, height: 202)),
-                    with: .color(.black.opacity(0.18))
-                )
-                book.stroke(
-                    Path(CGRect(x: x + 31, y: y + 27, width: 108, height: 146)),
-                    with: .color(Color(hex: 0xF5E9CD).opacity(0.65)), lineWidth: 1
-                )
-                book.stroke(
-                    Path(ellipseIn: CGRect(x: x + 50, y: y + 58, width: 70, height: 84)),
-                    with: .color(Color(hex: 0xF5E9CD)), lineWidth: 2
-                )
-            }
-        }
-    }
-
-    private func drawCoffee(in context: GraphicsContext) {
-        context.drawLayer { cup in
-            cup.translateBy(x: 160, y: 150)
-            cup.rotate(by: .degrees(-25))
-            cup.translateBy(x: -160, y: -150)
-            cup.addFilter(.shadow(color: .black.opacity(0.28), radius: 12, x: 8, y: 18))
-            cup.stroke(
-                Path(ellipseIn: CGRect(x: 226, y: 109, width: 50, height: 68)),
-                with: .color(Color(hex: 0xF3EDE6)), lineWidth: 17
-            )
-            cup.fill(
-                Path(ellipseIn: CGRect(x: 57, y: 47, width: 206, height: 206)),
-                with: .linearGradient(
-                    Gradient(colors: [.white, Color(hex: 0xC9BEB4)]),
-                    startPoint: CGPoint(x: 70, y: 50), endPoint: CGPoint(x: 250, y: 250)
-                )
-            )
-            cup.fill(
-                Path(ellipseIn: CGRect(x: 76, y: 66, width: 168, height: 168)),
-                with: .radialGradient(
-                    Gradient(colors: [Color(hex: 0xBF8149), Color(hex: 0x61331D)]),
-                    center: CGPoint(x: 137, y: 118), startRadius: 12, endRadius: 120
-                )
-            )
-            for index in 0..<7 {
-                let y = CGFloat(index) * 14 + 91
-                let halfWidth = CGFloat(7 - index) * 5 + 6
-                var foam = Path()
-                foam.move(to: CGPoint(x: 160, y: y + 15))
-                foam.addQuadCurve(to: CGPoint(x: 160 - halfWidth, y: y), control: CGPoint(x: 160 - halfWidth, y: y + 18))
-                foam.addQuadCurve(to: CGPoint(x: 160, y: y + 5), control: CGPoint(x: 160 - halfWidth, y: y - 10))
-                foam.addQuadCurve(to: CGPoint(x: 160 + halfWidth, y: y), control: CGPoint(x: 160 + halfWidth, y: y - 10))
-                foam.addQuadCurve(to: CGPoint(x: 160, y: y + 15), control: CGPoint(x: 160 + halfWidth, y: y + 18))
-                cup.fill(foam, with: .color(Color(hex: 0xFFF0D6)))
-            }
+    private var symbol: String {
+        switch theme.artwork {
+        case .rail: "takeoutbag.and.cup.and.straw"
+        case .stone: "books.vertical"
+        case .cloud: "cup.and.saucer"
         }
     }
 }
 
-struct PlaceGalleryTile: View {
+struct WalletPlaceTile: View {
     let place: Place
     let stamps: Int
     @Environment(MerchantBrandingStore.self) private var branding
 
     var body: some View {
         let theme = branding.theme(for: place)
-        VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .top, spacing: 16) {
             MerchantCover(place: place, canRetry: false)
-                .frame(height: theme.galleryHeight)
-            VStack(alignment: .leading, spacing: 10) {
-                Text(place.name)
-                    .font(.system(.title2, design: theme.fontDesign).weight(.medium))
-                Text(place.neighborhood)
-                    .font(.caption)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(place.rewardDescription).font(.subheadline)
-                    Text(stamps == place.requiredPunches ? "Full card" : "\(stamps) of \(place.requiredPunches) punches")
-                        .font(.caption.monospacedDigit())
-                }
-                .accessibilityHidden(true)
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 7) {
+                Text(place.name).font(.system(.headline, design: theme.fontDesign))
+                Text(place.neighborhood).font(.caption)
+                Text("\(stamps) of \(place.requiredPunches) punches")
+                    .font(.subheadline.monospacedDigit())
             }
             .fixedSize(horizontal: false, vertical: true)
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .foregroundStyle(theme.ink)
-            .background(theme.paper)
+            Spacer(minLength: 30)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.ink.opacity(0.18)))
-        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .padding(20)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(theme.ink)
+        .background(theme.paper, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(theme.ink.opacity(0.25)))
+        .shadow(color: .black.opacity(0.12), radius: 4, y: -2)
+        .contentShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(place.name), \(place.rewardDescription)")
         .accessibilityValue("\(stamps) of \(place.requiredPunches) punches")
     }
 }
 
-struct DiscoveryTile: View {
+struct PlaceStack: View {
+    let title: String
+    let places: [Place]
+    let identifier: String
+    let cardPrefix: String
+    var discovery = false
+    var titleIdentifier = ""
+    var showsTitle = true
+    var orderCollection: CardOrderCollection = .home
+    var edit: (() -> Void)?
+    @Environment(LoyaltyStore.self) private var store
+    @Environment(MerchantBrandingStore.self) private var branding
+    @Environment(\.reduceCardMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var expanded = false
+    @State private var selecting = false
+    @State private var selected: Set<String> = []
+    @State private var showingGroups = false
+    @State private var confirmingMemories = false
+    @State private var failure: String?
+    @State private var page = 0
+
+    private var spread: Bool { expanded || typeSize.isAccessibilitySize }
+    private var visiblePlaces: [Place] {
+        let window = CollectionWindow(count: places.count, page: page, size: spread ? 6 : 3)
+        return Array(places[window.range])
+    }
+    private var selectedPlaces: [Place] { store.activePlaces.filter { selected.contains($0.id) } }
+    private var allowsMotion: Bool {
+        !reduceMotion && places.allSatisfy { branding.theme(for: $0).allowsMotion }
+    }
+    private var cardDropHandler: ((CardOrderTransfer, Int) -> Bool)? {
+        guard !selecting && !discovery else { return nil }
+        return { moveToPage($0, $1) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ViewThatFits(in: .horizontal) {
+                HStack { heading; Spacer(minLength: 12); controls }
+                VStack(alignment: .leading, spacing: 8) { heading; controls }
+            }
+            if places.isEmpty {
+                Text("No active places in this group").foregroundStyle(Color.muted)
+            } else {
+                LazyVStack(spacing: spread ? 20 : -16) {
+                    ForEach(visiblePlaces) { place in
+                        card(place, compact: selecting || typeSize.isAccessibilitySize ||
+                             (!spread && place != visiblePlaces.last))
+                    }
+                }
+            }
+            if selecting { selectionActions }
+            CollectionPager(page: $page, count: places.count, size: spread ? 6 : 3, identifier: identifier,
+                            onCardDrop: cardDropHandler)
+        }
+        .sheet(isPresented: $showingGroups, onDismiss: finishSelection) {
+            GroupMembershipView(places: selectedPlaces)
+        }
+        .confirmationDialog("Move these cards to Memories?", isPresented: $confirmingMemories,
+                            titleVisibility: .visible) {
+            Button("Move to Memories") {
+                for place in selectedPlaces { store.setArchived(true, for: place) }
+                if let error = store.storageError { failure = error }
+                else { finishSelection() }
+            }
+        } message: {
+            Text("Keep their current punches. Available rewards remain usable.")
+        }
+        .alert("Couldn't update cards", isPresented: Binding(
+            get: { failure != nil }, set: { if !$0 { failure = nil } }
+        )) {
+            Button("OK") { failure = nil }
+        } message: { Text(failure ?? "") }
+    }
+
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if showsTitle {
+                Text(title).font(.title3.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier(titleIdentifier)
+            }
+            Text("\(places.count) places")
+                .font(.caption).foregroundStyle(Color.muted)
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 12) {
+            if places.count > 1 && !typeSize.isAccessibilitySize {
+                Button(expanded ? "Collapse" : "Expand") {
+                    withAnimation(allowsMotion ? .spring(response: 0.32, dampingFraction: 0.88) : nil) {
+                        expanded.toggle()
+                        page = 0
+                    }
+                }
+                .frame(minHeight: 44)
+                .accessibilityLabel(expanded ? "Collapse \(title)" : "Expand \(title)")
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("\(identifier).expand")
+            }
+            if !discovery && !places.isEmpty {
+                Button {
+                    if selecting { finishSelection() }
+                    else { selecting = true }
+                } label: {
+                    Image(systemName: selecting ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(.system(size: 20))
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(selecting ? "Done selecting cards" : "Select cards in \(title)")
+                .accessibilityIdentifier("\(identifier).select")
+            }
+            if let edit {
+                Button(action: edit) {
+                    Image(systemName: "square.and.pencil").frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Edit \(title)")
+                .accessibilityIdentifier("\(identifier).edit")
+            }
+        }
+    }
+
+    private func card(_ place: Place, compact: Bool) -> some View {
+        let joined = store.membership(for: place)?.archived == false
+        return Group {
+            if selecting {
+                Button {
+                    if selected.contains(place.id) { selected.remove(place.id) }
+                    else { selected.insert(place.id) }
+                } label: {
+                    tile(place, compact: compact, joined: joined)
+                        .overlay(alignment: .topTrailing) {
+                            Image(systemName: selected.contains(place.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 24))
+                                .foregroundStyle(branding.theme(for: place).ink)
+                                .frame(width: 44, height: 44)
+                                .background(branding.theme(for: place).paper, in: Circle())
+                                .padding(8)
+                        }
+                        .accessibilityHidden(true)
+                }
+                .accessibilityLabel(place.name)
+                .accessibilityValue(selected.contains(place.id) ? "Selected" : "Not selected")
+                .accessibilityAddTraits(selected.contains(place.id) ? .isSelected : [])
+                .accessibilityIdentifier("\(cardPrefix).\(place.id)")
+            } else {
+                NavigationLink(value: place) { tile(place, compact: compact, joined: joined) }
+            }
+        }
+        .buttonStyle(CardPressStyle(allowsMotion: branding.theme(for: place).allowsMotion))
+        .accessibilityIdentifier("\(cardPrefix).\(place.id)")
+        .modifier(CardOrderModifier(placeID: place.id, places: places, collection: orderCollection,
+                                    enabled: !selecting && !discovery))
+    }
+
+    private func tile(_ place: Place, compact: Bool, joined: Bool) -> some View {
+        StackPlaceTile(
+            place: place, stamps: store.membership(for: place)?.stamps ?? 0,
+            compact: compact, discovery: discovery, isAdded: joined,
+            selecting: selecting, isFavorite: store.membership(for: place)?.isFavorite == true
+        )
+    }
+
+    private var selectionActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack { selectedCount; Spacer(); actionButtons }
+            VStack(alignment: .leading, spacing: 8) { selectedCount; actionButtons }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.surface, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var selectedCount: some View {
+        Text("\(selected.count) selected").font(.subheadline)
+            .fixedSize()
+            .accessibilityIdentifier("\(identifier).selectedCount")
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            let allFavorite = !selectedPlaces.isEmpty &&
+                selectedPlaces.allSatisfy { store.membership(for: $0)?.isFavorite == true }
+            Button {
+                do {
+                    for place in selectedPlaces { try store.setFavorite(!allFavorite, for: place) }
+                    if let error = store.storageError { failure = error }
+                    else { finishSelection() }
+                } catch { failure = error.localizedDescription }
+            } label: {
+                Image(systemName: allFavorite ? "star.slash" : "star")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel(allFavorite ? "Remove favorites" : "Favorite selected cards")
+            .accessibilityIdentifier("\(identifier).favorite")
+            Button { showingGroups = true } label: {
+                Image(systemName: "folder.badge.plus").frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Add selected cards to groups")
+            .accessibilityIdentifier("\(identifier).groups")
+            Button { confirmingMemories = true } label: {
+                Image(systemName: "tray.and.arrow.down").frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Move selected cards to Memories")
+            .accessibilityIdentifier("\(identifier).memories")
+        }
+        .font(.system(size: 20))
+        .disabled(selectedPlaces.isEmpty)
+    }
+
+    private func finishSelection() {
+        selecting = false
+        selected = []
+    }
+
+    private func moveToPage(_ item: CardOrderTransfer, _ destination: Int) -> Bool {
+        let size = spread ? 6 : 3
+        let window = CollectionWindow(count: places.count, page: destination, size: size)
+        guard destination == window.index, item.collection == orderCollection.key,
+              places.contains(where: { $0.id == item.placeID }),
+              let target = places[window.range].first else { return false }
+        do {
+            try store.moveCard(item.placeID, to: target.id, in: orderCollection)
+            return true
+        } catch {
+            failure = error.localizedDescription
+            return false
+        }
+    }
+}
+
+struct DiscoveryGallery: View {
+    let title: String
+    let places: [Place]
+    let identifier: String
+    let cardPrefix: String
+    @Environment(LoyaltyStore.self) private var store
+    @Environment(MerchantBrandingStore.self) private var branding
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var page = 0
+    @State private var focusedPlace: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeading(title: title)
+            let window = CollectionWindow(count: places.count, page: page, size: 6)
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 16) {
+                    ForEach(Array(places[window.range])) { place in
+                        NavigationLink(value: place) {
+                            DiscoveryTile(
+                                place: place,
+                                isAdded: store.membership(for: place)?.archived == false
+                            )
+                        }
+                        .buttonStyle(CardPressStyle(allowsMotion: branding.theme(for: place).allowsMotion))
+                        .containerRelativeFrame(.horizontal) { width, _ in
+                            typeSize.isAccessibilitySize || window.range.count == 1 ? width : width * 0.88
+                        }
+                        .accessibilityIdentifier("\(cardPrefix).\(place.id)")
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(.vertical, 14)
+            }
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $focusedPlace)
+            .sensoryFeedback(.selection, trigger: focusedPlace)
+            .accessibilityIdentifier(identifier)
+            .id(page)
+            CollectionPager(page: $page, count: places.count, size: 6, identifier: identifier)
+        }
+        .onChange(of: places) {
+            page = 0
+            focusedPlace = places.first?.id
+        }
+        .onChange(of: page) { focusedPlace = nil }
+    }
+}
+
+private struct DiscoveryTile: View {
     let place: Place
     let isAdded: Bool
     @Environment(MerchantBrandingStore.self) private var branding
     @Environment(\.reduceCardMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var theme: MerchantTheme { branding.theme(for: place) }
+    private var allowsMotion: Bool { !reduceMotion && theme.allowsMotion }
 
     var body: some View {
-        let theme = branding.theme(for: place)
-        let allowsMotion = !reduceMotion && theme.allowsMotion
-        ZStack(alignment: .bottomLeading) {
-            GeometryReader { geometry in
-                MerchantCover(place: place, canRetry: false, poster: true)
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .scaleEffect(allowsMotion ? 1.12 : 1)
-                    .scrollTransition(.interactive, axis: .horizontal) { content, phase in
-                        content.offset(x: allowsMotion ? phase.value * -24 : 0)
-                    }
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer(minLength: 235)
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(place.name).font(.title.weight(.semibold))
-                    Text(place.neighborhood).font(.caption)
-                    Text("\(place.requiredPunches) stamps / \(place.rewardDescription)")
-                        .font(.subheadline)
+        let allowsMotion = self.allowsMotion
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 0) {
+                    MerchantCover(place: place, canRetry: false, poster: true)
+                        .frame(height: 120)
+                    caption.foregroundStyle(theme.ink)
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
+            } else {
+                ZStack(alignment: .bottomLeading) {
+                    GeometryReader { geometry in
+                        MerchantCover(place: place, canRetry: false, poster: true)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .scaleEffect(allowsMotion ? 1.12 : 1)
+                            .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                                content.offset(x: allowsMotion ? phase.value * -24 : 0)
+                            }
+                    }
                     VStack(spacing: 0) {
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.9)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: 80)
-                        Color.black.opacity(0.9)
+                        Spacer(minLength: 235)
+                        caption
+                            .foregroundStyle(.white)
+                            .background {
+                                VStack(spacing: 0) {
+                                    LinearGradient(
+                                        colors: [.clear, .black.opacity(0.9)],
+                                        startPoint: .top, endPoint: .bottom
+                                    )
+                                    .frame(height: 80)
+                                    Color.black.opacity(0.9)
+                                }
+                                .padding(.top, -80)
+                            }
                     }
-                    .padding(.top, -80)
                 }
             }
+        }
+        .background(theme.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 22))
+        .overlay(alignment: .topTrailing) {
             if isAdded {
                 Image(systemName: "checkmark")
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.ink)
                     .padding(12)
-                    .background(.black.opacity(0.8), in: Circle())
+                    .background(theme.paper, in: Circle())
                     .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .accessibilityHidden(true)
             }
         }
-        .foregroundStyle(.white)
-        .background(theme.paper)
-        .clipShape(RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.14)))
-        .shadow(color: theme.ink.opacity(0.2), radius: 14, x: 0, y: 10)
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(theme.ink.opacity(0.14)))
+        .shadow(color: theme.ink.opacity(0.16), radius: 12, x: 0, y: 8)
         .contentShape(RoundedRectangle(cornerRadius: 22))
         .scrollTransition(.interactive, axis: .horizontal) { content, phase in
             content
@@ -403,8 +579,86 @@ struct DiscoveryTile: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(place.name), \(place.neighborhood)")
-        .accessibilityValue("\(place.requiredPunches) stamps, \(place.rewardDescription)\(isAdded ? ", card added" : "")")
-        .accessibilityHint("Opens the place and its demo card.")
+        .accessibilityValue(
+            "\(place.requiredPunches) stamps, \(place.rewardDescription)\(isAdded ? ", card added" : "")"
+        )
+        .accessibilityHint("Opens the place and its card.")
+    }
+
+    private var caption: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(place.name)
+                .font(.system(typeSize.isAccessibilitySize ? .headline : .title,
+                              design: theme.fontDesign).weight(.semibold))
+            Text(place.neighborhood).font(.caption)
+            Text("\(place.requiredPunches) stamps / \(place.rewardDescription)")
+                .font(.subheadline)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct StackPlaceTile: View {
+    let place: Place
+    let stamps: Int
+    let compact: Bool
+    let discovery: Bool
+    let isAdded: Bool
+    var selecting = false
+    var isFavorite = false
+    @Environment(MerchantBrandingStore.self) private var branding
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let theme = branding.theme(for: place)
+        VStack(alignment: .leading, spacing: 0) {
+            if typeSize.isAccessibilitySize {
+                MerchantCover(place: place, canRetry: false, poster: discovery)
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding([.top, .horizontal], 20)
+            }
+            HStack(alignment: .top, spacing: 12) {
+                if compact && !typeSize.isAccessibilitySize {
+                    MerchantCover(place: place, canRetry: false, poster: discovery)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(place.name)
+                        .font(.system(compact ? .headline : .title2, design: theme.fontDesign).weight(.medium))
+                    if !compact { Text(place.neighborhood).font(.caption) }
+                    Text(discovery
+                         ? "\(place.requiredPunches) stamps / \(place.rewardDescription)\(isAdded ? " / Added" : "")"
+                         : stamps == place.requiredPunches ? "Full card" : "\(stamps) of \(place.requiredPunches) punches")
+                        .font(.subheadline.monospacedDigit())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.trailing, selecting && !typeSize.isAccessibilitySize ? 44 : 0)
+            .padding(20)
+            .padding(.bottom, compact ? 16 : 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .foregroundStyle(theme.ink)
+            if !compact {
+                MerchantCover(place: place, canRetry: false, poster: discovery)
+                    .frame(height: theme.stackCoverHeight)
+            }
+        }
+        .background(theme.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.ink.opacity(0.18)))
+        .shadow(color: .black.opacity(0.08), radius: 5, y: 3)
+        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(place.name), \(place.rewardDescription)")
+        .accessibilityValue(discovery
+            ? "\(place.requiredPunches) stamps\(isAdded ? ", card added" : "")"
+            : "\(stamps) of \(place.requiredPunches) punches\(isFavorite ? ", Favorite" : "")")
+        .accessibilityHint("Opens the place and its card.")
     }
 }
 
