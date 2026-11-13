@@ -8,24 +8,32 @@
 
 /* Begin PBXBuildFile section */
 		0AE40CE81EB3D058744663BE /* JOEYYApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A8122B47320AC805049C54 /* JOEYYApp.swift */; };
+		2141F26455104401F7527238 /* TapAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60513C8F6D93C2AE5209FB9 /* TapAPI.swift */; };
 		239978A3D55B55C375EBB190 /* MerchantBranding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08D9D524BE89B2F8F012933B /* MerchantBranding.swift */; };
 		2D45F8424D8CCECFD50388AA /* BusinessStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DC48D95FEA601BC5E99F56C /* BusinessStoreTests.swift */; };
 		2DD56FF24B1F19427A1B2457 /* LocationSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFD0FCC52341D32DD6E8C7 /* LocationSearch.swift */; };
 		400EEA171BEE8CD543C31D93 /* MerchantFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3501F521490463DFB75EAE92 /* MerchantFlowTests.swift */; };
+		4CBFBBF83DBD1EFF50BC0C48 /* NFCTagScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBE1FFE74647AD49B399AC9 /* NFCTagScanner.swift */; };
 		4DD2D0AC2B0F34AD2E4DA5FA /* PartnerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53058905CB34FAA7C0163665 /* PartnerStore.swift */; };
+		55DABB477BF7B2AAD7D30427 /* TapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97A27EAA4E5DB90AF17D2A94 /* TapView.swift */; };
+		59D7F747D70D1FC6C395FBB7 /* TapFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0339F665A2F4E807A6F52B /* TapFlowTests.swift */; };
 		5E6327010AFE6968839E8172 /* BusinessSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E2BABF027AEEFA8937AB0D /* BusinessSettingsView.swift */; };
 		6389D5FC642FE088543DDEAB /* BusinessRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AA65BC5BB77D55EC67CD356 /* BusinessRootView.swift */; };
 		6C16A57EC183B1BD2EC905D9 /* CardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D9BCABE63DCED664EEC11C /* CardsView.swift */; };
 		6E1812456CEA0A3F746F5D50 /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC52EFBA230B52325227C9D /* Design.swift */; };
 		7D96FCF58A37DD2D22338C7D /* MerchantViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2982890AB8C5EC2AA8FBAD30 /* MerchantViews.swift */; };
+		831E1055DC728F4B511CE4FC /* TapWallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF5DF44357086CFD2D3D16D /* TapWallet.swift */; };
 		8AF9B82D553BD351DA6982F2 /* PlaceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96C2DB9236447E63FC45ED7 /* PlaceDetailView.swift */; };
 		A83B728DE20838DD7940A18D /* MerchantImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5BD3BDD970491A6AD189E4 /* MerchantImageTests.swift */; };
 		ADF3C44C4727E685BAC93140 /* BusinessSampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A582F07AF514BBCF5F69CAE8 /* BusinessSampleData.swift */; };
 		AE87C8FCCC46CC0A4C0D80AD /* NoremaLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = B03D6280ED3099579B4952D5 /* NoremaLogo.png */; };
+		B2FA54E8772293E593925F01 /* TapStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459DBE3937597DEF7697AC76 /* TapStoreTests.swift */; };
 		B46CCFE14C32CAB4B7B5D46A /* BusinessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 765F4BBBA582116D2DBF1073 /* BusinessModels.swift */; };
 		BEBBD89CE43DAB9BE014161E /* BusinessCardDesigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4233ABC16F8F478408D09948 /* BusinessCardDesigner.swift */; };
 		BFFDC1E109F9FE7DB5CAA6F0 /* BusinessOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23754CB6DDCC9A6FC4976BEE /* BusinessOverviewView.swift */; };
+		C0B1C60D97EFE9AFE9ABBE46 /* TapStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0D4DFC090367DEA0FE7EBC /* TapStore.swift */; };
 		C8A4123AA2808186C918DAB5 /* BusinessProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C45AE77398E467CAA99D22 /* BusinessProfileView.swift */; };
+		D3DFCD38FE45682AAB364E1B /* TapHTTPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084B74A2552279604022E708 /* TapHTTPTests.swift */; };
 		D5481475A1B462FF5BD84F58 /* BugReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C8F7A358C09962C534A920 /* BugReport.swift */; };
 		E668508D76237D04711F6D97 /* RedeemedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817F18B0E7D7309548BD39A4 /* RedeemedView.swift */; };
 		E677FF79F14B9A4B5A54620A /* BusinessDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF8ABF0BDD17A91BA056636 /* BusinessDesign.swift */; };
@@ -55,34 +63,45 @@
 
 /* Begin PBXFileReference section */
 		04E2BABF027AEEFA8937AB0D /* BusinessSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessSettingsView.swift; sourceTree = "<group>"; };
+		084B74A2552279604022E708 /* TapHTTPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapHTTPTests.swift; sourceTree = "<group>"; };
 		08D9D524BE89B2F8F012933B /* MerchantBranding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantBranding.swift; sourceTree = "<group>"; };
 		12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerFlowTests.swift; sourceTree = "<group>"; };
 		1523FF0DC91EDFC744C47B16 /* JOEYYTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JOEYYTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		15A8122B47320AC805049C54 /* JOEYYApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JOEYYApp.swift; sourceTree = "<group>"; };
 		15C985A4505B0427E1090BEE /* JOEYYUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JOEYYUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		20AF3CFC248C8FA601901071 /* JOEYY.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JOEYY.entitlements; sourceTree = "<group>"; };
 		23754CB6DDCC9A6FC4976BEE /* BusinessOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessOverviewView.swift; sourceTree = "<group>"; };
 		23D3EF8BD1328AD3353C93C8 /* JOEYY.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = JOEYY.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2982890AB8C5EC2AA8FBAD30 /* MerchantViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantViews.swift; sourceTree = "<group>"; };
 		3501F521490463DFB75EAE92 /* MerchantFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantFlowTests.swift; sourceTree = "<group>"; };
+		361E67959D193C3B8F333DA6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3DC48D95FEA601BC5E99F56C /* BusinessStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessStoreTests.swift; sourceTree = "<group>"; };
 		4233ABC16F8F478408D09948 /* BusinessCardDesigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessCardDesigner.swift; sourceTree = "<group>"; };
+		459DBE3937597DEF7697AC76 /* TapStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapStoreTests.swift; sourceTree = "<group>"; };
 		4F3F4D363E0DBCF5E83D8A2D /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		53058905CB34FAA7C0163665 /* PartnerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerStore.swift; sourceTree = "<group>"; };
+		6D0D4DFC090367DEA0FE7EBC /* TapStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapStore.swift; sourceTree = "<group>"; };
 		70C45AE77398E467CAA99D22 /* BusinessProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessProfileView.swift; sourceTree = "<group>"; };
 		75EFD0FCC52341D32DD6E8C7 /* LocationSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSearch.swift; sourceTree = "<group>"; };
 		765F4BBBA582116D2DBF1073 /* BusinessModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessModels.swift; sourceTree = "<group>"; };
 		7AF8ABF0BDD17A91BA056636 /* BusinessDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessDesign.swift; sourceTree = "<group>"; };
+		7DF5DF44357086CFD2D3D16D /* TapWallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapWallet.swift; sourceTree = "<group>"; };
 		80D9BCABE63DCED664EEC11C /* CardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardsView.swift; sourceTree = "<group>"; };
 		817F18B0E7D7309548BD39A4 /* RedeemedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedeemedView.swift; sourceTree = "<group>"; };
 		8AA65BC5BB77D55EC67CD356 /* BusinessRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessRootView.swift; sourceTree = "<group>"; };
+		8B0339F665A2F4E807A6F52B /* TapFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapFlowTests.swift; sourceTree = "<group>"; };
+		97A27EAA4E5DB90AF17D2A94 /* TapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapView.swift; sourceTree = "<group>"; };
 		9FC52EFBA230B52325227C9D /* Design.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design.swift; sourceTree = "<group>"; };
 		A582F07AF514BBCF5F69CAE8 /* BusinessSampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessSampleData.swift; sourceTree = "<group>"; };
 		B03D6280ED3099579B4952D5 /* NoremaLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = NoremaLogo.png; sourceTree = "<group>"; };
 		B718F5D703F1A770FE5A0681 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		B96C2DB9236447E63FC45ED7 /* PlaceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceDetailView.swift; sourceTree = "<group>"; };
+		C60513C8F6D93C2AE5209FB9 /* TapAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapAPI.swift; sourceTree = "<group>"; };
+		D0844CFB32AFA74E3F34772A /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		DD5BD3BDD970491A6AD189E4 /* MerchantImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantImageTests.swift; sourceTree = "<group>"; };
 		DE72D5F2CE3CBA00AA892630 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		EA38619749D36CC949E79A1D /* LoyaltyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoyaltyStoreTests.swift; sourceTree = "<group>"; };
+		ECBE1FFE74647AD49B399AC9 /* NFCTagScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFCTagScanner.swift; sourceTree = "<group>"; };
 		F2C8F7A358C09962C534A920 /* BugReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -92,6 +111,7 @@
 			children = (
 				12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */,
 				3501F521490463DFB75EAE92 /* MerchantFlowTests.swift */,
+				8B0339F665A2F4E807A6F52B /* TapFlowTests.swift */,
 			);
 			path = JOEYYUITests;
 			sourceTree = "<group>";
@@ -110,17 +130,24 @@
 				04E2BABF027AEEFA8937AB0D /* BusinessSettingsView.swift */,
 				80D9BCABE63DCED664EEC11C /* CardsView.swift */,
 				9FC52EFBA230B52325227C9D /* Design.swift */,
+				361E67959D193C3B8F333DA6 /* Info.plist */,
+				20AF3CFC248C8FA601901071 /* JOEYY.entitlements */,
 				15A8122B47320AC805049C54 /* JOEYYApp.swift */,
 				75EFD0FCC52341D32DD6E8C7 /* LocationSearch.swift */,
 				08D9D524BE89B2F8F012933B /* MerchantBranding.swift */,
 				2982890AB8C5EC2AA8FBAD30 /* MerchantViews.swift */,
 				DE72D5F2CE3CBA00AA892630 /* Models.swift */,
+				ECBE1FFE74647AD49B399AC9 /* NFCTagScanner.swift */,
 				B03D6280ED3099579B4952D5 /* NoremaLogo.png */,
 				53058905CB34FAA7C0163665 /* PartnerStore.swift */,
 				B96C2DB9236447E63FC45ED7 /* PlaceDetailView.swift */,
 				4F3F4D363E0DBCF5E83D8A2D /* ProfileView.swift */,
 				817F18B0E7D7309548BD39A4 /* RedeemedView.swift */,
 				B718F5D703F1A770FE5A0681 /* SetupView.swift */,
+				C60513C8F6D93C2AE5209FB9 /* TapAPI.swift */,
+				6D0D4DFC090367DEA0FE7EBC /* TapStore.swift */,
+				97A27EAA4E5DB90AF17D2A94 /* TapView.swift */,
+				7DF5DF44357086CFD2D3D16D /* TapWallet.swift */,
 			);
 			path = JOEYY;
 			sourceTree = "<group>";
@@ -128,6 +155,7 @@
 		2D2172147D3B20315605CAF0 = {
 			isa = PBXGroup;
 			children = (
+				783572C76330FA4B84784ED7 /* Config */,
 				2828BB4E75C0D48774B3F74D /* JOEYY */,
 				630BE1519460C50D7FE235FD /* JOEYYTests */,
 				2466E33A082364CEFE9B2DC0 /* JOEYYUITests */,
@@ -141,8 +169,18 @@
 				3DC48D95FEA601BC5E99F56C /* BusinessStoreTests.swift */,
 				EA38619749D36CC949E79A1D /* LoyaltyStoreTests.swift */,
 				DD5BD3BDD970491A6AD189E4 /* MerchantImageTests.swift */,
+				084B74A2552279604022E708 /* TapHTTPTests.swift */,
+				459DBE3937597DEF7697AC76 /* TapStoreTests.swift */,
 			);
 			path = JOEYYTests;
+			sourceTree = "<group>";
+		};
+		783572C76330FA4B84784ED7 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				D0844CFB32AFA74E3F34772A /* App.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		E6F4DCB301D94BCA6B69278D /* Products */ = {
@@ -222,14 +260,10 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0488B1AA61C4D54EB491D1E2 = {
-						DevelopmentTeam = "";
+						SystemCapabilities = "[\"com.apple.NearFieldCommunicationTagReading\": [\"enabled\": 1], \"com.apple.Wallet\": [\"enabled\": 1]]";
 					};
 					96AC310143C59DA767C25B36 = {
-						DevelopmentTeam = "";
 						TestTargetID = 0488B1AA61C4D54EB491D1E2;
-					};
-					A745812AADE98B139303F2FE = {
-						DevelopmentTeam = "";
 					};
 				};
 			};
@@ -272,6 +306,7 @@
 			files = (
 				E7C8BB6CA0A2FE3E90B199EF /* CustomerFlowTests.swift in Sources */,
 				400EEA171BEE8CD543C31D93 /* MerchantFlowTests.swift in Sources */,
+				59D7F747D70D1FC6C395FBB7 /* TapFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,11 +330,16 @@
 				239978A3D55B55C375EBB190 /* MerchantBranding.swift in Sources */,
 				7D96FCF58A37DD2D22338C7D /* MerchantViews.swift in Sources */,
 				F84AA413204EB9FADEA32AF0 /* Models.swift in Sources */,
+				4CBFBBF83DBD1EFF50BC0C48 /* NFCTagScanner.swift in Sources */,
 				4DD2D0AC2B0F34AD2E4DA5FA /* PartnerStore.swift in Sources */,
 				8AF9B82D553BD351DA6982F2 /* PlaceDetailView.swift in Sources */,
 				EB078FDA7D8BF4295EF9C3E6 /* ProfileView.swift in Sources */,
 				E668508D76237D04711F6D97 /* RedeemedView.swift in Sources */,
 				EA06B4A94A3B432FE80624DA /* SetupView.swift in Sources */,
+				2141F26455104401F7527238 /* TapAPI.swift in Sources */,
+				C0B1C60D97EFE9AFE9ABBE46 /* TapStore.swift in Sources */,
+				55DABB477BF7B2AAD7D30427 /* TapView.swift in Sources */,
+				831E1055DC728F4B511CE4FC /* TapWallet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -310,6 +350,8 @@
 				2D45F8424D8CCECFD50388AA /* BusinessStoreTests.swift in Sources */,
 				F4B3E721804645C1B2918F35 /* LoyaltyStoreTests.swift in Sources */,
 				A83B728DE20838DD7940A18D /* MerchantImageTests.swift in Sources */,
+				D3DFCD38FE45682AAB364E1B /* TapHTTPTests.swift in Sources */,
+				B2FA54E8772293E593925F01 /* TapStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -382,6 +424,7 @@
 		};
 		55B099C74613B0D495726752 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D0844CFB32AFA74E3F34772A /* App.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -415,7 +458,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -466,10 +508,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = JOEYY/JOEYY.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = JOEYY/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Scan a cafe loyalty tag to securely verify your visit and update your card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -489,10 +534,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = JOEYY/JOEYY.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = JOEYY/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Scan a cafe loyalty tag to securely verify your visit and update your card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -510,6 +558,7 @@
 		};
 		D460AF4E2528F31A52A7A168 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D0844CFB32AFA74E3F34772A /* App.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -543,7 +592,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;

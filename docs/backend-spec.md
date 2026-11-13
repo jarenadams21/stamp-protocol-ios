@@ -1,6 +1,20 @@
 # JOEYY backend specification (MVP)
 
-Status: **specification only — not implemented.** Both apps run on local sample data today.
+Status: **full MVP specification, not fully implemented.** The existing customer
+and business demo screens still use local data. A separate native **Tap**
+vertical slice now has a runnable customer API; see [backend/README.md](../backend/README.md).
+It implements username/password sessions, personal cards, foreground phone-read
+NTAG 424 DNA verification, replay-safe awards, rollover/reward counts, and Wallet
+issuance/updates. It is not the Postgres/OIDC/partner-service implementation
+specified below.
+
+**NFC distinction:** section 5 below describes a merchant reader reading a
+customer's contactless Wallet pass. The implemented low-cost flow instead has
+the **customer's iPhone read a programmed SUN/SDM chip**, then submit its dynamic
+URL with customer authentication. No Apple VAS reader or contactless Wallet NFC
+payload is used. Purchase verification and production authorization still need
+their own policy; a valid chip read alone is insufficient.
+
 This document defines the **one shared backend** that both the customer app and the business
 (partner) app will use once they move off sample data. It follows the agreed Partner MVP
 Excalidraw diagram (sign in → authenticated route → handler → database) and extends the same

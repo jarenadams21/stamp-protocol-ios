@@ -1,5 +1,11 @@
 .DS_Store
 .build/
+.build-native/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+node_modules/
+backend/.env
+backend/data/
+Config/Local.xcconfig
+*.xcresult/

@@ -2,6 +2,18 @@
 
 A native SwiftUI customer-loyalty prototype for iOS 18 and later.
 
+## Live NFC / personal Wallet slice
+
+The feature branch adds a separate **Tap** experience for real customer accounts,
+foreground NTAG 424 DNA reads, server-confirmed personal cards, and native Wallet
+installation/replacement. The original customer and business screens below
+remain local demos; they are not silently migrated or treated as real balances.
+
+See [backend setup, device flow, and limitations](backend/README.md). Local
+signing files and customer data are ignored, not committed. Real NFC and final
+Wallet delivery require a physical iPhone. The current zero-key configuration is
+for hardware testing only and must not be used for valuable rewards.
+
 ## Version 3
 
 The local-first customer experience includes:
@@ -9,7 +21,7 @@ The local-first customer experience includes:
 | Original v3 item | Delivery |
 |---|---|
 | 1. Physical-looking hole punch | A metal tool approaches, presses the newest hole, and retracts. Motion preferences take precedence |
-| 2. Apple Wallet | Deferred: neither signed passes nor native PassKit presentation is implemented |
+| 2. Apple Wallet | The original local screens defer Wallet; the live Tap slice adds signed passes and native PassKit |
 | 3. Visual discovery | A swipeable Discoverable preview gallery with large cards, next-card peeking, and snapping. No layout switch |
 | 4. Stackable reward tickets | Available/used business stacks; tickets accumulate and open independently |
 | 5. Queued stamp updates | Persistent FIFO processing, duplicate protection, overflow retention, and launch/restore recovery. Live delivery is not connected |
@@ -21,7 +33,8 @@ The local-first customer experience includes:
 
 Existing balances, coupons, favorites, groups, and branding are preserved.
 See [DESIGN.md](DESIGN.md) for shared colors, components, motion, and interaction rules.
-Apple Wallet and live service delivery are deferred; see [Next steps](#next-steps--integration-handoff).
+The original local-demo handoff remains below; the live Tap slice is described
+above and in [backend/README.md](backend/README.md).
 
 ## Run
 
@@ -177,9 +190,10 @@ setup replay. Notifications are not connected. Data/export/reset controls and
 prototype sections are no longer part of this screen. No profile form or sign-in
 is required. One short demo disclosure lives here rather than repeating on cards,
 tickets, and discovery.
-**Apple Wallet**, customer codes, NFC, authentication, and purchase verification
-are not implemented. Placeholder Wallet and Show card actions are not displayed;
-there are no fake passes or scannable codes.
+These original local demo screens do not implement **Apple Wallet**, customer
+codes, NFC, authentication, or purchase verification. The live Tap experience
+is separate. Placeholder Wallet and Show card actions are not displayed on demo
+cards; there are no fake passes or scannable codes.
 
 ## Business side
 

@@ -88,7 +88,7 @@ struct JOEYYApp: App {
 }
 
 enum AppTab: Hashable {
-    case home, search, redeemed, you
+    case home, search, redeemed, tap, you
 }
 
 struct RootView: View {
@@ -118,6 +118,9 @@ struct RootView: View {
                         RedeemedView()
                     }
                     .badge(store.redemptions.filter(\.isAvailable).count)
+                    Tab("Tap", systemImage: "wave.3.right", value: .tap) {
+                        TapView()
+                    }
                     Tab("You", systemImage: "person.crop.circle", value: .you) {
                         ProfileView(onSetup: { setupEntry = .replay })
                     }
