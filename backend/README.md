@@ -83,6 +83,10 @@ and tunnel must stay running.
 
 ## Trying it on a physical iPhone
 
+The NFC entitlement uses Apple's current `TAG` value, including when reading
+NDEF URL records through `NFCNDEFReaderSession`. Do not replace it with the
+legacy `NDEF` entitlement value; App Store Connect rejects that configuration.
+
 1. Run the app with your signing team and NFC/Wallet capabilities provisioned.
 2. Open **Tap**, create your own account, and sign in.
 3. Start the scan and hold the iPhone near a linked chip. Allow Apple's NFC

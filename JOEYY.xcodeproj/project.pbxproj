@@ -293,7 +293,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0488B1AA61C4D54EB491D1E2 = {
-						SystemCapabilities = "[\"com.apple.NearFieldCommunicationTagReading\": [\"enabled\": 1], \"com.apple.Wallet\": [\"enabled\": 1]]";
+						SystemCapabilities = "[\"com.apple.Wallet\": [\"enabled\": 1], \"com.apple.NearFieldCommunicationTagReading\": [\"enabled\": 1]]";
 					};
 					96AC310143C59DA767C25B36 = {
 						TestTargetID = 0488B1AA61C4D54EB491D1E2;
@@ -554,7 +554,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = JOEYY/JOEYY.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = JOEYY/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
@@ -580,7 +580,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = JOEYY/JOEYY.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = JOEYY/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
