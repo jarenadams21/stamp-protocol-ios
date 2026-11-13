@@ -1395,33 +1395,6 @@ final class CustomerFlowTests: XCTestCase {
     }
 
     private func audit(_ app: XCUIApplication) throws {
-        settle()
-        do {
-            try performAudit(app)
-        } catch {
-            // Appearance changes cross-fade colors, and a busy runner can time out an audit (-56).
-            // Both clear once the screen is idle; a real contrast or clipping issue fails again.
-            settle(2)
-            try performAudit(app)
-        }
-    }
-
-    private func performAudit(_ app: XCUIApplication) throws {
-        try app.performAccessibilityAudit(for: [.contrast, .textClipped]) { issue in
-            guard let element = issue.element else { return false }
-            if issue.auditType == .contrast {
-                let underTabBar = app.tabBars.firstMatch.exists &&
-                    element.frame.intersects(app.tabBars.firstMatch.frame)
-                let underScrollEdge = app.images.matching(identifier: "AdditionalDimmingOverlay")
-                    .allElementsBoundByIndex.contains { element.frame.intersects($0.frame) }
-                // Native floating bars and scroll-edge overlays fade underlying content.
-                if underTabBar || underScrollEdge { return true }
-            }
-            let attachment = XCTAttachment(string: "\(issue.detailedDescription)\n\(element.debugDescription)")
-            attachment.name = issue.auditType == .contrast ? "App-owned contrast issue" : "App-owned clipping issue"
-            attachment.lifetime = .keepAlways
-            self.add(attachment)
-            return false
-        }
+        try auditVisibleContent(in: app)
     }
 }

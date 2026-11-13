@@ -76,7 +76,6 @@ struct JOEYYApp: App {
                 .defaultAppStorage(defaults)
                 .environment(\.appAccent, AppAccent(rawValue: accent) ?? .orange)
                 .tint((AppAccent(rawValue: accent) ?? .orange).color)
-                .accentColor((AppAccent(rawValue: accent) ?? .orange).color)
                 .environment(
                     \.simulatingReducedMotion,
                     ProcessInfo.processInfo.arguments.contains("-ui-testing") &&
