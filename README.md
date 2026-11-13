@@ -44,6 +44,44 @@ For a physical device, select your signing team in Xcode.
 
 The included project is generated from `project.yml` using XcodeGen.
 
+## Sharing through TestFlight
+
+Use TestFlight for teammates to install the app without Xcode or sideloading.
+The app includes an opaque 1024-pixel icon, iPad orientations, and the export
+compliance declaration for its use of standard operating-system encryption and
+HTTPS. Revisit that declaration if custom on-device encryption is introduced.
+The editable icon artwork is `Resources/AppIcon.svg`.
+
+1. In App Store Connect, create an **iOS** app with bundle ID
+   `com.joeyy.customer`, primary language **English (U.S.)**, and a unique SKU
+   such as `joeyy-customer`. This app record is separate from the Developer
+   portal's provisioning identifier.
+2. Set the signing team and public HTTPS API origin in ignored
+   `Config/Local.xcconfig`. Confirm the API's `/healthz` and its private NFC
+   verifier are healthy. A changed API hostname requires a new app build.
+3. In Xcode, choose **Any iOS Device**, then **Product > Archive**. In Organizer,
+   choose **Distribute App** and upload to App Store Connect/TestFlight. Increase
+   the build number before uploading a subsequent build of the same version.
+4. Once Apple processes the build, create an internal TestFlight group, add the
+   build, and invite eligible App Store Connect users. Testers install Apple's
+   TestFlight app and accept their invitations. External testers require the
+   separate beta review/invitation flow.
+
+For command-line local export of an existing signed archive:
+
+```sh
+xcodebuild -exportArchive -archivePath /path/to/JOEYY.xcarchive \
+  -exportOptionsPlist Config/TestFlightExportOptions.plist \
+  -exportPath /path/to/export -allowProvisioningUpdates
+```
+
+This exports an App Store distribution-signed IPA; it does not upload it or make
+it directly installable from a website. The existing GitHub release workflow
+produces an unsigned sideloading artifact instead, not a TestFlight build.
+Never commit signing keys, Apple login credentials, or local configuration.
+The current Mac and temporary tunnel must remain running for live Tap features;
+TestFlight does not host the backend. Use stable HTTPS hosting for longer tests.
+
 ## Sample businesses
 
 Names and locations come from the businesses' official websites. Offers,

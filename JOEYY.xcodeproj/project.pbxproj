@@ -26,6 +26,7 @@
 		6C16A57EC183B1BD2EC905D9 /* CardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D9BCABE63DCED664EEC11C /* CardsView.swift */; };
 		6E1812456CEA0A3F746F5D50 /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC52EFBA230B52325227C9D /* Design.swift */; };
 		75CD0545590F0FE5B357D2EF /* TapLiveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 731DFD472A508A5181177B3F /* TapLiveCard.swift */; };
+		77338C03BDEEB532A1E1FB7B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7B912C41665144D433D25B38 /* Assets.xcassets */; };
 		7D96FCF58A37DD2D22338C7D /* MerchantViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2982890AB8C5EC2AA8FBAD30 /* MerchantViews.swift */; };
 		8112497E7AAF9341D78EED14 /* VisibleContentAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC375ABD5BEE8BF0A7E0506 /* VisibleContentAudit.swift */; };
 		831E1055DC728F4B511CE4FC /* TapWallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF5DF44357086CFD2D3D16D /* TapWallet.swift */; };
@@ -103,6 +104,7 @@
 		765F4BBBA582116D2DBF1073 /* BusinessModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessModels.swift; sourceTree = "<group>"; };
 		77DC3630255E1DAAE19B927C /* SurfacePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfacePanel.swift; sourceTree = "<group>"; };
 		7AF8ABF0BDD17A91BA056636 /* BusinessDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessDesign.swift; sourceTree = "<group>"; };
+		7B912C41665144D433D25B38 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7DF5DF44357086CFD2D3D16D /* TapWallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapWallet.swift; sourceTree = "<group>"; };
 		80D9BCABE63DCED664EEC11C /* CardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardsView.swift; sourceTree = "<group>"; };
 		817F18B0E7D7309548BD39A4 /* RedeemedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedeemedView.swift; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 		2828BB4E75C0D48774B3F74D /* JOEYY */ = {
 			isa = PBXGroup;
 			children = (
+				7B912C41665144D433D25B38 /* Assets.xcassets */,
 				F2C8F7A358C09962C534A920 /* BugReport.swift */,
 				4233ABC16F8F478408D09948 /* BusinessCardDesigner.swift */,
 				7AF8ABF0BDD17A91BA056636 /* BusinessDesign.swift */,
@@ -290,7 +293,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0488B1AA61C4D54EB491D1E2 = {
-						SystemCapabilities = "[\"com.apple.Wallet\": [\"enabled\": 1], \"com.apple.NearFieldCommunicationTagReading\": [\"enabled\": 1]]";
+						SystemCapabilities = "[\"com.apple.NearFieldCommunicationTagReading\": [\"enabled\": 1], \"com.apple.Wallet\": [\"enabled\": 1]]";
 					};
 					96AC310143C59DA767C25B36 = {
 						TestTargetID = 0488B1AA61C4D54EB491D1E2;
@@ -323,6 +326,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				77338C03BDEEB532A1E1FB7B /* Assets.xcassets in Resources */,
 				AE87C8FCCC46CC0A4C0D80AD /* NoremaLogo.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -557,7 +561,7 @@
 				INFOPLIST_KEY_NFCReaderUsageDescription = "Scan a cafe loyalty tag to securely verify your visit and update your card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -583,7 +587,7 @@
 				INFOPLIST_KEY_NFCReaderUsageDescription = "Scan a cafe loyalty tag to securely verify your visit and update your card.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
