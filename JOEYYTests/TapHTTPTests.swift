@@ -3,10 +3,10 @@ import XCTest
 
 @MainActor
 final class TapHTTPTests: XCTestCase {
-    private func api() -> HTTPTapAPI {
+    private func api(host: String = "cafe.test") -> HTTPTapAPI {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [TapHTTPFixture.self]
-        return HTTPTapAPI(baseURL: URL(string: "https://cafe.test"),
+        return HTTPTapAPI(baseURL: URL(string: "https://\(host)"),
                           transport: URLSession(configuration: configuration))
     }
 
@@ -24,6 +24,36 @@ final class TapHTTPTests: XCTestCase {
             XCTAssertEqual(error.localizedDescription, "That username is already taken.")
         }
     }
+
+    func testExpiredServerAddressExplainsWhySavedTapCannotBeConfirmed() async {
+        do {
+            _ = try await api(host: "missing.cafe.test").cards(token: "fixture-session")
+            XCTFail("The fixture server address cannot be resolved.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("server address is unavailable"))
+            XCTAssertTrue(error.localizedDescription.contains("pending tap stays saved"))
+            XCTAssertFalse(error.localizedDescription.contains("fixture-session"))
+        }
+    }
+
+    func testOfflineErrorDoesNotClaimCardsAreMissing() async {
+        do {
+            _ = try await api(host: "offline.cafe.test").cards(token: "fixture-session")
+            XCTFail("The fixture is offline.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("You're offline"))
+            XCTAssertFalse(error.localizedDescription.contains("No verified cards"))
+        }
+    }
+
+    func testSharedServerErrorUsesHumanMessageInsteadOfErrorCode() async {
+        do {
+            _ = try await api(host: "shared.cafe.test").cards(token: "fixture-session")
+            XCTFail("The fixture requires native NFC configuration.")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Native NFC is not enabled on this server.")
+        }
+    }
 }
 
 private final class TapHTTPFixture: URLProtocol, @unchecked Sendable {
@@ -35,10 +65,19 @@ private final class TapHTTPFixture: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didFailWithError: URLError(.badURL))
             return
         }
+        if url.host == "missing.cafe.test" || url.host == "offline.cafe.test" {
+            let code: URLError.Code = url.host == "missing.cafe.test" ? .cannotFindHost : .notConnectedToInternet
+            client?.urlProtocol(self, didFailWithError: URLError(code))
+            return
+        }
         let status: Int
         let contentType: String
         let data: Data
-        if url.path.hasSuffix("/pass") {
+        if url.host == "shared.cafe.test" {
+            status = 503
+            contentType = "application/json"
+            data = Data(#"{"error":"nativeUnavailable","message":"Native NFC is not enabled on this server."}"#.utf8)
+        } else if url.path.hasSuffix("/pass") {
             XCTAssertEqual(url.path, "/api/v1/cards/ABCDEF00-1234-4567-89AB-ABCDEF123456/pass")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-session")
             XCTAssertEqual(request.httpMethod, "GET")

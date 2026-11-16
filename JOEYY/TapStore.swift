@@ -3,8 +3,13 @@ import Observation
 
 @MainActor @Observable
 final class TapStore {
+    enum CardLoadState: Equatable {
+        case notLoaded, loading, loaded, failed
+    }
+
     private(set) var session: TapSession?
     private(set) var cards: [LiveCard] = []
+    private(set) var cardLoadState = CardLoadState.notLoaded
     private(set) var isBusy = false
     private(set) var needsSignIn = false
     var message: String?
@@ -41,18 +46,18 @@ final class TapStore {
             session = authenticated
             needsSignIn = false
             cards = []
-            cards = try await api.cards(token: authenticated.token)
-            message = cards.isEmpty ? "Ready. Your first verified cafe scan creates your card." : "Your cards are up to date."
+            if await loadCards(token: authenticated.token) {
+                message = cards.isEmpty ? "Ready. Your first verified cafe scan creates your card." : "Your cards are up to date."
+            }
         } catch { report(error) }
     }
 
     func refresh() async {
         guard let session, isSignedIn, !isBusy else { return }
         isBusy = true
+        message = nil
         defer { isBusy = false }
-        do {
-            cards = try await api.cards(token: session.token)
-        } catch { report(error) }
+        _ = await loadCards(token: session.token)
     }
 
     func submit(url: String) async -> LiveCard? {
@@ -132,9 +137,23 @@ final class TapStore {
             try storage.save(nil)
             session = nil
             cards = []
+            cardLoadState = .notLoaded
             needsSignIn = false
             message = revoked ? "Signed out." : "Signed out on this device. The service could not confirm session revocation."
         } catch { report(error) }
+    }
+
+    private func loadCards(token: String) async -> Bool {
+        cardLoadState = .loading
+        do {
+            cards = try await api.cards(token: token)
+            cardLoadState = .loaded
+            return true
+        } catch {
+            cardLoadState = .failed
+            report(error)
+            return false
+        }
     }
 
     private func report(_ error: Error) {

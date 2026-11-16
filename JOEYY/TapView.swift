@@ -33,7 +33,7 @@ struct TapView: View {
                             .disabled(busy)
                         }
                     }
-                    if store.isBusy {
+                    if store.isBusy && store.cardLoadState != .loading {
                         ProgressView("Contacting loyalty service...")
                             .font(.subheadline)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,14 +117,34 @@ struct TapView: View {
     }
 
     @ViewBuilder private var realCards: some View {
-        if store.cards.isEmpty {
-            ContentUnavailableView("No verified cards yet", systemImage: "wave.3.right",
-                                   description: Text("Your first verified scan enrolls you automatically."))
-        } else {
+        if !store.cards.isEmpty {
             ForEach(store.cards) { card in
                 TapLiveCard(card: card, busy: busy) {
                     Task { await updateWallet(for: card, onlyIfInstalled: false) }
                 }
+            }
+        } else if store.pending != nil {
+            ContentUnavailableView(
+                "Tap awaiting confirmation", systemImage: "clock.arrow.circlepath",
+                description: Text("Your chip read is saved. Retry when the service is available so it can confirm your balance without awarding twice.")
+            )
+            .accessibilityIdentifier("tap.pendingState")
+        } else {
+            switch store.cardLoadState {
+            case .notLoaded, .loading:
+                ProgressView("Loading your cards...")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("tap.loadingCards")
+            case .failed:
+                ContentUnavailableView(
+                    "Cards unavailable", systemImage: "wifi.exclamationmark",
+                    description: Text("We couldn't check your balances. Refresh your cards when the loyalty service is available.")
+                )
+                .accessibilityIdentifier("tap.unavailableCards")
+            case .loaded:
+                ContentUnavailableView("No verified cards yet", systemImage: "wave.3.right",
+                                       description: Text("Your first verified scan enrolls you automatically."))
+                    .accessibilityIdentifier("tap.emptyCards")
             }
         }
     }

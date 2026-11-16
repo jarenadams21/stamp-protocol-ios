@@ -1,12 +1,14 @@
 # JOEYY backend specification (MVP)
 
-Status: **full MVP specification, not fully implemented.** The existing customer
-and business demo screens still use local data. A separate native **Tap**
-vertical slice now has a runnable customer API; see [backend/README.md](../backend/README.md).
-It implements username/password sessions, personal cards, foreground phone-read
-NTAG 424 DNA verification, replay-safe awards, rollover/reward counts, and Wallet
-issuance/updates. It is not the Postgres/OIDC/partner-service implementation
-specified below.
+Status: **partly implemented.** The database is Azure Database for PostgreSQL,
+images use private Azure Blob Storage, and the partner routes in section 8.1
+(except redeem) are implemented. The native **Tap** client adds customer
+sessions, phone-read NTAG 424 DNA verification, replay-safe stamps, and Wallet
+issuance/updates; see [backend/README.md](../backend/README.md).
+The local customer/business demo screens remain separate from server balances.
+Native hardware-test accounts, cafes and balances are preserved in additive
+`native_*` compatibility tables. They do not yet use the partner's published
+programs, OIDC customer identities, dashboard or redemption flow.
 
 **NFC distinction:** section 5 below describes a merchant reader reading a
 customer's contactless Wallet pass. The implemented low-cost flow instead has
@@ -92,8 +94,9 @@ Components:
   (`ownerSubject → businessId` for business owners, `subject → customerId` for customers, and the reader credential `→ businessId` for NFC readers). Every read
   and write is authorized against that identity, and input is validated. Failures return `401`,
   `403`, or `400`. **Never trust a `businessId` or `customerId` sent by a client.**
-- **Image storage**: private object storage. The backend validates and uploads images and returns
-  keys; apps display images through short-lived URLs that the backend returns.
+- **Image storage**: private object storage, the only place an image is kept (section 3.2). The
+  backend validates and uploads images and returns keys; apps display images through short-lived
+  URLs that the backend returns.
 - **Loyalty DB**: Postgres, the single source of truth for both apps.
 
 ## 3. Shared resources
@@ -127,6 +130,7 @@ to this contract, so the card designer preview is exactly what customers see.
     "darkPaper": "#2F241E", "darkInk": "#F7EFD9",
     "typeface": "serif",
     "artwork": "cloud",
+    "coverKey": "businesses/<businessId>/cover/<uuid>.jpg",
     "coverURL": "https://example.invalid/signed-url",
     "allowsMotion": true
   },
@@ -142,9 +146,58 @@ Rules (identical to the apps):
 - `artwork` is `rail`, `cloud`, or `stone` (Clipped, Rounded, or Square card stock).
 - The light and dark ink/paper pairs must each meet a **4.5:1** contrast ratio
   (`MerchantTheme.validate()`). The server re-validates and rejects failures with `400`.
+- `coverKey` is the key of a cover this business uploaded (section 8.1), or `null` for the card's
+  original artwork. Apps send `coverKey` when publishing; `coverURL` is set only by the server and
+  is short-lived (section 3.2).
 - Business name is 1–40 characters and location is at most 120 characters.
 - Versions are **immutable**. Publishing inserts a new version and moves the business's live
   pointer in one transaction. Publishing identical settings is rejected (`409 unchangedProgram`).
+
+### 3.2 Where images live
+
+In account mode (section 11), an image has exactly one real home, and anything on a phone is a
+disposable copy.
+
+```
+  Real image (kept)                          Copy on a phone (thrown away freely)
+  ─────────────────                          ────────────────────────────────────
+  Azure Blob Storage: the bytes              App's Caches folder, keyed by image key
+  Postgres: logoKey, coverKey                Never in the Photos library
+  Changed only through the API               Never in the app's saved data
+  Deleted only through the API               iOS or the app may delete it at any time
+```
+
+Rules for the apps:
+
+1. **The apps store keys, never image bytes.** The saved business and card data in account mode
+   hold `logoKey` and `coverKey` only. Image bytes are never written to the app's saved data
+   (Application Support, UserDefaults, or the demo JSON file).
+2. **A cache is optional.** An app may simply download `logoURL` or `coverURL` each time it shows
+   an image. If it keeps copies, they go in the Caches folder (excluded from backups, and cleared by
+   iOS when space runs low), filed under the image key, not the URL.
+3. **A changed key means a changed image.** Keys are never reused, so a cached copy is always
+   correct for its key, and a new key means download again. Nothing else needs to expire.
+4. **Losing the cache is harmless.** A missing copy is downloaded again through a fresh URL from
+   the API. The app never shows an error because a cached copy is gone.
+5. **Signing out clears the cache.** Signing out and deleting the account remove every cached image,
+   so the next person on a shared phone never sees the last account's images.
+6. **No access to the Photos library is needed** to show images. The photo picker is used only to
+   choose an image to upload.
+
+Rules for the backend:
+
+1. **An image is in use** while the business's `logoKey` or any version's `coverKey` points to it.
+   Covers on older versions stay in use, because version history shows them.
+2. **Unused images are deleted.** An upload attached to nothing is kept for 24 hours, so an app can
+   upload and then save; after that it's deleted, as is a replaced logo. Apps should upload just
+   before saving, and upload again if a save returns `400 unknownImage`.
+3. **Deleting a business deletes its images,** whatever deletes the business.
+4. **No file is forgotten.** Each deleted image is queued, and its file is deleted from storage
+   afterwards, with failures retried. Storage keeps deleted files recoverable for 7 days.
+
+The 15-minute URL limits who can fetch the file from storage. It does not limit how long an app
+may show or cache an image it was allowed to download. Demo mode keeps its images on the device
+as it does today (section 11.2).
 
 ## 4. Card lifecycle and full-card rollover
 
@@ -259,7 +312,7 @@ All routes are versioned under `/v1` and use JSON over HTTPS with UTC ISO 8601 t
 | --- | --- | --- |
 | GET | `/v1/partner/business` | The owner's business, or `404` before setup |
 | PUT | `/v1/partner/business` | Create or update name, location, and logo key (upsert on `ownerSubject`) |
-| POST | `/v1/partner/images` | Upload a logo or cover, validate type and size, return its key |
+| POST | `/v1/partner/images?kind=logo\|cover` | Upload a logo or cover (the request body is the image), validate type and size, return its key and a short-lived URL |
 | GET | `/v1/partner/program` | The live version |
 | GET | `/v1/partner/program/versions` | All versions, with usage (Live, Finishing, Retired) and counts |
 | GET | `/v1/partner/program/publish-impact` | `{ keepRules, switchToNew }` |
@@ -287,6 +340,7 @@ All routes are versioned under `/v1` and use JSON over HTTPS with UTC ISO 8601 t
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/v1/punches` | NFC punch intake (section 5) |
+| POST | `/v1/dev/punches` | Development only: a punch without a reader (section 11.3) |
 | Various | `/v1/wallet/…` | Apple PassKit web service (section 6) |
 
 ### 8.4 Dashboard semantics
@@ -313,7 +367,13 @@ All routes are versioned under `/v1` and use JSON over HTTPS with UTC ISO 8601 t
 | Reader | `id` PK, `businessId` FK, credential hash, `revokedAt` |
 | WalletRegistration | Device library ID, push token, pass serial, `cardId` |
 | Notification | `id` PK, `businessId` FK, `kind`, `payload`, `createdAt`, `readAt` |
+| Image | `id` PK, `businessId` FK, `kind` (logo or cover), `storageKey` UNIQUE, `contentType`, `byteSize`, `width`, `height`, `createdAt` |
 | Group, GroupMember | Customer groups and their cards |
+
+As built (`backend/db/migrations`): owners are a `business_owners` table keyed by `subject`, and the
+business `id` doubles as the client ID. `PunchEvent.eventId` is unique per business, so one
+business's reader can't affect another's deduplication. A business's `logoKey` and a version's
+`coverKey` are foreign keys to an Image of the same business.
 
 Constraints: one reward per completed card; `punches` between 0 and the card's version's
 `requiredPunches`; `redeemedAt` after `earnedAt`; and every business-owned row carries
@@ -324,7 +384,8 @@ Constraints: one reward per completed card; `punches` between 0 and the card's v
 - Tokens are verified on every request, and authorization is scoped to the resolved business or customer.
 - Readers use separate, revocable credentials; NFC payloads are signed; punch events are idempotent.
 - The Wallet signing certificate and APNs keys live in a secrets store, never in the apps or the repository.
-- Images: PNG, JPEG, or HEIC only, with a size cap (for example 5 MB), metadata stripped, and private storage.
+- Images: PNG or JPEG only (the apps convert HEIC photos on the device before uploading), at most
+  5 MB, re-encoded with metadata stripped, and kept in private storage.
 - Location search stays on the device through Apple Maps; the backend stores only the chosen text.
 - No personal data beyond the auth subject; customers are pseudonymous to businesses.
 - Structured logs with request IDs; no tokens or pass payloads in logs.
@@ -332,7 +393,71 @@ Constraints: one reward per completed card; `punches` between 0 and the card's v
 - Development environment only until a production review; no production data in development.
 - Infrastructure as code; deploys from CI through OIDC, with no stored cloud secrets.
 
-## 11. Open decisions
+## 11. Demo mode and account mode
+
+Both apps keep a demo that runs entirely on the device, next to the real backend. The two are
+**separate modes**, not a mix: demo data never reaches the backend, and backend data never lands
+in the demo store.
+
+```
+                 Welcome screen
+          ┌────────────┴────────────┐
+   "Explore a demo"             "Sign in"
+          │                         │
+     Demo mode                 Account mode
+   (on the device)             (the backend)
+          │                         │
+   Local data source          Remote data source
+   • today's JSON and         • API client and token
+     UserDefaults storage     • images uploaded, then attached by key
+   • sample business and      • stamps only from real punches
+     sample places              (section 5)
+   • "Add demo stamp"
+          │                         │
+   stays on the phone       API ─▶ Postgres and Blob Storage
+```
+
+### 11.1 How the apps are built
+
+- Screens call one interface per side and never know which mode is active. The partner side has a
+  `PartnerDataSource` and the customer side has a matching one for `LoyaltyStore`.
+- Each interface has two implementations. The **local** one is today's on-device storage (the
+  `PartnerStore` JSON file and the `LoyaltyStore` UserDefaults data). The **remote** one is the
+  shared API client.
+- Calls are `async` in both, so screens handle loading and errors the same way whichever mode answers.
+- The mode is chosen on the Welcome screen: **Explore a demo** or **Sign in**. It's remembered
+  across launches and can be switched from settings.
+
+### 11.2 Rules
+
+1. **Demo data stays on the device.** A demo action never calls the API, uploads an image, or
+   needs a token. Backend responses are never saved into the demo store.
+2. **Each mode keeps its own data.** Switching modes doesn't delete, merge, or copy anything,
+   just as switching between the customer and business sides works today.
+3. **Demo mode is always labeled**, for example with a "Demo" badge, so a sample business is
+   never mistaken for a real one.
+4. **Demo shortcuts exist only in demo mode.** These are "Add demo stamp", loading the Norema Cafe
+   sample, and the built-in places. Account mode has no way to add a stamp except a real punch.
+5. **Demo businesses are fictional.** `Place.catalog` currently lists real businesses with their
+   real addresses and websites; replace them with invented ones before account mode ships.
+6. **Both modes follow the same card rules** (sections 3.1 and 4), so a card behaves the same way
+   in the demo as it does for a real customer. See open decision 6.
+7. **UI tests use demo mode.** They need no server, network, or token.
+
+### 11.3 Testing account mode before readers exist
+
+Until NFC readers exist (open decision 4), account mode can't add a stamp. A **dev-only route**
+runs the real punch logic so the whole flow can be tested against Azure:
+
+`POST /v1/dev/punches` (partner token) with `{ "customerId" }`
+
+- Runs the same handler as section 5: enrollment if needed, rollover, rewards, and notifications,
+  in one transaction. Only the reader and pass checks are skipped.
+- The business comes from the token, as on every partner route.
+- The route doesn't exist when `NODE_ENV=production`, like `AUTH_MODE=dev` and `IMAGE_STORE=local`.
+- Punches it records are marked as dev punches, so they can be found and removed later.
+
+## 12. Open decisions
 
 1. **Redemption**: how a reward is presented and verified at checkout (for example, an NFC tap
    of a reward pass, or the business confirming it in the partner app). The diagram leaves this
@@ -342,9 +467,15 @@ Constraints: one reward per completed card; `punches` between 0 and the card's v
    to show it as soon as the card is full.
 3. **Reward expiry**: none in the MVP; confirm.
 4. **Reader hardware** and how readers are provisioned to a business.
-5. **Hosting**: Azure was prototyped and then removed to keep cost at $0; choose before building.
+5. **Hosting**: The database is decided: Azure Database for PostgreSQL Flexible Server (Burstable
+   B1ms, dev only), with Microsoft Entra sign-in and no stored password. Image storage is decided
+   too: a private Azure Blob Storage container with the same Entra sign-in and no account key. Where
+   the API runs (for example, App Service or Container Apps with a managed identity) is still open.
+6. **Full cards in the customer app**: the customer app (v3) blocks stamps on a full card until the
+   reward is claimed and queues extra stamps, while section 4 starts a new card automatically.
+   Choose one rule for both modes and both apps (section 11.2, rule 6).
 
-## 12. Exit criteria
+## 13. Exit criteria
 
 The backend MVP is done when every item below is met in a development environment.
 
@@ -383,8 +514,9 @@ Dashboard
 Quality
 
 - [ ] API contract tests and the iOS CI (`.github/workflows/ios.yml`) pass on `main`.
-- [ ] Both apps switch from sample data to the API behind a launch argument, keeping sample data
-      for UI tests.
+- [ ] Both apps offer demo mode and account mode (section 11). Account mode reads and writes only
+      through the API; demo mode makes no network calls; UI tests run in demo mode.
+- [ ] `POST /v1/dev/punches` is absent when `NODE_ENV=production`, with a test.
 - [ ] Load test: 50 punches per second sustained with p95 under 500 ms.
 - [ ] Security review is complete, secrets are only in the secrets store, and a monthly cost
       estimate is approved.

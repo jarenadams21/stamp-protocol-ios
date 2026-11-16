@@ -118,8 +118,19 @@ final class HTTPTapAPI: TapAPI {
         do {
             (data, response) = try await transport.data(for: request)
         } catch {
-            // Network errors may embed the SUN URL or credentials; never surface those.
-            throw TapError.message("Cannot reach the loyalty service. Check your connection and retry.")
+            // Never surface transport errors containing credentials or encrypted tag data.
+            if let network = error as? URLError {
+                switch network.code {
+                case .cannotFindHost, .dnsLookupFailed:
+                    throw TapError.message("The loyalty server address is unavailable. Check for an app update or contact the test organizer. Any pending tap stays saved.")
+                case .notConnectedToInternet:
+                    throw TapError.message("You're offline. Reconnect, then refresh your cards or retry your saved pending tap.")
+                case .timedOut, .cannotConnectToHost, .networkConnectionLost:
+                    throw TapError.message("The loyalty server isn't responding. Try again when it's available; any pending tap stays saved.")
+                default: break
+                }
+            }
+            throw TapError.message("Cannot securely reach the loyalty service. Check your connection and retry. Any pending tap stays saved.")
         }
         guard let http = response as? HTTPURLResponse else {
             throw TapError.message("The loyalty service returned an invalid response.")
@@ -130,10 +141,12 @@ final class HTTPTapAPI: TapAPI {
             if token == nil { throw TapError.message("Sign-in failed. Check your username and password.") }
             throw TapError.unauthorized
         case 400, 409, 422, 503:
-            struct Failure: Decodable { let error: String }
-            if let failure = try? JSONDecoder().decode(Failure.self, from: data),
-               !failure.error.isEmpty, failure.error.count <= 500 {
-                throw TapError.message(failure.error)
+            struct Failure: Decodable { let error: String; let message: String? }
+            if let failure = try? JSONDecoder().decode(Failure.self, from: data) {
+                let explanation = failure.message ?? failure.error
+                if !explanation.isEmpty, explanation.count <= 500 {
+                    throw TapError.message(explanation)
+                }
             }
             throw TapError.message("The service could not complete this request. Retry the pending tap or check your account details.")
         default: throw TapError.message("The loyalty request failed (HTTP \(http.statusCode)). Please retry.")

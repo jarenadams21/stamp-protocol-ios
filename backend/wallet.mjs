@@ -7,6 +7,31 @@ import sharp from "sharp";
 import { HttpError, jsonBody } from "./support.mjs";
 
 const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[char]));
+// Shared by the retained SQLite migration source and the PostgreSQL service.
+export async function renderPass(card, { baseURL, passType, teamID, certificates, token }) {
+  const circles = Array.from({ length: card.target }, (_, index) => {
+    const x = 25 + index % 6 * 63, y = 55 + Math.floor(index / 6) * 55;
+    return `<circle cx="${x}" cy="${y}" r="16" fill="${index < card.stamps ? "#fff6df" : "none"}" stroke="#fff6df" stroke-width="2"/>`;
+  }).join("");
+  const strip = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1125" height="432" viewBox="0 0 400 144">
+    <rect width="400" height="144" fill="#19394f"/><text x="12" y="20" font-size="13" fill="#fff6df">${escape(card.cafeName)}</text>${circles}</svg>`)).png().toBuffer();
+  const icon = await sharp({ create: { width: 87, height: 87, channels: 3, background: "#19394f" } }).png().toBuffer();
+  const pass = new PKPass({ "icon@3x.png": icon, "icon.png": await sharp(icon).resize(29, 29).toBuffer(),
+    "icon@2x.png": await sharp(icon).resize(58, 58).toBuffer(), "strip@3x.png": strip,
+    "strip@2x.png": await sharp(strip).resize(750, 288).toBuffer(), "strip.png": await sharp(strip).resize(375, 144).toBuffer()
+  }, certificates, {
+    formatVersion: 1, passTypeIdentifier: passType, teamIdentifier: teamID, serialNumber: card.id,
+    organizationName: "Cafe Wallet Prototype", description: `${card.cafeName} loyalty test`,
+    logoText: card.cafeName, backgroundColor: "rgb(25,57,79)", foregroundColor: "rgb(255,246,223)",
+    labelColor: "rgb(255,246,223)", webServiceURL: baseURL + "/wallet", authenticationToken: token
+  });
+  pass.type = "storeCard";
+  pass.headerFields.push({ key: "stamps", label: "STAMPS", value: `${card.stamps} / ${card.target}` });
+  pass.auxiliaryFields.push({ key: "rewards", label: "REWARDS AVAILABLE", value: card.rewardsAvailable });
+  pass.backFields.push({ key: "terms", label: "Prototype", value: "Cafe Wallet Prototype test pass. Not redeemable for real purchases." });
+  pass.setBarcodes({ format: "PKBarcodeFormatQR", message: card.id, messageEncoding: "iso-8859-1" });
+  return pass.getAsBuffer();
+}
 export class CustomerWallet {
   constructor({ store, dataDir, baseURL, passType, teamID, certificates, sendPush }) {
     Object.assign(this, { store, db: store.db, dataDir, baseURL, passType, teamID, certificates, sendPush });
@@ -24,32 +49,12 @@ export class CustomerWallet {
     this.db.prepare("INSERT OR IGNORE INTO wallet_passes(serial,token) VALUES(?,?)").run(card.id, randomBytes(32).toString("hex"));
     const previous = this.db.prepare("SELECT * FROM wallet_passes WHERE serial=?").get(card.id);
     if (previous.version === card.version && previous.base_url === this.baseURL && previous.revision) return;
-    const settings = { webServiceURL: this.baseURL + "/wallet", authenticationToken: previous.token };
-    const circles = Array.from({ length: card.target }, (_, index) => {
-      const x = 25 + index % 6 * 63, y = 55 + Math.floor(index / 6) * 55;
-      return `<circle cx="${x}" cy="${y}" r="16" fill="${index < card.stamps ? "#fff6df" : "none"}" stroke="#fff6df" stroke-width="2"/>`;
-    }).join("");
-    const strip = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1125" height="432" viewBox="0 0 400 144">
-      <rect width="400" height="144" fill="#19394f"/><text x="12" y="20" font-size="13" fill="#fff6df">${escape(card.cafeName)}</text>${circles}</svg>`)).png().toBuffer();
-    const icon = await sharp({ create: { width: 87, height: 87, channels: 3, background: "#19394f" } }).png().toBuffer();
-    const pass = new PKPass({ "icon@3x.png": icon, "icon.png": await sharp(icon).resize(29, 29).toBuffer(),
-      "icon@2x.png": await sharp(icon).resize(58, 58).toBuffer(), "strip@3x.png": strip,
-      "strip@2x.png": await sharp(strip).resize(750, 288).toBuffer(), "strip.png": await sharp(strip).resize(375, 144).toBuffer()
-    }, this.certificates, {
-      formatVersion: 1, passTypeIdentifier: this.passType, teamIdentifier: this.teamID, serialNumber: card.id,
-      organizationName: "Cafe Wallet Prototype", description: `${card.cafeName} loyalty test`,
-      logoText: card.cafeName, backgroundColor: "rgb(25,57,79)", foregroundColor: "rgb(255,246,223)",
-      labelColor: "rgb(255,246,223)", ...settings
-    });
-    pass.type = "storeCard";
-    pass.headerFields.push({ key: "stamps", label: "STAMPS", value: `${card.stamps} / ${card.target}` });
-    pass.auxiliaryFields.push({ key: "rewards", label: "REWARDS AVAILABLE", value: card.rewardsAvailable });
-    pass.backFields.push({ key: "terms", label: "Prototype", value: "Cafe Wallet Prototype test pass. Not redeemable for real purchases." });
-    pass.setBarcodes({ format: "PKBarcodeFormatQR", message: card.id, messageEncoding: "iso-8859-1" });
+    const bytes = await renderPass(card, { baseURL: this.baseURL, passType: this.passType,
+      teamID: this.teamID, certificates: this.certificates, token: previous.token });
     const revision = randomUUID();
     const directory = join(this.dataDir, "passes", card.id, revision);
     await mkdir(directory, { recursive: true, mode: 0o700 });
-    await writeFile(join(directory, "pass.pkpass"), pass.getAsBuffer(), { mode: 0o600 });
+    await writeFile(join(directory, "pass.pkpass"), bytes, { mode: 0o600 });
     this.store.transaction(() => {
       const modified = Math.max(Math.floor(Date.now() / 1000), previous.modified + 1);
       this.db.prepare("UPDATE wallet_passes SET revision=?,version=?,modified=?,base_url=? WHERE serial=?")

@@ -50,6 +50,52 @@ final class TapStoreTests: XCTestCase {
         XCTAssertTrue(store.cards.isEmpty)
     }
 
+    func testFailedCardLoadIsNotAnEmptyConfirmedCollection() async {
+        let api = MockTapAPI()
+        api.cardLoadFailure = true
+        let store = TapStore(api: api, storage: MemoryTapStorage())
+        XCTAssertEqual(store.cardLoadState, .notLoaded)
+        await store.refresh()
+        XCTAssertTrue(store.cards.isEmpty)
+        XCTAssertEqual(store.cardLoadState, .failed)
+        XCTAssertNotNil(store.message)
+
+        api.cardLoadFailure = false
+        api.existingCards = []
+        await store.refresh()
+        XCTAssertEqual(store.cardLoadState, .loaded)
+        XCTAssertTrue(store.cards.isEmpty)
+        XCTAssertNil(store.message)
+    }
+
+    func testFailedRefreshPreservesConfirmedCardsAndPendingTap() async throws {
+        let api = MockTapAPI()
+        let storage = MemoryTapStorage()
+        let store = TapStore(api: api, storage: storage)
+        await store.refresh()
+        api.tapFailures = 1
+        _ = await store.submit(url: "https://cafe.test/t?counter=1")
+        let pending = try XCTUnwrap(store.pending)
+        api.cardLoadFailure = true
+        await store.refresh()
+        XCTAssertEqual(store.cardLoadState, .failed)
+        XCTAssertEqual(store.cards, [api.card])
+        XCTAssertEqual(store.pending, pending)
+        XCTAssertEqual(storage.value?.pending, pending)
+    }
+
+    func testSignInCanSucceedWhileInitialCardLoadFails() async {
+        let api = MockTapAPI()
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        api.cardLoadFailure = true
+        let store = TapStore(api: api, storage: storage)
+        await store.authenticate(username: "customer", password: "twelve-chars!", create: false)
+        XCTAssertTrue(store.isSignedIn)
+        XCTAssertEqual(store.cardLoadState, .failed)
+        XCTAssertNotNil(store.message)
+    }
+
     func testCannotSendTapIfDurableReservationFails() async {
         let api = MockTapAPI()
         let storage = MemoryTapStorage()
@@ -138,6 +184,7 @@ final class TapStoreTests: XCTestCase {
         XCTAssertNil(storage.value)
         XCTAssertNil(store.session)
         XCTAssertTrue(store.cards.isEmpty)
+        XCTAssertEqual(store.cardLoadState, .notLoaded)
         XCTAssertFalse(store.isSignedIn)
         XCTAssertTrue(store.message?.contains("could not confirm") == true)
     }
@@ -187,12 +234,14 @@ private final class MockTapAPI: TapAPI {
     var tapFailures = 0
     var unauthorized = false
     var logoutFailure = false
+    var cardLoadFailure = false
 
     func authenticate(username: String, password: String, create: Bool) async throws -> TapSession {
         TapSession(token: "test-refreshed", username: username)
     }
     func cards(token: String) async throws -> [LiveCard] {
         if unauthorized { throw TapError.unauthorized }
+        if cardLoadFailure { throw TapError.message("Loyalty service unavailable.") }
         return existingCards ?? [card]
     }
     func tap(_ request: TapRequest, token: String) async throws -> TapResponse {
