@@ -1,6 +1,21 @@
 import Foundation
 import Security
 
+enum TapMode: Equatable {
+    case account, prototype
+
+    static var configured: Self {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-ui-testing") {
+            return arguments.contains("-tap-prototype") ? .prototype : .account
+        }
+        #endif
+        return (Bundle.main.object(forInfoDictionaryKey: "LoyaltyPrototypeMode") as? String)?
+            .uppercased() == "YES" ? .prototype : .account
+    }
+}
+
 struct LiveCard: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let cafeId: UUID
@@ -26,12 +41,28 @@ struct TapResponse: Decodable, Sendable {
     let eventId: UUID
     let card: LiveCard
     let duplicate: Bool
+    let verification: TapVerification?
+
+    init(eventId: UUID, card: LiveCard, duplicate: Bool, verification: TapVerification? = nil) {
+        self.eventId = eventId
+        self.card = card
+        self.duplicate = duplicate
+        self.verification = verification
+    }
+}
+
+struct TapVerification: Decodable, Equatable, Sendable {
+    let verified: Bool
+    let counter: Int
 }
 
 struct TapSession: Codable, Equatable, Sendable {
     let token: String
     let username: String
     var pending: TapRequest?
+    var prototype: Bool?
+
+    var isPrototype: Bool { prototype == true }
 }
 
 enum TapError: LocalizedError {
@@ -48,6 +79,7 @@ enum TapError: LocalizedError {
 
 @MainActor
 protocol TapAPI {
+    func startPrototypeSession(token: String?) async throws -> TapSession
     func authenticate(username: String, password: String, create: Bool) async throws -> TapSession
     func cards(token: String) async throws -> [LiveCard]
     func tap(_ request: TapRequest, token: String) async throws -> TapResponse
@@ -79,6 +111,11 @@ final class HTTPTapAPI: TapAPI {
         struct Credentials: Encodable { let username: String; let password: String }
         let body = try JSONEncoder().encode(Credentials(username: username, password: password))
         let data = try await request(create ? "accounts" : "sessions", method: "POST", body: body)
+        return try JSONDecoder().decode(TapSession.self, from: data)
+    }
+
+    func startPrototypeSession(token: String?) async throws -> TapSession {
+        let data = try await request("prototype/session", method: "POST", token: token)
         return try JSONDecoder().decode(TapSession.self, from: data)
     }
 
@@ -138,6 +175,9 @@ final class HTTPTapAPI: TapAPI {
         switch http.statusCode {
         case 200...299: break
         case 401:
+            if path == "prototype/session" {
+                throw TapError.message("The saved prototype session could not be resumed. Your saved tap has not been discarded; contact the test organizer.")
+            }
             if token == nil { throw TapError.message("Sign-in failed. Check your username and password.") }
             throw TapError.unauthorized
         case 400, 409, 422, 503:
@@ -149,7 +189,11 @@ final class HTTPTapAPI: TapAPI {
                 }
             }
             throw TapError.message("The service could not complete this request. Retry the pending tap or check your account details.")
-        default: throw TapError.message("The loyalty request failed (HTTP \(http.statusCode)). Please retry.")
+        default:
+            if http.statusCode == 404, path == "prototype/session" {
+                throw TapError.message("This server has not enabled the no-account NFC prototype. Contact the test organizer.")
+            }
+            throw TapError.message("The loyalty request failed (HTTP \(http.statusCode)). Please retry.")
         }
         if isPass, http.mimeType != "application/vnd.apple.pkpass" {
             throw TapError.message("The service did not return an Apple Wallet pass.")
@@ -166,10 +210,21 @@ protocol TapSessionStorage {
 
 @MainActor
 struct KeychainTapSessionStorage: TapSessionStorage {
+    let account: String
+
+    init(mode: TapMode = .account) {
+        let base = mode == .prototype ? "prototype-session" : "session"
+        #if DEBUG
+        account = ProcessInfo.processInfo.arguments.contains("-ui-testing") ? "\(base).ui-testing" : base
+        #else
+        account = base
+        #endif
+    }
+
     private var query: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: "com.joeyy.customer.loyalty",
-         kSecAttrAccount as String: "session"]
+         kSecAttrAccount as String: account]
     }
 
     func load() throws -> TapSession? {

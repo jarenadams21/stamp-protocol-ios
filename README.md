@@ -14,6 +14,43 @@ signing files and customer data are ignored, not committed. Real NFC and final
 Wallet delivery require a physical iPhone. The current zero-key configuration is
 for hardware testing only and must not be used for valuable rewards.
 
+### No-account NFC prototype
+
+Customer onboarding belongs to a separate workstream. For the NFC prototype, use
+`NATIVE_PROTOTYPE_MODE=1` on the enabled native backend and build the app with
+`LOYALTY_PROTOTYPE_MODE=YES`. The production-style account flow remains available
+with the app setting `NO`; prototype access is off by default on the server and
+is forbidden in production.
+
+The Tap screen offers **Start NFC prototype**, without a name, email or password.
+An anonymous per-install session only identifies this phone's test card; it does
+not verify a customer. Its Keychain entry is separate from the existing account
+and pending tap. Reopening/resuming keeps the same card and saved request.
+
+The chip generates encrypted data and an authentication code. The phone forwards
+the original read to the backend; the private SDM service decrypts and verifies it
+before the database adds a stamp. The UI shows the server-confirmed read counter.
+Fresh reads keep counting across full-card rollover. Corrupt authentication codes
+and consumed counters are rejected; retrying the same request never adds twice.
+No local stamp simulation or cryptographic fallback is used.
+
+Wallet is optional: prototype tap confirmation does not wait for pass signing,
+and the app does not fetch Wallet automatically after a prototype scan.
+The existing backend still needs its external Wallet signing configuration to
+start; this mode changes the NFC flow, not deployment/secrets provisioning.
+
+With the configured prototype service reachable over stable HTTPS, archive using:
+
+```sh
+node Tools/archive-live-tap.mjs https://YOUR-STABLE-API-HOST --prototype
+```
+
+The command requires the server to advertise `prototypeMode:true`, and pins both
+the checked address and prototype build setting. It does not publish TestFlight
+or provide hosting. See [backend setup](backend/README.md) for the additive
+prototype migration and server configuration. No partner/OIDC account code or
+customer identity migration is implemented by this mode.
+
 ## Version 3
 
 The local-first customer experience includes:

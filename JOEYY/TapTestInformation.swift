@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct TapTestInformation: View {
+    var prototype = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Factory-key tags. Not valid for real rewards.", systemImage: "exclamationmark.triangle")
@@ -10,6 +12,11 @@ struct TapTestInformation: View {
                 .accessibilityIdentifier("tap.testWarning")
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 12) {
+                    if prototype {
+                        Text("This phone keeps an anonymous test card, not a verified customer account. Account setup is separate work.")
+                        Text("The phone sends the encrypted chip read to the backend. The backend decrypts and verifies it before adding a stamp. Fresh physical reads keep counting; retrying the same read never counts twice.")
+                        Text("Wallet is optional for this prototype. A verified stamp does not depend on adding a pass.")
+                    }
                     Text("These verified cards are separate from your local demo cards.")
                     Text("Hardware test only. Factory zero-key tags are not secure for production rewards.")
                     Text("Scanning needs a supported iPhone. Add a Wallet card once with Apple's confirmation; later scans can update that installed card. This is not an Apple Pay payment.")

@@ -40,7 +40,7 @@ before(async () => {
         },
     });
     services = {
-        store, wallet, factoryTest: true,
+        store, wallet, factoryTest: true, prototypeMode: false,
         verify: async (url) => {
             verified++;
             const parsed = new URL(url), counter = parsed.searchParams.get("fixture");
@@ -79,6 +79,7 @@ async function account(username: string) {
 test("native feature is opt-in; disabled routes stay absent, partner auth remains independent", async () => {
     assert.equal((await ctx.app.inject({ method: "GET", url: "/api/v1/cards" })).statusCode, 404);
     assert.equal((await ctx.app.inject({ method: "GET", url: "/api/v1/healthz" })).statusCode, 404);
+    assert.equal((await call("/prototype/session", "POST")).statusCode, 404);
     assert.equal((await ctx.app.inject({ method: "GET", url: `/wallet/v1/passes/${passType}/${randomUUID()}` })).statusCode, 404);
     assert.equal((await ctx.app.inject({ method: "GET", url: "/healthz" })).json().nativeNfc.enabled, false);
     assert.equal((await app.inject({ method: "GET", url: "/healthz" })).json().nativeNfc.factoryKeyTest, true);
@@ -93,7 +94,7 @@ test("native feature is opt-in; disabled routes stay absent, partner auth remain
 test("native readiness is public and secret-free, checks its own persistence, and returns 503 for an unready schema", async () => {
     const ready = await call("/healthz");
     assert.equal(ready.statusCode, 200);
-    assert.deepEqual(ready.json(), { status: "ok", factoryKeyTest: true, publicBaseURL: "https://native.example.test" });
+    assert.deepEqual(ready.json(), { status: "ok", factoryKeyTest: true, publicBaseURL: "https://native.example.test", prototypeMode: false });
     assert.equal(ready.headers["cache-control"], "no-store");
     const spoofed = await app.inject({
         method: "GET", url: "/api/v1/healthz",
@@ -109,7 +110,7 @@ test("native readiness is public and secret-free, checks its own persistence, an
     try {
         const response = await unready.inject({ method: "GET", url: "/api/v1/healthz" });
         assert.equal(response.statusCode, 503);
-        assert.deepEqual(response.json(), { status: "unavailable", factoryKeyTest: false, publicBaseURL: "https://native.example.test" });
+        assert.deepEqual(response.json(), { status: "unavailable", factoryKeyTest: false, publicBaseURL: "https://native.example.test", prototypeMode: false });
     } finally { await unready.close(); await pool.end(); }
 });
 
@@ -499,6 +500,7 @@ test("legacy importer dry-run/apply preserves credentials, sessions, events, cou
         assert.equal((await importedStore.authenticate(`Bearer ${bearer}`)).id, customerID);
         assert.equal((await importedStore.login("imported-native", password)).username, fixture.username);
         const stored = (await target.pool.query("SELECT * FROM native_customers WHERE id=$1", [customerID])).rows[0];
+        assert.equal(stored.is_prototype, false, "legacy customer imports never become anonymous technical accounts");
         assert.equal(stored.password_hash, sourceCustomer.password_hash);
         assert.equal(stored.salt, sourceCustomer.salt);
         assert.equal((await target.pool.query("SELECT expires FROM native_sessions WHERE hash=$1", [digest(bearer)])).rows[0].expires, String(expires));
@@ -552,7 +554,7 @@ test("real signing/configuration and enabled server startup, native HTTP, durabl
         const address = verifier.address();
         assert.ok(address && typeof address !== "string");
         const settings = {
-            NATIVE_NFC_ENABLED: "1", PUBLIC_BASE_URL: "https://native.example.test",
+            NATIVE_NFC_ENABLED: "1", NATIVE_PROTOTYPE_MODE: "1", PUBLIC_BASE_URL: "https://native.example.test",
             SDM_BACKEND_URL: `http://127.0.0.1:${address.port}`,
             NATIVE_NFC_KEY_MODE: "factory-test", FACTORY_KEY_TEST: "1",
             PASS_TYPE_ID: passType, TEAM_ID: "TEAMTEST01",
@@ -561,6 +563,8 @@ test("real signing/configuration and enabled server startup, native HTTP, durabl
         };
         const config = await nativeConfigFromEnv(settings);
         assert.ok(config);
+        assert.equal(config.prototypeMode, true);
+        assert.equal((await nativeConfigFromEnv({ ...settings, NATIVE_PROTOTYPE_MODE: "0" }))?.prototypeMode, false);
         await assert.rejects(nativeConfigFromEnv({ ...settings, SIGNER_KEY_PATH: rootKey }), /does not match/);
         // Render directly without relying on an already published fake pass.
         const fixtureCard = {
@@ -603,8 +607,14 @@ test("real signing/configuration and enabled server startup, native HTTP, durabl
         });
         assert.equal((await (await fetch(`${origin}/healthz`)).json()).nativeNfc.enabled, true);
         assert.deepEqual(await (await fetch(`${origin}/api/v1/healthz`)).json(), {
-            status: "ok", factoryKeyTest: true, publicBaseURL: settings.PUBLIC_BASE_URL,
+            status: "ok", factoryKeyTest: true, publicBaseURL: settings.PUBLIC_BASE_URL, prototypeMode: true,
         });
+        const guestSession = await fetch(`${origin}/api/v1/prototype/session`, { method: "POST" });
+        assert.equal(guestSession.status, 200);
+        const guest = await guestSession.json();
+        assert.equal(guest.prototype, true);
+        const guestCards = await fetch(`${origin}/api/v1/cards`, { headers: { authorization: `Bearer ${guest.token}` } });
+        assert.deepEqual(await guestCards.json(), { cards: [] });
         const signup = await fetch(`${origin}/api/v1/accounts`, {
             method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ username: "running-native", password }),

@@ -21,6 +21,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LoyaltyAPIBaseURL: $(LOYALTY_API_BASE_URL)
+        LoyaltyPrototypeMode: $(LOYALTY_PROTOTYPE_MODE)
         ITSAppUsesNonExemptEncryption: false
     attributes:
       SystemCapabilities:

@@ -6,6 +6,7 @@ import { HttpError } from "../../support.mjs";
 const scrypt = (password: string, salt: string) => new Promise<Buffer>((resolve, reject) => {
     derive(password, salt, 64, (error, key) => error ? reject(error) : resolve(key));
 });
+const SESSION_LIFETIME_MS = 30 * 86400_000;
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 export const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export function normalizeUUID(value: string): string {
@@ -23,15 +24,16 @@ export interface NativeCard {
     updatedAt: string;
     version: string;
 }
-export interface NativeCustomer { id: string; username: string; sessionHash: string }
+export interface NativeCustomer { id: string; username: string; sessionHash: string; isPrototype: boolean }
 export interface VerifiedTag { uid: string; counter: number }
-interface EventRow { id: string; card_id: string; fingerprint: string }
+interface EventRow { id: string; card_id: string; fingerprint: string; counter: number }
 interface CustomerRow { id: string; username: string; salt: string; password_hash: string }
 export const publicCard = ({ version: _version, ...card }: NativeCard) => card;
 
 export class NativeStore {
     readonly pool: pg.Pool;
-    constructor(pool: pg.Pool) { this.pool = pool; }
+    readonly prototypeMode: boolean;
+    constructor(pool: pg.Pool, prototypeMode = false) { this.pool = pool; this.prototypeMode = prototypeMode; }
 
     credentials(username: unknown, password: unknown): { username: string; password: string } {
         if (typeof username !== "string" || !/^[a-zA-Z0-9._-]{3,40}$/.test(username) ||
@@ -57,7 +59,8 @@ export class NativeStore {
 
     async login(rawUsername: unknown, rawPassword: unknown) {
         const { username, password } = this.credentials(rawUsername, rawPassword);
-        const { rows: [customer] } = await this.pool.query<CustomerRow>("SELECT * FROM native_customers WHERE username=$1", [username]);
+        const { rows: [customer] } = await this.pool.query<CustomerRow>(
+            "SELECT id,username,salt,password_hash FROM native_customers WHERE username=$1 AND NOT is_prototype", [username]);
         const hash = await scrypt(password, customer?.salt ?? "unknown-account-salt");
         const expected = customer ? Buffer.from(customer.password_hash, "hex") : Buffer.alloc(64);
         if (hash.length !== expected.length || !timingSafeEqual(hash, expected) || !customer) {
@@ -69,16 +72,43 @@ export class NativeStore {
     private async session(db: Queryable, id: string, username: string) {
         const token = randomBytes(32).toString("hex");
         await db.query("INSERT INTO native_sessions(hash,customer_id,expires) VALUES($1,$2,$3)",
-            [digest(token), id, Date.now() + 30 * 86400_000]);
+            [digest(token), id, Date.now() + SESSION_LIFETIME_MS]);
         return { token, username };
     }
 
-    async authenticate(header: string | undefined): Promise<NativeCustomer> {
+    private bearerToken(header: string | undefined) {
         if (!header || !/^Bearer [0-9a-f]{64}$/.test(header)) throw new HttpError(401, "Please sign in.");
-        const hash = digest(header.slice(7));
-        const { rows: [row] } = await this.pool.query<{ id: string; username: string }>(
-            `SELECT c.id,c.username FROM native_sessions s JOIN native_customers c ON c.id=s.customer_id
-             WHERE s.hash=$1 AND s.expires>$2`, [hash, Date.now()]);
+        return header.slice(7);
+    }
+
+    async prototypeSession(header: string | undefined) {
+        if (!this.prototypeMode) throw new HttpError(404, "NFC prototype mode is disabled.");
+        return transaction(this.pool, async (db) => {
+            if (header !== undefined) {
+                const token = this.bearerToken(header), hash = digest(token);
+                // Expiry is renewable only for an existing guest session. A revoked
+                // token or ordinary account must never silently become another guest.
+                const { rows: [customer] } = await db.query<{ username: string }>(
+                    `SELECT c.username FROM native_sessions s JOIN native_customers c ON c.id=s.customer_id
+                     WHERE s.hash=$1 AND c.is_prototype FOR UPDATE OF s,c`, [hash]);
+                if (!customer) throw new HttpError(401, "This NFC prototype session is invalid or was revoked.");
+                await db.query("UPDATE native_sessions SET expires=$2 WHERE hash=$1", [hash, Date.now() + SESSION_LIFETIME_MS]);
+                return { token, username: customer.username, prototype: true };
+            }
+            const id = randomUUID(), username = `nfc-${randomBytes(16).toString("hex")}`;
+            // Random, unusable credentials: this technical row is not a password account.
+            await db.query(
+                `INSERT INTO native_customers(id,username,salt,password_hash,is_prototype) VALUES($1,$2,$3,$4,true)`,
+                [id, username, randomBytes(16).toString("hex"), randomBytes(64).toString("hex")]);
+            return { ...await this.session(db, id, username), prototype: true };
+        });
+    }
+
+    async authenticate(header: string | undefined): Promise<NativeCustomer> {
+        const hash = digest(this.bearerToken(header));
+        const { rows: [row] } = await this.pool.query<{ id: string; username: string; isPrototype: boolean }>(
+            `SELECT c.id,c.username,c.is_prototype AS "isPrototype" FROM native_sessions s JOIN native_customers c ON c.id=s.customer_id
+             WHERE s.hash=$1 AND s.expires>$2 AND (NOT c.is_prototype OR $3::boolean)`, [hash, Date.now(), this.prototypeMode]);
         if (!row) throw new HttpError(401, "Your session expired. Please sign in.");
         return { ...row, sessionHash: hash };
     }
@@ -104,7 +134,7 @@ export class NativeStore {
 
     async previous(customerId: string, requestId: string, url: string, db: Queryable = this.pool) {
         const { rows: [row] } = await db.query<EventRow>(
-            "SELECT id,card_id,fingerprint FROM native_events WHERE customer_id=$1 AND request_id=$2", [customerId, requestId]);
+            "SELECT id,card_id,fingerprint,counter FROM native_events WHERE customer_id=$1 AND request_id=$2", [customerId, requestId]);
         if (row && row.fingerprint !== digest(url)) throw new HttpError(409, "This request ID was already used for a different tap.");
         return row;
     }
@@ -115,7 +145,7 @@ export class NativeStore {
             // including two different chips using the same request ID concurrently.
             await db.query("SELECT id FROM native_customers WHERE id=$1 FOR UPDATE", [customerId]);
             const previous = await this.previous(customerId, requestId, url, db);
-            if (previous) return { eventId: previous.id, card: await this.card(previous.card_id, customerId, db), duplicate: true };
+            if (previous) return { eventId: previous.id, card: await this.card(previous.card_id, customerId, db), duplicate: true, counter: previous.counter };
             if (!verified) throw new HttpError(409, "Scan the physical chip again.");
             if (!/^[0-9A-F]{14}$/.test(verified.uid) || !Number.isInteger(verified.counter) ||
                 verified.counter < 0 || verified.counter > 0xffffff) throw new HttpError(502, "Invalid verifier response.");
@@ -132,15 +162,15 @@ export class NativeStore {
             const card = await this.card(locked.id, customerId, db);
             const stamps = card.stamps >= card.target ? 1 : card.stamps + 1;
             const id = randomUUID();
-            const { rows: [event] } = await db.query<{ seq: string }>(
+            const { rows: [event] } = await db.query<{ seq: string; counter: number }>(
                 `INSERT INTO native_events(id,customer_id,request_id,fingerprint,card_id,uid,counter)
-                 VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING seq::text`,
+                 VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING seq::text,counter`,
                 [id, customerId, requestId, digest(url), card.id, verified.uid, verified.counter]);
             if (!event) throw new Error("Missing native event");
             await db.query("UPDATE native_tags SET last_counter=$1 WHERE uid=$2", [verified.counter, verified.uid]);
             await db.query("UPDATE native_cards SET stamps=$1,rewards=$2,updated_at=$3,version=$4 WHERE id=$5",
                 [stamps, card.rewardsAvailable + (stamps === card.target ? 1 : 0), new Date().toISOString(), event.seq, card.id]);
-            return { eventId: id, card: await this.card(card.id, customerId, db), duplicate: false };
+            return { eventId: id, card: await this.card(card.id, customerId, db), duplicate: false, counter: event.counter };
         });
     }
 }

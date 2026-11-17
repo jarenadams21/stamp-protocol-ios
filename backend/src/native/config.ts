@@ -9,6 +9,7 @@ export interface NativeConfig {
     passType: string;
     teamID: string;
     factoryTest: boolean;
+    prototypeMode: boolean;
     certificates: SigningCertificates;
 }
 function required(env: NodeJS.ProcessEnv, key: string) {
@@ -31,6 +32,16 @@ function privateHTTPHost(hostname: string) {
 export async function nativeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<NativeConfig | undefined> {
     if (env.NATIVE_NFC_ENABLED !== undefined && !["0", "1"].includes(env.NATIVE_NFC_ENABLED)) {
         throw new Error("NATIVE_NFC_ENABLED must be 0 or 1.");
+    }
+    if (env.NATIVE_PROTOTYPE_MODE !== undefined && !["0", "1"].includes(env.NATIVE_PROTOTYPE_MODE)) {
+        throw new Error("NATIVE_PROTOTYPE_MODE must be 0 or 1.");
+    }
+    const prototypeMode = env.NATIVE_PROTOTYPE_MODE === "1";
+    if (prototypeMode && env.NATIVE_NFC_ENABLED !== "1") {
+        throw new Error("NATIVE_PROTOTYPE_MODE=1 requires NATIVE_NFC_ENABLED=1.");
+    }
+    if (prototypeMode && env.NODE_ENV === "production") {
+        throw new Error("NATIVE_PROTOTYPE_MODE=1 is not allowed when NODE_ENV=production.");
     }
     if (env.NATIVE_NFC_ENABLED !== "1") return undefined;
     const baseURL = required(env, "PUBLIC_BASE_URL").replace(/\/$/, "");
@@ -69,5 +80,5 @@ export async function nativeConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
         const key = createPrivateKey({ key: signerKey, passphrase: certificates.signerKeyPassphrase });
         if (!cert.checkPrivateKey(key) || Date.parse(cert.validTo) <= Date.now()) throw new Error("Invalid signing identity");
     } catch { throw new Error("Native NFC signing identity is invalid, expired, or its key/passphrase does not match."); }
-    return { baseURL, verifierURL, passType, teamID, factoryTest: mode === "factory-test", certificates };
+    return { baseURL, verifierURL, passType, teamID, factoryTest: mode === "factory-test", prototypeMode, certificates };
 }

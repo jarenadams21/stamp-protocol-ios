@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TapWelcomeHeader: View {
     let signedIn: Bool
+    var prototype = false
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
@@ -19,8 +20,8 @@ struct TapWelcomeHeader: View {
                 }
             }
             HStack(alignment: .center, spacing: 12) {
-                PageTitle(text: signedIn ? "Your visits" : "Every visit\nadds up.", size: 40)
-                    .accessibilityLabel(signedIn ? "Your visits" : "Every visit adds up.")
+                PageTitle(text: prototype ? "Read. Verify.\nStamp." : signedIn ? "Your visits" : "Every visit\nadds up.", size: 40)
+                    .accessibilityLabel(prototype ? "Read. Verify. Stamp." : signedIn ? "Your visits" : "Every visit adds up.")
                     .accessibilityIdentifier("tap.heading")
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if !signedIn && !typeSize.isAccessibilitySize {
@@ -28,7 +29,7 @@ struct TapWelcomeHeader: View {
                 }
             }
 
-            Text(signedIn
+            Text(prototype ? "Real chip verification on the backend. No customer account needed." : signedIn
                  ? "Your cafe cards, one visit at a time."
                  : "Scan at the counter. Keep your stamps together.")
                 .font(.subheadline)
@@ -38,7 +39,7 @@ struct TapWelcomeHeader: View {
     }
 
     private var context: some View {
-        Eyebrow(text: "At the counter").foregroundStyle(Color.muted)
+        Eyebrow(text: prototype ? "NFC prototype" : "At the counter").foregroundStyle(Color.muted)
     }
 
     private var testMode: some View {

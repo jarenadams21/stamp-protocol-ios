@@ -66,6 +66,32 @@ final class TapFlowTests: XCTestCase {
         try auditVisibleContent(in: app, types: [.textClipped])
     }
 
+    func testPrototypeDoesNotAskForCustomerIdentity() throws {
+        let app = launch(extra: ["-tap-prototype"])
+        app.tabBars.buttons["Tap"].tap()
+        let start = app.buttons["tap.startPrototype"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertTrue(start.isEnabled)
+        XCTAssertTrue(start.isHittable)
+        XCTAssertFalse(app.textFields["tap.username"].exists)
+        XCTAssertFalse(app.secureTextFields["tap.password"].exists)
+        XCTAssertFalse(app.buttons["tap.authenticate"].exists)
+        capture("Tap - anonymous NFC prototype", app: app)
+        try auditVisibleContent(in: app)
+    }
+
+    func testPrototypeSupportsLargestTextWithoutAccountForm() throws {
+        let app = launch(extra: [
+            "-tap-prototype", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+        app.tabBars.buttons["Tap"].tap()
+        let start = app.buttons["tap.startPrototype"]
+        reach(start, in: app)
+        XCTAssertFalse(app.secureTextFields["tap.password"].exists)
+        capture("Tap - anonymous prototype largest text", app: app)
+        try auditVisibleContent(in: app, types: [.textClipped])
+    }
+
     private func revealTestInformation(in app: XCUIApplication) {
         let information = app.buttons["How this test works"]
         reach(information, in: app)

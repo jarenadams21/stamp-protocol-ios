@@ -15,7 +15,7 @@ export function nativeServiceOrigin(value) {
     return url.origin;
 }
 
-export async function checkNativeService(value, request = fetch) {
+export async function checkNativeService(value, request = fetch, { requirePrototype = false } = {}) {
     const origin = nativeServiceOrigin(value);
     const response = await request(`${origin}/api/v1/healthz`, {
         headers: { Accept: "application/json" },
@@ -29,6 +29,9 @@ export async function checkNativeService(value, request = fetch) {
     }
     if (health.publicBaseURL !== origin) {
         throw new Error("The server's PUBLIC_BASE_URL must match the app's HTTPS origin so Wallet can reach it.");
+    }
+    if (requirePrototype && health.prototypeMode !== true) {
+        throw new Error("The server must explicitly enable NATIVE_PROTOTYPE_MODE=1 for a no-account prototype build.");
     }
     return { origin, factoryKeyTest: health.factoryKeyTest };
 }

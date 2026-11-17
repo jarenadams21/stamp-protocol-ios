@@ -212,13 +212,144 @@ final class TapStoreTests: XCTestCase {
         XCTAssertEqual(card.updatedAt, "2026-11-12T22:00:00.123Z")
         XCTAssertFalse(Place.catalog.contains(where: { $0.id == card.place.id }))
     }
+
+    func testPrototypeStartsWithoutCustomerCredentialsAndUsesSeparateSecureStorage() async {
+        let api = MockTapAPI()
+        api.existingCards = []
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        await store.startPrototype()
+        XCTAssertTrue(store.isSignedIn)
+        XCTAssertTrue(store.session?.isPrototype == true)
+        XCTAssertEqual(api.prototypeTokens, [nil])
+        XCTAssertEqual(api.credentialRequests, 0)
+        XCTAssertEqual(store.cards, [])
+        XCTAssertNotEqual(KeychainTapSessionStorage().account, KeychainTapSessionStorage(mode: .prototype).account)
+    }
+
+    func testPrototypeResumePreservesSavedReadAndOnlyUsesVerifiedServerBalance() async throws {
+        let api = MockTapAPI()
+        api.verification = TapVerification(verified: true, counter: 14)
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        await store.startPrototype()
+        api.tapFailures = 1
+        _ = await store.submit(url: "https://cafe.test/t?encrypted=fixture")
+        let pending = try XCTUnwrap(store.pending)
+        let token = try XCTUnwrap(store.session?.token)
+
+        let restored = TapStore(api: api, storage: storage, mode: .prototype)
+        await restored.startPrototype()
+        XCTAssertEqual(api.prototypeTokens, [nil, token])
+        XCTAssertEqual(restored.pending, pending)
+        let retried = await restored.retry()
+        XCTAssertEqual(retried, api.card)
+        XCTAssertEqual(api.requests, [pending, pending])
+        XCTAssertNil(restored.pending)
+        XCTAssertEqual(restored.lastVerification, api.verification)
+        XCTAssertEqual(api.credentialRequests, 0)
+        XCTAssertEqual(api.passRequests, 0)
+    }
+
+    func testPrototypeRejectsMissingCryptoConfirmationWithoutClearingRead() async {
+        let api = MockTapAPI()
+        api.existingCards = []
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        await store.startPrototype()
+        let result = await store.submit(url: "https://cafe.test/t?encrypted=fixture")
+        XCTAssertNil(result)
+        XCTAssertNotNil(store.pending)
+        XCTAssertNil(store.lastVerification)
+        XCTAssertTrue(store.cards.isEmpty)
+        XCTAssertTrue(store.message?.contains("did not confirm chip verification") == true)
+    }
+
+    func testPrototypeNeverSilentlyReplacesSavedIdentityOrPendingRequest() async throws {
+        let api = MockTapAPI()
+        let storage = MemoryTapStorage()
+        storage.value = TapSession(token: "original-prototype", username: "nfc-original",
+                                   pending: TapRequest(url: "https://cafe.test/t", requestId: UUID()), prototype: true)
+        let saved = storage.value
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        api.prototypeResponse = TapSession(token: "different", username: "nfc-other", prototype: true)
+        await store.startPrototype()
+        XCTAssertEqual(store.session, saved)
+        XCTAssertEqual(storage.value, saved)
+        XCTAssertTrue(store.message?.contains("different test card") == true)
+    }
+
+    func testExpiredPrototypeResumesWithoutAskingForCustomerPassword() async {
+        let api = MockTapAPI()
+        api.verification = TapVerification(verified: true, counter: 15)
+        let storage = MemoryTapStorage()
+        storage.value = TapSession(token: "prototype-existing", username: "nfc-fixture", prototype: true)
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        api.unauthorized = true
+        _ = await store.submit(url: "https://cafe.test/t")
+        let pending = store.pending
+        XCTAssertTrue(store.needsSignIn)
+        XCTAssertTrue(store.message?.contains("Resume the prototype") == true)
+        api.unauthorized = false
+        await store.refresh()
+        XCTAssertTrue(store.isSignedIn)
+        XCTAssertEqual(store.pending, pending)
+        let card = await store.retry()
+        XCTAssertEqual(card, api.card)
+        XCTAssertEqual(api.credentialRequests, 0)
+    }
+
+    func testLegacyAccountSessionStillDecodesWithoutPrototypeFlag() throws {
+        let data = Data(#"{"token":"legacy","username":"customer"}"#.utf8)
+        XCTAssertFalse(try JSONDecoder().decode(TapSession.self, from: data).isPrototype)
+    }
+
+    func testPrototypeRetriesSecureRestoreBeforeItCanCreateAnotherIdentity() async {
+        let api = MockTapAPI()
+        let storage = MemoryTapStorage()
+        storage.value = TapSession(token: "saved-prototype", username: "nfc-fixture",
+                                   pending: TapRequest(url: "https://cafe.test/t", requestId: UUID()), prototype: true)
+        let original = storage.value
+        storage.loadFailures = 2
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        await store.startPrototype()
+        XCTAssertTrue(api.prototypeTokens.isEmpty)
+        XCTAssertEqual(storage.value, original)
+        await store.startPrototype()
+        XCTAssertEqual(api.prototypeTokens, ["saved-prototype"])
+        XCTAssertEqual(store.pending, original?.pending)
+        XCTAssertEqual(storage.value?.token, original?.token)
+    }
+
+    func testPrototypeForegroundRefreshReusesItsSessionInsteadOfHittingTheStartRateLimit() async {
+        let api = MockTapAPI()
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        await store.startPrototype()
+        for _ in 0..<15 { await store.refresh() }
+        XCTAssertEqual(api.prototypeTokens, [nil])
+        XCTAssertEqual(api.credentialRequests, 0)
+        XCTAssertTrue(store.isSignedIn)
+        XCTAssertEqual(store.cards, [api.card])
+    }
 }
 
 @MainActor
 private final class MemoryTapStorage: TapSessionStorage {
     var value: TapSession? = TapSession(token: "test-only", username: "customer")
     var failSave = false
-    func load() throws -> TapSession? { value }
+    var loadFailures = 0
+    func load() throws -> TapSession? {
+        if loadFailures > 0 {
+            loadFailures -= 1
+            throw TapError.message("Storage unavailable")
+        }
+        return value
+    }
     func save(_ session: TapSession?) throws {
         if failSave { throw TapError.message("Storage unavailable") }
         value = session
@@ -235,9 +366,19 @@ private final class MockTapAPI: TapAPI {
     var unauthorized = false
     var logoutFailure = false
     var cardLoadFailure = false
+    var prototypeTokens: [String?] = []
+    var prototypeResponse: TapSession?
+    var verification: TapVerification?
+    var credentialRequests = 0
+    var passRequests = 0
 
+    func startPrototypeSession(token: String?) async throws -> TapSession {
+        prototypeTokens.append(token)
+        return prototypeResponse ?? TapSession(token: token ?? "prototype-created", username: "nfc-fixture", prototype: true)
+    }
     func authenticate(username: String, password: String, create: Bool) async throws -> TapSession {
-        TapSession(token: "test-refreshed", username: username)
+        credentialRequests += 1
+        return TapSession(token: "test-refreshed", username: username)
     }
     func cards(token: String) async throws -> [LiveCard] {
         if unauthorized { throw TapError.unauthorized }
@@ -251,9 +392,12 @@ private final class MockTapAPI: TapAPI {
             tapFailures -= 1
             throw TapError.message("Service temporarily unavailable.")
         }
-        return TapResponse(eventId: UUID(), card: card, duplicate: requests.count > 1)
+        return TapResponse(eventId: UUID(), card: card, duplicate: requests.count > 1, verification: verification)
     }
-    func pass(cardID: UUID, token: String) async throws -> Data { Data() }
+    func pass(cardID: UUID, token: String) async throws -> Data {
+        passRequests += 1
+        return Data()
+    }
     func logout(token: String) async throws {
         if logoutFailure { throw TapError.message("Service unavailable.") }
     }

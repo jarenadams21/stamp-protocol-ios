@@ -9,6 +9,10 @@ The local customer/business demo screens remain separate from server balances.
 Native hardware-test accounts, cafes and balances are preserved in additive
 `native_*` compatibility tables. They do not yet use the partner's published
 programs, OIDC customer identities, dashboard or redemption flow.
+For NFC-only demonstrations, explicit nonproduction prototype mode skips customer
+onboarding using anonymous test cards. Chip decryption/authentication, replay
+protection and idempotent stamp updates remain required; real customer identity
+integration stays separate.
 
 **NFC distinction:** section 5 below describes a merchant reader reading a
 customer's contactless Wallet pass. The implemented low-cost flow instead has

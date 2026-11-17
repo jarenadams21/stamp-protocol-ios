@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TapView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var store = TapStore()
+    @State private var store = TapStore(mode: .configured)
     @State private var scanner = NFCTagScanner()
     @State private var wallet = TapWallet()
     @State private var username = ""
@@ -10,6 +10,7 @@ struct TapView: View {
     @State private var createAccount = true
     @State private var isScanning = false
     @State private var discardConfirmation = false
+    @State private var endPrototypeConfirmation = false
 
     private var busy: Bool { store.isBusy || isScanning || wallet.presentation != nil }
 
@@ -17,10 +18,19 @@ struct TapView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    TapWelcomeHeader(signedIn: store.isSignedIn)
+                    TapWelcomeHeader(signedIn: store.isSignedIn, prototype: store.mode == .prototype)
                     if store.isSignedIn {
                         accountControls
+                        if let verification = store.lastVerification {
+                            Label("Backend verified. Read counter \(verification.counter)", systemImage: "checkmark.shield")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("tap.verification")
+                        }
                         realCards
+                    } else if store.mode == .prototype {
+                        prototypeControls
                     } else {
                         TapSignInForm(username: $username, password: $password,
                                       createAccount: $createAccount, busy: busy,
@@ -44,7 +54,7 @@ struct TapView: View {
                     if let message = wallet.message {
                         TapStatusMessage(message: message, identifier: "tap.walletStatus")
                     }
-                    TapTestInformation()
+                    TapTestInformation(prototype: store.mode == .prototype)
                 }
                 .padding(24)
                 .frame(maxWidth: 560)
@@ -65,23 +75,59 @@ struct TapView: View {
             } message: {
                 Text("A visit may already have been accepted. Retrying is safest and reuses the same request ID. Discarding does not undo a visit.")
             }
+            .confirmationDialog("End this prototype session?", isPresented: $endPrototypeConfirmation) {
+                Button("End prototype session", role: .destructive) { Task { await signOut() } }
+            } message: {
+                Text("This removes the anonymous session and any pending tap from this phone. Server stamps are not undone. Starting again creates a new test card; retry a pending tap first if possible.")
+            }
         }
+    }
+
+    private var prototypeControls: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Just the chip and your test card.")
+                .font(.headline)
+            Text("No name, email or password. Start the prototype, then scan a cafe chip to verify it on the backend.")
+                .font(.subheadline)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(store.session == nil ? "Start NFC prototype" : "Resume NFC prototype", systemImage: "wave.3.right") {
+                Task { await store.startPrototype() }
+            }
+            .buttonStyle(PrimaryButton())
+            .disabled(busy)
+            .accessibilityIdentifier("tap.startPrototype")
+            if store.session != nil {
+                Button("End prototype session", role: .destructive) { endPrototypeConfirmation = true }
+                    .frame(minHeight: 44)
+                    .disabled(busy)
+            }
+        }
+        .padding(20)
+        .modifier(SurfacePanel())
     }
 
     private var accountControls: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
-                Label(store.session?.username ?? "", systemImage: "person.crop.circle")
+                Label(store.mode == .prototype ? "Anonymous test card" : store.session?.username ?? "",
+                      systemImage: store.mode == .prototype ? "wave.3.right" : "person.crop.circle")
                     .font(.subheadline)
                     .foregroundStyle(Color.muted)
                     .lineLimit(nil)
                 Spacer(minLength: 0)
-                Menu("Account options", systemImage: "ellipsis") {
+                Menu(store.mode == .prototype ? "Prototype options" : "Account options", systemImage: "ellipsis") {
                     Button("Refresh cards", systemImage: "arrow.clockwise") {
                         Task { await store.refresh() }
                     }
-                    Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                        Task { await signOut() }
+                    if store.mode == .prototype {
+                        Button("End prototype session", systemImage: "xmark.circle", role: .destructive) {
+                            endPrototypeConfirmation = true
+                        }
+                    } else {
+                        Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                            Task { await signOut() }
+                        }
                     }
                 }
                 .buttonStyle(UtilityButton())
@@ -94,7 +140,9 @@ struct TapView: View {
                 Button("Retry pending tap") {
                     Task {
                         wallet.message = nil
-                        if let card = await store.retry() { await updateWallet(for: card, onlyIfInstalled: true) }
+                        if let card = await store.retry(), store.mode != .prototype {
+                            await updateWallet(for: card, onlyIfInstalled: true)
+                        }
                     }
                 }
                 .buttonStyle(PrimaryButton())
@@ -169,7 +217,7 @@ struct TapView: View {
         do {
             let url = try await scanner.scan()
             isScanning = false
-            if let card = await store.submit(url: url) {
+            if let card = await store.submit(url: url), store.mode != .prototype {
                 await updateWallet(for: card, onlyIfInstalled: true)
             }
         } catch {

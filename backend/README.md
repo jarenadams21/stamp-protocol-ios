@@ -71,6 +71,7 @@ permissions through the team's existing grants/default privileges. Startup does
 | `0002_align_with_backend_spec` | OIDC identities, immutable published rules, cards/rewards/notifications |
 | `0003_images` | Private image ownership and durable deletion queue |
 | `0004_native_nfc` | Additive `native_*` compatibility tables and Wallet change sequence |
+| `0005_native_prototype` | Explicit technical guest marker; existing credentials/imports default to ordinary accounts |
 
 Never edit an already applied migration. Back up the database before a cutover.
 
@@ -81,6 +82,7 @@ require native secrets. Set **all** the following when opting in:
 
 ```dotenv
 NATIVE_NFC_ENABLED=1
+NATIVE_PROTOTYPE_MODE=0
 PUBLIC_BASE_URL=https://YOUR-STABLE-HTTPS-ORIGIN
 SDM_BACKEND_URL=http://PRIVATE-SDM-SERVICE:5005
 NATIVE_NFC_KEY_MODE=provisioned
@@ -96,6 +98,9 @@ The public origin must be HTTPS, without a path. Missing/invalid settings, unrea
 certificates, an expired or mismatched signing key, or an unapplied native migration
 fail explicitly before listening. Certificates remain external paths, never copied
 into the repository. Pass bytes are durable PostgreSQL `bytea`, not local disk or Blob.
+Migration 0005 is required even in normal native account mode because authentication
+checks the guest marker. Apply it explicitly with the existing migration runner/owner
+role; startup never silently modifies the database.
 
 The private verifier is the existing independent
 [`nfc-developer/sdm-backend`](https://github.com/nfc-developer/sdm-backend), prototype
@@ -131,13 +136,15 @@ Links/background NFC support.
 
 ### Backwards-compatible native contract
 
-All routes below are under `/api/v1`. Except health/accounts/sessions, send
+All routes below are under `/api/v1`. Except health/accounts/sessions and anonymous
+prototype-session creation, send
 `Authorization: Bearer <native-session-token>`. Login remains username/password,
 salted scrypt with hashed bearer sessions and the existing 30-day expiry.
 
 | Method and route | Contract |
 | --- | --- |
-| `GET /healthz` | Public native readiness: `{status,factoryKeyTest,publicBaseURL}` |
+| `GET /healthz` | Public native readiness: `{status,factoryKeyTest,publicBaseURL,prototypeMode}` |
+| `POST /prototype/session` | Prototype-only, no body; create/resume `{token,username,prototype:true}`; 200 |
 | `POST /accounts` | `{username,password}` → `{token,username}`; 201 |
 | `POST /sessions` | Same body/response; 200 |
 | `DELETE /session` | Revoke this session; 204 |
@@ -146,7 +153,7 @@ salted scrypt with hashed bearer sessions and the existing 30-day expiry.
 | `GET /cards/:id/pass` | Owner-authorized signed `.pkpass` |
 
 `GET /api/v1/healthz` is **404 in partner-only mode**. Enabled/configured native service
-returns 200 with `status:"ok"`, `factoryKeyTest` and `publicBaseURL` after checking the
+returns 200 with `status:"ok"`, `factoryKeyTest`, `publicBaseURL` and `prototypeMode` after checking the
 native migration and all native persistence tables. `publicBaseURL` is the configured
 canonical HTTPS origin used to sign passes' `webServiceURL`, not a client-supplied
 Host/forwarding header. Release preflight must compare it to the iPhone's API origin.
@@ -172,12 +179,65 @@ Invalid verification never advances a counter. Unknown chips need explicit linki
 A full card remains full until the next accepted stamp, then rolls over to 1;
 completing each cycle adds one reward. Card/pass serials stay fixed across cycles.
 
-Award/event/counter/card changes commit **before** pass signing. Publication failure
+For normal credential accounts, award/event/counter/card changes commit **before** pass signing. Publication failure
 returns 503 explicitly saying the stamp was recorded. Retry the **same request**,
 download the pass, or let the worker reconcile dirty cards; none awards twice.
 Signing/publication locks the latest card and atomically saves bytes, revision and push
 jobs. The worker starts with the server, retries every 15 seconds, and is awaited on
 shutdown. Its bounded batches are safe across multiple instances.
+
+### Anonymous NFC-only prototype mode
+
+Set **both** `NATIVE_NFC_ENABLED=1` and `NATIVE_PROTOTYPE_MODE=1` to exercise NFC
+verification/card increments without signup or login. Prototype mode defaults off,
+only accepts the literal flags `0`/`1`, and **refuses `NODE_ENV=production`**. Native
+verifier and existing Wallet certificate configuration are still validated; this does
+not add optional/unsigned Wallet configuration or bypass chip verification.
+
+`POST /api/v1/prototype/session` exists only while prototype mode is enabled. Send
+**no request body**. Without Authorization, it returns 200:
+
+```json
+{"token":"<opaque random bearer>","username":"nfc-<random identifier>","prototype":true}
+```
+
+The server creates a distinct `native_customers.is_prototype=true` **technical owner**
+with random, unusable password fields and a hashed session. This is per-install card
+and request ownership, **not customer identity**, account verification, a shared/global
+card, or a secret embedded in the app. Ordinary `/accounts` and `/sessions` continue
+to behave as before; guest rows cannot be signed into using passwords. Existing
+credential accounts and SQLite imports remain `is_prototype=false`.
+
+To resume, POST the same endpoint without a body and send
+`Authorization: Bearer <retained guest token>`. A known guest session is renewed for
+30 days **even if expired**, returning the exact same token and username. Existing
+cards, event/request scope and pending retries are retained. Invalid, revoked,
+malformed and ordinary-account tokens return 401; they never silently create another
+identity. Logout revokes the token using the existing `DELETE /api/v1/session`.
+When prototype mode is off, guest bearers are rejected by every normal authenticated
+native route, even while their stored sessions are unexpired.
+
+Guest `/taps` uses the same `{url,requestId}` body, real private `verifyTag` adapter,
+global chip high-water checks and atomic request idempotency as normal accounts.
+Successful guest responses add only:
+
+```json
+{"verification":{"verified":true,"counter":123}}
+```
+
+The normal `eventId,card,duplicate` fields remain. For an idempotent retry the metadata
+counter comes from the **persisted original event**, while `card` is current. No
+client-supplied UID/counter/verification metadata substitutes for cryptographic
+verification. Reusing the ciphertext under another request UUID is still a replay.
+The same chip gives each guest their own card, not their own replay authority.
+
+Guest tap success is **independent of Wallet signing**: the route does not
+synchronously publish/fetch a pass and a signing failure cannot hide a verified stamp.
+The existing worker can publish dirty guest cards later, and an explicitly requested
+owner-authorized pass download still uses the configured signer. Full-card retention,
+rollover to 1 and accumulated test-reward counts are unchanged. Normal-account taps
+retain their original response shape and post-commit Wallet-failure 503 behavior.
+No prototype verification response claims a purchase or redeemable reward.
 
 ### Apple Wallet protocol
 

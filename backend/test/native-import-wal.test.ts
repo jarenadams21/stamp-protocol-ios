@@ -48,7 +48,9 @@ test("import includes uncheckpointed committed WAL without changing source datab
         assert.equal(applied.applied, true);
         assert.deepEqual(await hashes(), before, "apply also leaves every source file byte-for-byte unchanged");
         const imported = new NativeStore(ctx.pool);
-        assert.equal((await imported.authenticate(`Bearer ${account.token}`)).id, customer.id);
+        const importedCustomer = await imported.authenticate(`Bearer ${account.token}`);
+        assert.equal(importedCustomer.id, customer.id);
+        assert.equal(importedCustomer.isPrototype, false);
         assert.equal((await imported.previous(customer.id, requestID, url))?.id, earned.eventId);
         assert.equal((await imported.card(earned.card.id)).stamps, 1);
         assert.equal((await ctx.pool.query("SELECT last_counter FROM native_tags")).rows[0].last_counter, 123);

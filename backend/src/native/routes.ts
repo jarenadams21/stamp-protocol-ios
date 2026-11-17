@@ -29,7 +29,7 @@ export const nativeRoutes: FastifyPluginAsync<NativeServices> = async (app, serv
         return reply.code(500).send({ error: "The service could not complete this request. Retry safely." });
     });
     app.get("/api/v1/healthz", async (_request, reply) => {
-        const configuration = { factoryKeyTest: services.factoryTest, publicBaseURL: wallet.options.baseURL };
+        const configuration = { factoryKeyTest: services.factoryTest, publicBaseURL: wallet.options.baseURL, prototypeMode: services.prototypeMode };
         try {
             await assertNativeReady(store.pool);
             return { status: "ok", ...configuration };
@@ -38,6 +38,13 @@ export const nativeRoutes: FastifyPluginAsync<NativeServices> = async (app, serv
         }
     });
     const smallBody = { bodyLimit: 16_384 };
+    if (services.prototypeMode) {
+        app.post("/api/v1/prototype/session", smallBody, async (request) => {
+            logins.check(request.ip);
+            if (request.body !== undefined) throw new HttpError(400, "Do not send a body to start or resume an NFC prototype session.");
+            return store.prototypeSession(request.headers.authorization);
+        });
+    }
     for (const account of [true, false]) {
         app.post(account ? "/api/v1/accounts" : "/api/v1/sessions", smallBody, async (request, reply) => {
             logins.check(request.ip);
@@ -71,13 +78,18 @@ export const nativeRoutes: FastifyPluginAsync<NativeServices> = async (app, serv
         const requestId = normalizeUUID(body.requestId);
         const previous = await store.previous(customer.id, requestId, body.url);
         const verified = previous ? undefined : await services.verify(body.url);
-        const result = await store.award(customer.id, requestId, body.url, verified);
-        try { await wallet.publish(result.card.id); }
-        catch {
-            throw new HttpError(503, "Stamp recorded, but Wallet generation failed. Retry this same request to finish without adding another stamp.");
+        const { counter, ...result } = await store.award(customer.id, requestId, body.url, verified);
+        if (!customer.isPrototype) {
+            try { await wallet.publish(result.card.id); }
+            catch {
+                throw new HttpError(503, "Stamp recorded, but Wallet generation failed. Retry this same request to finish without adding another stamp.");
+            }
         }
         // Publication can race a later accepted stamp; return the authoritative card.
-        return reply.send({ ...result, card: publicCard(await store.card(result.card.id, customer.id)) });
+        return reply.send({
+            ...result, card: publicCard(await store.card(result.card.id, customer.id)),
+            ...(customer.isPrototype ? { verification: { verified: true, counter } } : {}),
+        });
     });
     type RegistrationParams = { device: string; type: string; serial: string };
     const registration = "/wallet/v1/devices/:device/registrations/:type/:serial";

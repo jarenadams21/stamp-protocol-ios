@@ -12,18 +12,25 @@ final class TapStore {
     private(set) var cardLoadState = CardLoadState.notLoaded
     private(set) var isBusy = false
     private(set) var needsSignIn = false
+    private(set) var lastVerification: TapVerification?
+    let mode: TapMode
     var message: String?
     private let api: any TapAPI
     private let storage: any TapSessionStorage
+    private var needsSessionReload = false
 
     var isSignedIn: Bool { session != nil && !needsSignIn }
     var pending: TapRequest? { session?.pending }
 
-    init(api: any TapAPI = HTTPTapAPI(), storage: any TapSessionStorage = KeychainTapSessionStorage()) {
+    init(api: any TapAPI = HTTPTapAPI(), storage: (any TapSessionStorage)? = nil, mode: TapMode = .account) {
+        self.mode = mode
         self.api = api
-        self.storage = storage
-        do { session = try storage.load() }
-        catch { message = "Could not restore your secure session. Unlock your device and try again." }
+        self.storage = storage ?? KeychainTapSessionStorage(mode: mode)
+        do { session = try self.storage.load() }
+        catch {
+            needsSessionReload = true
+            message = "Could not restore your secure session. Unlock your device and try again."
+        }
     }
 
     static func validCredentials(username: String, password: String) -> Bool {
@@ -33,6 +40,10 @@ final class TapStore {
 
     func authenticate(username: String, password: String, create: Bool) async {
         guard !isBusy else { return }
+        guard mode == .account else {
+            message = "No customer sign-in is needed in the NFC prototype."
+            return
+        }
         guard Self.validCredentials(username: username, password: password) else {
             message = "Use a 3–40 character username (ASCII letters, digits, dot, underscore or hyphen) and a password of 12–128 characters."
             return
@@ -52,7 +63,43 @@ final class TapStore {
         } catch { report(error) }
     }
 
+    func startPrototype() async {
+        guard mode == .prototype, !isBusy else { return }
+        isBusy = true
+        message = nil
+        defer { isBusy = false }
+        do {
+            if needsSessionReload {
+                session = try storage.load()
+                needsSessionReload = false
+            }
+            if let session, !session.isPrototype {
+                throw TapError.message("The saved session is not an anonymous test card. It has been kept unchanged.")
+            }
+            var connected = try await api.startPrototypeSession(token: session?.token)
+            guard connected.isPrototype else {
+                throw TapError.message("The server did not start an anonymous prototype session. Ask the test organizer to enable prototype mode.")
+            }
+            if let previous = session {
+                guard previous.token == connected.token, previous.username == connected.username else {
+                    throw TapError.message("The server returned a different test card. Your saved session and pending tap have been kept.")
+                }
+                connected.pending = previous.pending
+            }
+            try storage.save(connected)
+            session = connected
+            needsSignIn = false
+            if await loadCards(token: connected.token) {
+                message = "Ready to scan. No customer account is needed."
+            }
+        } catch { report(error) }
+    }
+
     func refresh() async {
+        if mode == .prototype, session != nil, needsSignIn {
+            await startPrototype()
+            return
+        }
         guard let session, isSignedIn, !isBusy else { return }
         isBusy = true
         message = nil
@@ -89,6 +136,13 @@ final class TapStore {
         defer { isBusy = false }
         do {
             let result = try await api.tap(pending, token: session.token)
+            if mode == .prototype {
+                guard let verification = result.verification, verification.verified,
+                      (0...0xFFFFFF).contains(verification.counter) else {
+                    throw TapError.message("The server did not confirm chip verification. Your tap stays saved for retry.")
+                }
+                lastVerification = verification
+            }
             if let index = cards.firstIndex(where: { $0.id == result.card.id }) {
                 cards[index] = result.card
             } else {
@@ -98,7 +152,13 @@ final class TapStore {
             updated.pending = nil
             try storage.save(updated)
             self.session = updated
-            message = result.duplicate ? "This tap was already recorded. Your balance is confirmed." : "Verified visit. Your card is updated."
+            if mode == .prototype {
+                message = result.duplicate
+                    ? "This verified tap was already recorded. No extra stamp was added."
+                    : "Chip verified by the backend. Your test card is updated."
+            } else {
+                message = result.duplicate ? "This tap was already recorded. Your balance is confirmed." : "Verified visit. Your card is updated."
+            }
             return result.card
         } catch {
             report(error)
@@ -138,8 +198,13 @@ final class TapStore {
             session = nil
             cards = []
             cardLoadState = .notLoaded
+            lastVerification = nil
             needsSignIn = false
-            message = revoked ? "Signed out." : "Signed out on this device. The service could not confirm session revocation."
+            if mode == .prototype {
+                message = revoked ? "Prototype session ended." : "Prototype session removed on this device. The service could not confirm revocation."
+            } else {
+                message = revoked ? "Signed out." : "Signed out on this device. The service could not confirm session revocation."
+            }
         } catch { report(error) }
     }
 
@@ -157,7 +222,13 @@ final class TapStore {
     }
 
     private func report(_ error: Error) {
-        if case TapError.unauthorized = error { needsSignIn = true }
+        if case TapError.unauthorized = error {
+            needsSignIn = true
+            if mode == .prototype {
+                message = "Resume the prototype to reconnect your test card. Any pending tap stays saved."
+                return
+            }
+        }
         message = (error as? TapError)?.errorDescription ?? "The loyalty service returned an unreadable response. Retry your pending tap or refresh."
     }
 }

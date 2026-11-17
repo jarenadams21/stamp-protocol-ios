@@ -22,5 +22,7 @@
 	<false/>
 	<key>LoyaltyAPIBaseURL</key>
 	<string>$(LOYALTY_API_BASE_URL)</string>
+	<key>LoyaltyPrototypeMode</key>
+	<string>$(LOYALTY_PROTOTYPE_MODE)</string>
 </dict>
 </plist>

@@ -1,3 +1,4 @@
 // Optional, ignored machine-specific service URL and signing team.
 LOYALTY_API_BASE_URL = https:/$()/example.invalid
+LOYALTY_PROTOTYPE_MODE = NO
 #include? "Local.xcconfig"

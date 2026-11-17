@@ -49,3 +49,15 @@ test("a healthy partner-only service is not mistaken for working NFC", async () 
         /HTTP 503/,
     );
 });
+
+test("no-account builds require explicit server prototype capability", async () => {
+    for (const prototypeMode of [undefined, false]) {
+        await assert.rejects(checkNativeService("https://joeyy.example.com", async () => Response.json({
+            status: "ok", factoryKeyTest: true, publicBaseURL: "https://joeyy.example.com", prototypeMode,
+        }), { requirePrototype: true }), /NATIVE_PROTOTYPE_MODE=1/);
+    }
+    const health = await checkNativeService("https://joeyy.example.com", async () => Response.json({
+        status: "ok", factoryKeyTest: true, publicBaseURL: "https://joeyy.example.com", prototypeMode: true,
+    }), { requirePrototype: true });
+    assert.equal(health.origin, "https://joeyy.example.com");
+});

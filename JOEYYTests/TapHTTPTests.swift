@@ -53,6 +53,24 @@ final class TapHTTPTests: XCTestCase {
         } catch {
             XCTAssertEqual(error.localizedDescription, "Native NFC is not enabled on this server.")
         }
+
+        func testAnonymousPrototypeStartsAndResumesWithoutUsernameOrPassword() async throws {
+            let started = try await api().startPrototypeSession(token: nil)
+            XCTAssertTrue(started.isPrototype)
+            XCTAssertEqual(started.token, "fixture-prototype")
+            let resumed = try await api().startPrototypeSession(token: started.token)
+            XCTAssertEqual(resumed, started)
+        }
+
+        func testDisabledPrototypeHasAnActionableErrorInsteadOfAskingForCredentials() async {
+            do {
+                _ = try await api(host: "no-prototype.cafe.test").startPrototypeSession(token: nil)
+                XCTFail("The fixture disables prototype mode.")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.contains("has not enabled the no-account NFC prototype"))
+                XCTAssertFalse(error.localizedDescription.contains("password"))
+            }
+        }
     }
 }
 
@@ -73,7 +91,16 @@ private final class TapHTTPFixture: URLProtocol, @unchecked Sendable {
         let status: Int
         let contentType: String
         let data: Data
-        if url.host == "shared.cafe.test" {
+        if url.path == "/api/v1/prototype/session" {
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertNil(request.httpBody)
+            if let authorization = request.value(forHTTPHeaderField: "Authorization") {
+                XCTAssertEqual(authorization, "Bearer fixture-prototype")
+            }
+            status = url.host == "no-prototype.cafe.test" ? 404 : 201
+            contentType = "application/json"
+            data = Data(#"{"token":"fixture-prototype","username":"nfc-fixture","prototype":true}"#.utf8)
+        } else if url.host == "shared.cafe.test" {
             status = 503
             contentType = "application/json"
             data = Data(#"{"error":"nativeUnavailable","message":"Native NFC is not enabled on this server."}"#.utf8)

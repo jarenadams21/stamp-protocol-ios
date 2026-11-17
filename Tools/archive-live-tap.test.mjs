@@ -12,13 +12,35 @@ test("archive pins the checked service origin instead of an old local build sett
             runs++;
             assert.equal(command, "xcodebuild");
             assert.ok(args.includes("LOYALTY_API_BASE_URL=https://joeyy.example.com"));
+            assert.ok(args.includes("LOYALTY_PROTOTYPE_MODE=NO"));
             assert.ok(args.includes("Release"));
             assert.equal(options.shell, false);
             return { status: 0 };
         },
     });
+
     assert.equal(runs, 1);
     assert.equal(result.origin, "https://joeyy.example.com");
+});
+
+test("prototype archives pin no-account mode only after checking server capability", async () => {
+    let runs = 0;
+    const run = (_command, args) => {
+        runs++;
+        assert.ok(args.includes("LOYALTY_PROTOTYPE_MODE=YES"));
+        return { status: 0 };
+    };
+    const request = async () => Response.json({
+        status: "ok", factoryKeyTest: true, publicBaseURL: "https://joeyy.example.com", prototypeMode: true,
+    });
+    const result = await archiveLiveTap("https://joeyy.example.com", { prototypeMode: true, request, run });
+    assert.equal(result.prototypeMode, true);
+    await assert.rejects(archiveLiveTap("https://joeyy.example.com", {
+        prototypeMode: true, run, request: async () => Response.json({
+            status: "ok", factoryKeyTest: true, publicBaseURL: "https://joeyy.example.com", prototypeMode: false,
+        }),
+    }), /NATIVE_PROTOTYPE_MODE=1/);
+    assert.equal(runs, 1);
 });
 
 test("unready or disposable endpoints cannot produce an apparently shippable archive", async () => {
