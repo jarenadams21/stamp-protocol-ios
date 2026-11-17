@@ -12,6 +12,8 @@ export interface NativeServices {
     verify(url: string): Promise<VerifiedTag>;
     factoryTest: boolean;
     prototypeMode: boolean;
+    /** Confirms the private SDM verifier answers, so health checks catch a broken verifier before real taps do. */
+    verifierReady?(): Promise<void>;
 }
 export function createNativeServices(pool: pg.Pool, config: NativeConfig): NativeServices {
     const store = new NativeStore(pool, config.prototypeMode);
@@ -20,7 +22,14 @@ export function createNativeServices(pool: pg.Pool, config: NativeConfig): Nativ
         render: (card, token) => renderPass(card, { ...config, token }),
         sendPush: applePush(config.certificates, config.passType),
     });
-    return { store, wallet, verify: (url) => verifyTag(config.verifierURL, url), factoryTest: config.factoryTest, prototypeMode: config.prototypeMode };
+    return {
+        store, wallet, verify: (url) => verifyTag(config.verifierURL, url),
+        factoryTest: config.factoryTest, prototypeMode: config.prototypeMode,
+        verifierReady: async () => {
+            const response = await fetch(new URL("/healthz", config.verifierURL), { redirect: "error", signal: AbortSignal.timeout(3000) });
+            if (!response.ok) throw new Error("Private NFC verifier is not ready.");
+        },
+    };
 }
 export async function assertNativeReady(pool: pg.Pool) {
     const result = await pool.query("SELECT 1 FROM schema_migrations WHERE version='0004_native_nfc'");

@@ -1,0 +1,10 @@
+node_modules
+.env*
+.dev
+data
+test
+verifier
+*.pem
+*.p12
+*.cer
+*.key

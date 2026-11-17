@@ -114,6 +114,19 @@ test("native readiness is public and secret-free, checks its own persistence, an
     } finally { await unready.close(); await pool.end(); }
 });
 
+test("native readiness returns 503 when the private verifier is down", async () => {
+    const verifierDown = buildApp({
+        pool: ctx.pool, auth: ctx.signer.config, images: ctx.images,
+        native: { ...services, verifierReady: async () => { throw new Error("verifier down"); } },
+    });
+    try {
+        const response = await verifierDown.inject({ method: "GET", url: "/api/v1/healthz" });
+        assert.equal(response.statusCode, 503);
+        assert.equal(response.json().status, "unavailable");
+        assert.doesNotMatch(response.body, /verifier down/);
+    } finally { await verifierDown.close(); }
+});
+
 test("configuration fails explicitly before startup with missing settings; factory keys require two explicit gates", async () => {
     assert.equal(await nativeConfigFromEnv({}), undefined);
     assert.equal(await nativeConfigFromEnv({ NATIVE_NFC_ENABLED: "0" }), undefined);

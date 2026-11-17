@@ -32,6 +32,7 @@ export const nativeRoutes: FastifyPluginAsync<NativeServices> = async (app, serv
         const configuration = { factoryKeyTest: services.factoryTest, publicBaseURL: wallet.options.baseURL, prototypeMode: services.prototypeMode };
         try {
             await assertNativeReady(store.pool);
+            await services.verifierReady?.();
             return { status: "ok", ...configuration };
         } catch {
             return reply.code(503).send({ status: "unavailable", ...configuration });

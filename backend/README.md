@@ -75,6 +75,10 @@ permissions through the team's existing grants/default privileges. Startup does
 
 Never edit an already applied migration. Back up the database before a cutover.
 
+## Hosting on Azure
+
+The backend and the NFC verifier run together in Azure Container Apps. Setup and deploys are documented in [`infra/README.md`](../infra/README.md).
+
 ## Enable native NFC + Wallet
 
 Default `NATIVE_NFC_ENABLED=0` leaves `/api/v1` and `/wallet/v1` absent and does not
