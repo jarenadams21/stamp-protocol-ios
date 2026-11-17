@@ -11,9 +11,10 @@ export async function archiveLiveTap(origin, {
     run = spawnSync,
     archivePath = resolve(root, ".build/native-release/JOEYY.xcarchive"),
     prototypeMode = false,
+    allowTemporaryTunnel = false,
 } = {}) {
     if (typeof prototypeMode !== "boolean") throw new Error("prototypeMode must be true or false.");
-    const health = await checkNativeService(origin, request, { requirePrototype: prototypeMode });
+    const health = await checkNativeService(origin, request, { requirePrototype: prototypeMode, allowTemporaryTunnel });
     await mkdir(dirname(archivePath), { recursive: true });
     const args = [
         "-project", "JOEYY.xcodeproj", "-scheme", "JOEYY",
@@ -35,10 +36,16 @@ export async function archiveLiveTap(origin, {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
     try {
         const [origin, ...flags] = process.argv.slice(2);
-        if (flags.length > 1 || flags.some((flag) => flag !== "--prototype")) {
-            throw new Error("Usage: node Tools/archive-live-tap.mjs HTTPS_ORIGIN [--prototype]");
+        if (new Set(flags).size !== flags.length || flags.some((flag) => !["--prototype", "--allow-temporary-tunnel"].includes(flag))) {
+            throw new Error("Usage: node Tools/archive-live-tap.mjs HTTPS_ORIGIN [--prototype [--allow-temporary-tunnel]]");
         }
-        const result = await archiveLiveTap(origin, { prototypeMode: flags.includes("--prototype") });
+        if (flags.includes("--allow-temporary-tunnel")) {
+            console.warn("ONE-SESSION TEST ONLY: keep this Mac and tunnel running. If the address changes, rebuild the app and replace its Wallet pass.");
+        }
+        const result = await archiveLiveTap(origin, {
+            prototypeMode: flags.includes("--prototype"),
+            allowTemporaryTunnel: flags.includes("--allow-temporary-tunnel"),
+        });
         console.log(`Signed native Tap archive: ${result.archivePath}`);
         if (result.prototypeMode) console.log("Anonymous NFC prototype; no customer sign-in. Not for production.");
         if (result.factoryKeyTest) console.log("Hardware-test service only; factory-key tags are not valid for valuable rewards.");

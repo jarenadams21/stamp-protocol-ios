@@ -15,6 +15,7 @@ final class TapStore {
     private(set) var lastVerification: TapVerification?
     let mode: TapMode
     var message: String?
+    private(set) var walletMessage: String?
     private let api: any TapAPI
     private let storage: any TapSessionStorage
     private var needsSessionReload = false
@@ -133,6 +134,7 @@ final class TapStore {
     func retry() async -> LiveCard? {
         guard let session, let pending = session.pending, isSignedIn, !isBusy else { return nil }
         isBusy = true
+        walletMessage = nil
         defer { isBusy = false }
         do {
             let result = try await api.tap(pending, token: session.token)
@@ -179,9 +181,21 @@ final class TapStore {
     func passData(for card: LiveCard) async -> Data? {
         guard let session, isSignedIn, !isBusy else { return nil }
         isBusy = true
+        walletMessage = nil
         defer { isBusy = false }
         do { return try await api.pass(cardID: card.id, token: session.token) }
-        catch { report(error); return nil }
+        catch {
+            if case TapError.unauthorized = error {
+                needsSignIn = true
+                walletMessage = mode == .prototype
+                    ? "Your confirmed stamps are kept. Resume the prototype, then choose Add / Update Apple Wallet."
+                    : "Your confirmed stamps are kept. Sign in again, then choose Add / Update Apple Wallet."
+            } else {
+                let explanation = (error as? TapError)?.errorDescription ?? "The pass could not be downloaded."
+                walletMessage = "Your confirmed stamps are kept, but Wallet could not update. \(explanation)"
+            }
+            return nil
+        }
     }
 
     func logout() async {
@@ -199,6 +213,7 @@ final class TapStore {
             cards = []
             cardLoadState = .notLoaded
             lastVerification = nil
+            walletMessage = nil
             needsSignIn = false
             if mode == .prototype {
                 message = revoked ? "Prototype session ended." : "Prototype session removed on this device. The service could not confirm revocation."

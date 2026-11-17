@@ -336,6 +336,30 @@ final class TapStoreTests: XCTestCase {
         XCTAssertTrue(store.isSignedIn)
         XCTAssertEqual(store.cards, [api.card])
     }
+
+    func testWalletFailureDoesNotHideOrUndoAConfirmedPrototypeStamp() async throws {
+        let api = MockTapAPI()
+        api.verification = TapVerification(verified: true, counter: 16)
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        let store = TapStore(api: api, storage: storage, mode: .prototype)
+        await store.startPrototype()
+        let result = await store.submit(url: "https://cafe.test/t")
+        let card = try XCTUnwrap(result)
+        let confirmedMessage = store.message
+        api.passFailure = true
+        let unavailable = await store.passData(for: card)
+        XCTAssertNil(unavailable)
+        XCTAssertNotNil(store.walletMessage)
+        XCTAssertEqual(store.message, confirmedMessage)
+        XCTAssertNil(store.pending)
+        XCTAssertEqual(store.cards, [card])
+        api.passFailure = false
+        let downloaded = await store.passData(for: card)
+        XCTAssertNotNil(downloaded)
+        XCTAssertNil(store.walletMessage)
+        XCTAssertEqual(api.requests.count, 1)
+    }
 }
 
 @MainActor
@@ -371,6 +395,7 @@ private final class MockTapAPI: TapAPI {
     var verification: TapVerification?
     var credentialRequests = 0
     var passRequests = 0
+    var passFailure = false
 
     func startPrototypeSession(token: String?) async throws -> TapSession {
         prototypeTokens.append(token)
@@ -396,6 +421,8 @@ private final class MockTapAPI: TapAPI {
     }
     func pass(cardID: UUID, token: String) async throws -> Data {
         passRequests += 1
+        if unauthorized { throw TapError.unauthorized }
+        if passFailure { throw TapError.message("Wallet signing is temporarily unavailable.") }
         return Data()
     }
     func logout(token: String) async throws {

@@ -66,3 +66,23 @@ test("unready or disposable endpoints cannot produce an apparently shippable arc
     );
     assert.equal(runs, 0);
 });
+
+test("one-session tunnel archives require both explicit opt-in and a ready prototype server", async () => {
+    const origin = "https://single-session.trycloudflare.com";
+    let runs = 0;
+    const run = () => { runs++; return { status: 0 }; };
+    const request = async () => Response.json({
+        status: "ok", factoryKeyTest: true, publicBaseURL: origin, prototypeMode: true,
+    });
+    await assert.rejects(archiveLiveTap(origin, { prototypeMode: true, request, run }), /disposable/);
+    await assert.rejects(archiveLiveTap(origin, { allowTemporaryTunnel: true, request, run }), /only for an explicit/);
+    await archiveLiveTap(origin, { prototypeMode: true, allowTemporaryTunnel: true, request, run });
+    assert.equal(runs, 1);
+    await assert.rejects(archiveLiveTap(origin, {
+        prototypeMode: true, allowTemporaryTunnel: true, run,
+        request: async () => Response.json({
+            status: "ok", factoryKeyTest: true, publicBaseURL: origin, prototypeMode: false,
+        }),
+    }), /NATIVE_PROTOTYPE_MODE=1/);
+    assert.equal(runs, 1);
+});

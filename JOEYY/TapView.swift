@@ -54,6 +54,9 @@ struct TapView: View {
                     if let message = wallet.message {
                         TapStatusMessage(message: message, identifier: "tap.walletStatus")
                     }
+                    if let message = store.walletMessage {
+                        TapStatusMessage(message: message, identifier: "tap.walletDownloadStatus")
+                    }
                     TapTestInformation(prototype: store.mode == .prototype)
                 }
                 .padding(24)
@@ -140,8 +143,8 @@ struct TapView: View {
                 Button("Retry pending tap") {
                     Task {
                         wallet.message = nil
-                        if let card = await store.retry(), store.mode != .prototype {
-                            await updateWallet(for: card, onlyIfInstalled: true)
+                        if let card = await store.retry() {
+                            await updateWallet(for: card, onlyIfInstalled: store.mode != .prototype)
                         }
                     }
                 }
@@ -217,8 +220,8 @@ struct TapView: View {
         do {
             let url = try await scanner.scan()
             isScanning = false
-            if let card = await store.submit(url: url), store.mode != .prototype {
-                await updateWallet(for: card, onlyIfInstalled: true)
+            if let card = await store.submit(url: url) {
+                await updateWallet(for: card, onlyIfInstalled: store.mode != .prototype)
             }
         } catch {
             isScanning = false

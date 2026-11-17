@@ -34,8 +34,10 @@ Fresh reads keep counting across full-card rollover. Corrupt authentication code
 and consumed counters are rejected; retrying the same request never adds twice.
 No local stamp simulation or cryptographic fallback is used.
 
-Wallet is optional: prototype tap confirmation does not wait for pass signing,
-and the app does not fetch Wallet automatically after a prototype scan.
+After a confirmed prototype scan, the app downloads the signed pass and offers
+Apple's Add confirmation the first time. Later scans replace that same installed
+pass. Cancelling Add or a failed Wallet download never undoes the confirmed stamp;
+Wallet errors appear separately from the verified NFC result.
 The existing backend still needs its external Wallet signing configuration to
 start; this mode changes the NFC flow, not deployment/secrets provisioning.
 
@@ -50,6 +52,12 @@ the checked address and prototype build setting. It does not publish TestFlight
 or provide hosting. See [backend setup](backend/README.md) for the additive
 prototype migration and server configuration. No partner/OIDC account code or
 customer identity migration is implemented by this mode.
+
+For an explicitly temporary, one-session hardware test only, the archive command
+also accepts `--prototype --allow-temporary-tunnel`. This keeps all readiness and
+signing-origin checks, but permits an account-less Cloudflare tunnel. Keep the Mac,
+API and tunnel running. If that hostname expires or changes, both the app and its
+Wallet pass need replacing; this option is not a lasting deployment.
 
 ## Version 3
 

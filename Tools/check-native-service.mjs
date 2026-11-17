@@ -1,22 +1,26 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export function nativeServiceOrigin(value) {
-    if (!URL.canParse(value)) throw new Error("Provide the native service's permanent HTTPS origin.");
+export function nativeServiceOrigin(value, { allowTemporaryTunnel = false } = {}) {
+    if (!URL.canParse(value)) throw new Error("Provide the native service's HTTPS origin.");
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
         url.pathname !== "/" || url.hostname.endsWith(".invalid") ||
         url.hostname === "localhost" || url.hostname.endsWith(".local")) {
         throw new Error("Use a real HTTPS origin without credentials, a path, or query parameters.");
     }
-    if (url.hostname === "trycloudflare.com" || url.hostname.endsWith(".trycloudflare.com")) {
+    if (!allowTemporaryTunnel && (url.hostname === "trycloudflare.com" || url.hostname.endsWith(".trycloudflare.com"))) {
         throw new Error("A disposable Cloudflare hostname must not be embedded in a TestFlight build.");
     }
     return url.origin;
 }
 
-export async function checkNativeService(value, request = fetch, { requirePrototype = false } = {}) {
-    const origin = nativeServiceOrigin(value);
+export async function checkNativeService(value, request = fetch, { requirePrototype = false, allowTemporaryTunnel = false } = {}) {
+    if (typeof allowTemporaryTunnel !== "boolean") throw new Error("allowTemporaryTunnel must be true or false.");
+    if (allowTemporaryTunnel && !requirePrototype) {
+        throw new Error("Temporary tunnels are allowed only for an explicit no-account prototype session.");
+    }
+    const origin = nativeServiceOrigin(value, { allowTemporaryTunnel });
     const response = await request(`${origin}/api/v1/healthz`, {
         headers: { Accept: "application/json" },
         redirect: "error",

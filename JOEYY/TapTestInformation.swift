@@ -15,7 +15,7 @@ struct TapTestInformation: View {
                     if prototype {
                         Text("This phone keeps an anonymous test card, not a verified customer account. Account setup is separate work.")
                         Text("The phone sends the encrypted chip read to the backend. The backend decrypts and verifies it before adding a stamp. Fresh physical reads keep counting; retrying the same read never counts twice.")
-                        Text("Wallet is optional for this prototype. A verified stamp does not depend on adding a pass.")
+                        Text("After a verified scan, confirm Add to Apple Wallet once. Later scans update that same installed card. Cancelling Wallet never undoes a confirmed stamp.")
                     }
                     Text("These verified cards are separate from your local demo cards.")
                     Text("Hardware test only. Factory zero-key tags are not secure for production rewards.")
