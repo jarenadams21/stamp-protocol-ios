@@ -216,50 +216,42 @@ struct SignInView: View {
     }
 }
 
-/// The You tab's account rows for one side: sign in, or who's signed in and sign out.
-struct AccountSection: View {
+/// The You tab's account control for one side, next to the page title: sign in, or see which
+/// sign-in is used and sign out.
+struct AccountButton: View {
     let role: AccountRole
     @Environment(AccountStore.self) private var accounts
     @State private var signingIn = false
-    @State private var confirmingSignOut = false
+    @State private var showingAccount = false
 
     var body: some View {
-        Section {
-            if let account = accounts.account(for: role) {
-                LabeledContent("Signed in with", value: account.method.label)
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("account.status")
-                Button("Sign out", role: .destructive) { confirmingSignOut = true }
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("account.signOut")
-            } else {
-                Button {
-                    signingIn = true
-                } label: {
-                    HStack {
-                        Text("Sign in")
-                        Spacer()
-                        Image(systemName: "person.crop.circle").font(.subheadline)
-                    }
-                    .frame(minHeight: 44)
-                }
-                .accessibilityIdentifier("account.signIn")
-            }
-        } header: {
-            Text("Account").foregroundStyle(.tint)
-        } footer: {
-            Text(role == .partner
-                ? "Apple, Google, or phone number. Your business data stays on this device for now."
-                : "Apple, Google, or phone number. Your cards stay on this device for now.")
-                .foregroundStyle(Color.muted)
+        let account = accounts.account(for: role)
+        Button {
+            if account == nil { signingIn = true } else { showingAccount = true }
+        } label: {
+            Image(systemName: account == nil ? "person.crop.circle" : "person.crop.circle.fill")
+                .font(.title3)
+                .frame(width: 44, height: 44)
         }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(account == nil ? "Sign in" : "Account")
+        .accessibilityValue(account.map { "Signed in with \($0.method.label)" } ?? "")
+        .accessibilityIdentifier("account.button")
         .sheet(isPresented: $signingIn) {
             SignInView(role: role) { signingIn = false }
         }
-        .confirmationDialog("Sign out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+        .confirmationDialog(
+            account.map { "Signed in with \($0.method.label)" } ?? "Account",
+            isPresented: $showingAccount,
+            titleVisibility: .visible
+        ) {
             Button("Sign out", role: .destructive) {
                 Task { await accounts.signOut(role) }
             }
+        } message: {
+            Text(role == .partner
+                ? "Your business data stays on this device for now."
+                : "Your cards stay on this device for now.")
         }
     }
 }

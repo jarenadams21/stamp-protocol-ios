@@ -11,7 +11,11 @@ struct ProfileView: View {
         NavigationStack {
             Form {
                 Section {
-                    PageTitle(text: "You")
+                    HStack(spacing: 4) {
+                        PageTitle(text: "You")
+                        Spacer(minLength: 8)
+                        AccountButton(role: .customer)
+                    }
                     .padding(.vertical, 12)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
@@ -90,8 +94,6 @@ struct ProfileView: View {
                         .foregroundStyle(Color.muted)
                         .accessibilityIdentifier("settings.demoDisclosure")
                 }
-
-                AccountSection(role: .customer)
             }
             .scrollContentBackground(.hidden)
             .background(Color.paper.ignoresSafeArea())

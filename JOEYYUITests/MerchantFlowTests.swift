@@ -124,6 +124,16 @@ final class MerchantFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 5))
         app.buttons["signIn.cancel"].tap()
         XCTAssertTrue(app.buttons["business.setup"].waitForExistence(timeout: 10))
+        let sample = app.buttons["business.sample"]
+        scrollTo(sample, in: app)
+        sample.tap()
+        app.tabBars.buttons["You"].tap()
+        let account = app.buttons["account.button"]
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+        XCTAssertEqual(account.label, "Sign in")
+        account.tap()
+        XCTAssertTrue(app.staticTexts["signIn.heading"].waitForExistence(timeout: 10))
+        app.buttons["signIn.cancel"].tap()
     }
 
     func testFirstTimeSetupCreatesBusiness() {
