@@ -28,8 +28,6 @@ struct BusinessSettingsView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
                 }
 
-                AccountSection(role: .partner)
-
                 Section {
                     Picker("Appearance", selection: $appearance) {
                         ForEach(["System", "Light", "Dark"], id: \.self) {
@@ -123,6 +121,8 @@ struct BusinessSettingsView: View {
                     Text("Business preview \(versionLabel). Business data stays on this device. Live customer activity and Wallet passes aren't connected yet. Norema Cafe activity is fictional.")
                         .foregroundStyle(Color.muted)
                 }
+
+                AccountSection(role: .partner)
             }
             .scrollContentBackground(.hidden)
             .background(Color.paper.ignoresSafeArea())
