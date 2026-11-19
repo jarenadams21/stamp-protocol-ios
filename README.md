@@ -172,12 +172,14 @@ Open a group to rename it, change places, or delete it with confirmation;
 there is no duplicate per-row options menu.
 Deleting a group does not remove cards, punches, favorites, or coupons.
 
-**You** contains appearance, eight accents, local notification preferences, and
+**You** contains an **Account** section (sign in with Apple, Google, or a phone number and
+text code, or sign out), appearance, eight accents, local notification preferences, and
 setup replay. Notifications are not connected. Data/export/reset controls and
-prototype sections are no longer part of this screen. No profile form or sign-in
-is required. One short demo disclosure lives here rather than repeating on cards,
+prototype sections are no longer part of this screen. Sign-in is optional, and cards stay
+on the device until account mode connects them to the backend.
+One short demo disclosure lives here rather than repeating on cards,
 tickets, and discovery.
-**Apple Wallet**, customer codes, NFC, authentication, and purchase verification
+**Apple Wallet**, customer codes, NFC, and purchase verification
 are not implemented. Placeholder Wallet and Show card actions are not displayed;
 there are no fake passes or scannable codes.
 
@@ -187,7 +189,8 @@ Business owners set up their business, design the card customers collect, and se
 customers return. It uses the same design system, `MerchantTheme`, and card views as the
 customer app, so the card designer previews exactly what customers see.
 
-- **Welcome**: set up a business, or explore **Norema Cafe** sample data (fictional activity).
+- **Welcome**: set up a business, explore **Norema Cafe** sample data (fictional activity), or
+  sign in.
 - **Overview**: lifetime cardholders, plus stamps, rewards earned, and rewards redeemed for
   Today / 7 / 30 / 90 days / All. Shows the live card as a Home collection tile and
   **rewards to redeem**: rewards on full cards not yet redeemed, including customers with
@@ -203,12 +206,14 @@ customer app, so the card designer previews exactly what customers see.
   The publish confirmation shows how many cards keep their rules and how many switch.
   **Version history** marks each version Live, Finishing, or Retired.
 - **Business**: name, logo, location from Apple Maps suggestions, and client ID.
-- **You**: shared appearance and accent, **Customer or business**, sample data controls, and
+- **You**: an **Account** section for the business sign-in, shared appearance and accent,
+  **Customer or business**, sample data controls, and
   **Report a bug**. The ladybug on each page also opens a pre-filled GitHub issue in this
   repository with the app version, device, iOS version, and current screen.
 
-Business data is JSON in Application Support, separate from customer data. There is no business
-sign-in, server, or link between published business cards and customer search yet (planned in
+Business data is JSON in Application Support, separate from customer data. Business sign-in
+works (a separate account from a customer one, kept in the Keychain), but business data isn't
+sent to the server yet, and published business cards aren't linked to customer search (planned in
 [docs/backend-spec.md](docs/backend-spec.md)); location
 search text is sent to Apple Maps. Apple Wallet is unavailable for the same signing reason above.
 Switching sides preserves both data sets and remembers the chosen experience across launches.

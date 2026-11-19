@@ -105,6 +105,27 @@ final class MerchantFlowTests: XCTestCase {
         XCTAssertTrue(finishing.label.contains("still finishing older versions"))
     }
 
+    func testSignInOffersAppleGoogleAndPhoneButNoPassword() {
+        let app = launchBusiness()
+        let signIn = app.buttons["business.signIn"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 10))
+        scrollTo(signIn, in: app)
+        signIn.tap()
+        XCTAssertTrue(app.staticTexts["signIn.heading"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["signIn.apple"].exists)
+        XCTAssertTrue(app.buttons["signIn.google"].exists)
+        XCTAssertTrue(app.textFields["signIn.phone"].exists)
+        XCTAssertEqual(app.secureTextFields.count, 0, "There is no password sign-in")
+        XCTAssertFalse(app.buttons["signIn.sendCode"].isEnabled)
+        app.textFields["signIn.phone"].tap()
+        app.textFields["signIn.phone"].typeText("2065550101")
+        XCTAssertTrue(app.buttons["signIn.sendCode"].isEnabled)
+        app.buttons["signIn.google"].tap()
+        XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 5))
+        app.buttons["signIn.cancel"].tap()
+        XCTAssertTrue(app.buttons["business.setup"].waitForExistence(timeout: 10))
+    }
+
     func testFirstTimeSetupCreatesBusiness() {
         let app = launchBusiness()
         app.buttons["business.setup"].tap()
