@@ -21,8 +21,13 @@ private actor FakeAuthAPI: AuthAPI {
         return tokens(role.rawValue)
     }
 
-    func sendPhoneCode(to number: String) async throws -> PhoneCodeSent {
-        PhoneCodeSent(expiresIn: 600, resendAfter: 30)
+    private(set) var codesSent: [(CodeChannel, String)] = []
+
+    func availableMethods() async throws -> [SignInMethod] { [.google, .email] }
+
+    func sendCode(_ channel: CodeChannel, to target: String) async throws -> CodeSent {
+        codesSent.append((channel, target))
+        return CodeSent(expiresIn: 600, resendAfter: 30)
     }
 
     func refresh(_ refreshToken: String) async throws -> TokenResponse {
@@ -55,7 +60,7 @@ final class AccountStoreTests: XCTestCase {
         XCTAssertEqual(accounts.account(for: .customer)?.method, .apple)
         XCTAssertNil(accounts.account(for: .partner), "Signing in as a customer doesn't sign in the business side")
 
-        try await accounts.signIn(.partner, with: .phone(number: "+12065550101", code: "123456"))
+        try await accounts.signIn(.partner, with: .code(.phone, target: "+12065550101", code: "123456"))
         let customerToken = try await accounts.accessToken(for: .customer)
         let partnerToken = try await accounts.accessToken(for: .partner)
         XCTAssertTrue(customerToken.hasPrefix("customer-"))
@@ -141,6 +146,28 @@ final class AccountStoreTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? AuthError, .signedOut)
         }
+    }
+
+    func testEmailCodeSignInIsItsOwnMethod() async throws {
+        let api = FakeAuthAPI()
+        let accounts = makeStore(api: api)
+        let methods = try await accounts.availableMethods()
+        XCTAssertEqual(methods, [.google, .email])
+        _ = try await accounts.sendCode(.email, to: "pat@example.com")
+        let sent = await api.codesSent
+        XCTAssertEqual(sent.map { $0.0 }, [.email])
+        XCTAssertEqual(sent.map { $0.1 }, ["pat@example.com"])
+        try await accounts.signIn(.customer, with: .code(.email, target: "pat@example.com", code: "123456"))
+        XCTAssertEqual(accounts.account(for: .customer)?.method, .email)
+        XCTAssertNil(accounts.account(for: .partner))
+    }
+
+    func testEmailFormatting() {
+        XCTAssertEqual(EmailFormat.normalized("  Pat.Owner@Example.COM "), "pat.owner@example.com")
+        XCTAssertNil(EmailFormat.normalized("pat"))
+        XCTAssertNil(EmailFormat.normalized("pat@example"))
+        XCTAssertNil(EmailFormat.normalized("pat smith@example.com"))
+        XCTAssertNil(EmailFormat.normalized("@example.com"))
     }
 
     func testPhoneNumberFormatting() {

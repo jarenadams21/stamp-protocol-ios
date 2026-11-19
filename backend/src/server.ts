@@ -23,7 +23,10 @@ const app = buildApp({
         redact: ["req.headers.authorization"],
     },
 });
-app.log.info({ auth: auth.mode, issuer: auth.signer.config.issuer, sms: auth.signIn.sms.label }, "sign-in");
+app.log.info(
+    { auth: auth.mode, issuer: auth.signer.config.issuer, methods: auth.signIn.methods, sms: auth.signIn.sms.label, email: auth.signIn.email.label },
+    "sign-in",
+);
 
 // Deletes expired refresh tokens and old phone-code rows, hourly.
 const pruneAuth = setInterval(() => {

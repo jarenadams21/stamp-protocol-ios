@@ -1,8 +1,8 @@
 -- 0004: Sign-in (docs/backend-spec.md section 8.5).
 --
--- The API issues its own tokens after Apple, Google, or a phone code proves who someone is.
--- Access tokens are short-lived JWTs and aren't stored. Refresh tokens and phone codes are stored
--- only as hashes, and phone numbers only as a keyed hash, never in the clear.
+-- The API issues its own tokens after Apple, Google, or a one-time code sent by text or email proves who someone is.
+-- Access tokens are short-lived JWTs and aren't stored. Refresh tokens and one-time codes are stored
+-- only as hashes, and phone numbers and email addresses only as a keyed hash, never in the clear.
 
 CREATE TABLE auth_refresh_tokens (
     id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,10 +21,12 @@ CREATE TABLE auth_refresh_tokens (
 CREATE INDEX auth_refresh_tokens_family_idx ON auth_refresh_tokens (family_id);
 CREATE INDEX auth_refresh_tokens_expires_idx ON auth_refresh_tokens (expires_at);
 
--- One row per phone number that asked for a code. The row outlives the code so send limits hold
--- across codes; `code_hash` is cleared once the code is used or has had too many wrong guesses.
-CREATE TABLE auth_phone_codes (
-    phone_hash        text        PRIMARY KEY CHECK (char_length(phone_hash) = 64),
+-- One row per phone number or email address that asked for a code, keyed by a hash that includes
+-- the channel. The row outlives the code so send limits hold across codes; `code_hash` is cleared
+-- once the code is used or has had too many wrong guesses.
+CREATE TABLE auth_codes (
+    target_hash       text        PRIMARY KEY CHECK (char_length(target_hash) = 64),
+    channel           text        NOT NULL CHECK (channel IN ('phone', 'email')),
     code_hash         bytea       CHECK (octet_length(code_hash) = 32),
     expires_at        timestamptz NOT NULL,
     attempts          integer     NOT NULL DEFAULT 0 CHECK (attempts >= 0),
@@ -32,6 +34,6 @@ CREATE TABLE auth_phone_codes (
     window_started_at timestamptz NOT NULL,
     sends_in_window   integer     NOT NULL CHECK (sends_in_window >= 1)
 );
-CREATE INDEX auth_phone_codes_window_idx ON auth_phone_codes (window_started_at);
+CREATE INDEX auth_codes_window_idx ON auth_codes (window_started_at);
 
 INSERT INTO schema_migrations (version) VALUES ('0004_sign_in');

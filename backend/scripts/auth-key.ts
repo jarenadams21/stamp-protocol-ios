@@ -3,4 +3,4 @@
 import { generateSigningKey } from "../src/auth.ts";
 
 console.log(`AUTH_SIGNING_KEY=${JSON.stringify(await generateSigningKey())}`);
-console.log(`PHONE_HASH_PEPPER=${crypto.getRandomValues(Buffer.alloc(32)).toString("base64url")}`);
+console.log(`SIGN_IN_HASH_PEPPER=${crypto.getRandomValues(Buffer.alloc(32)).toString("base64url")}`);

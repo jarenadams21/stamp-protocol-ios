@@ -78,7 +78,7 @@ struct BusinessWelcomeView: View {
                         }
                         if accounts.account(for: .partner) == nil {
                             BusinessDestination(
-                                title: "Sign in", subtitle: "Apple, Google, or phone number",
+                                title: "Sign in", subtitle: "Google or a code by email",
                                 symbol: "person.crop.circle", identifier: "business.signIn"
                             ) {
                                 signingIn = true

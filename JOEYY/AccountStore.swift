@@ -7,14 +7,28 @@ enum AccountRole: String, CaseIterable, Codable, Sendable {
     case customer, partner
 }
 
-enum SignInMethod: String, Codable, Sendable {
-    case apple, google, phone
+/// Sign-in methods, in the order the Sign in screen shows them. There are no passwords.
+enum SignInMethod: String, CaseIterable, Codable, Sendable {
+    case google, apple, email, phone
 
     var label: String {
         switch self {
         case .apple: "Apple"
         case .google: "Google"
+        case .email: "email"
         case .phone: "phone number"
+        }
+    }
+}
+
+/// Where a one-time code is sent.
+enum CodeChannel: String, Sendable {
+    case email, phone
+
+    var method: SignInMethod {
+        switch self {
+        case .email: .email
+        case .phone: .phone
         }
     }
 }
@@ -23,13 +37,13 @@ enum SignInMethod: String, Codable, Sendable {
 enum SignInProof: Sendable, Equatable {
     case apple(identityToken: String, nonce: String)
     case google(idToken: String, nonce: String)
-    case phone(number: String, code: String)
+    case code(CodeChannel, target: String, code: String)
 
     var method: SignInMethod {
         switch self {
         case .apple: .apple
         case .google: .google
-        case .phone: .phone
+        case .code(let channel, _, _): channel.method
         }
     }
 }
@@ -40,7 +54,7 @@ struct TokenResponse: Decodable, Sendable, Equatable {
     let refreshToken: String
 }
 
-struct PhoneCodeSent: Decodable, Sendable, Equatable {
+struct CodeSent: Decodable, Sendable, Equatable {
     let expiresIn: Int
     let resendAfter: Int
 }
@@ -65,8 +79,10 @@ enum AuthError: LocalizedError, Equatable {
 
 /// The backend's sign-in routes (docs/backend-spec.md section 8.5).
 protocol AuthAPI: Sendable {
+    /// The methods the backend has switched on.
+    func availableMethods() async throws -> [SignInMethod]
     func signIn(role: AccountRole, proof: SignInProof) async throws -> TokenResponse
-    func sendPhoneCode(to number: String) async throws -> PhoneCodeSent
+    func sendCode(_ channel: CodeChannel, to target: String) async throws -> CodeSent
     func refresh(_ refreshToken: String) async throws -> TokenResponse
     func signOut(_ refreshToken: String) async
 }
@@ -87,19 +103,30 @@ struct HTTPAuthAPI: AuthAPI {
     let baseURL: URL
     var session: URLSession = .shared
 
+    func availableMethods() async throws -> [SignInMethod] {
+        struct Methods: Decodable { let methods: [String] }
+        let response: Methods = try await send("GET", "v1/auth/methods", body: nil)
+        return SignInMethod.allCases.filter { response.methods.contains($0.rawValue) }
+    }
+
     func signIn(role: AccountRole, proof: SignInProof) async throws -> TokenResponse {
         switch proof {
         case .apple(let identityToken, let nonce):
             return try await post("v1/auth/apple", ["role": role.rawValue, "identityToken": identityToken, "nonce": nonce])
         case .google(let idToken, let nonce):
             return try await post("v1/auth/google", ["role": role.rawValue, "idToken": idToken, "nonce": nonce])
-        case .phone(let number, let code):
+        case .code(.email, let email, let code):
+            return try await post("v1/auth/email/verify", ["role": role.rawValue, "email": email, "code": code])
+        case .code(.phone, let number, let code):
             return try await post("v1/auth/phone/verify", ["role": role.rawValue, "phoneNumber": number, "code": code])
         }
     }
 
-    func sendPhoneCode(to number: String) async throws -> PhoneCodeSent {
-        try await post("v1/auth/phone/start", ["phoneNumber": number])
+    func sendCode(_ channel: CodeChannel, to target: String) async throws -> CodeSent {
+        switch channel {
+        case .email: return try await post("v1/auth/email/start", ["email": target])
+        case .phone: return try await post("v1/auth/phone/start", ["phoneNumber": target])
+        }
     }
 
     func refresh(_ refreshToken: String) async throws -> TokenResponse {
@@ -121,10 +148,16 @@ struct HTTPAuthAPI: AuthAPI {
     }
 
     private func post<Response: Decodable>(_ path: String, _ body: [String: String]) async throws -> Response {
+        try await send("POST", path, body: body)
+    }
+
+    private func send<Response: Decodable>(_ method: String, _ path: String, body: [String: String]?) async throws -> Response {
         var request = URLRequest(url: baseURL.appending(path: path))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
+        request.httpMethod = method
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
         request.timeoutInterval = 20
         let data: Data
         let response: URLResponse
@@ -145,6 +178,19 @@ struct HTTPAuthAPI: AuthAPI {
     }
 }
 
+/// UI tests: no network. Google and email are on, codes are "sent", and every code is wrong, so
+/// tests can walk the screens without a server.
+struct UITestAuthAPI: AuthAPI {
+    func availableMethods() async throws -> [SignInMethod] { [.google, .email] }
+    func signIn(role: AccountRole, proof: SignInProof) async throws -> TokenResponse {
+        throw AuthError.server(code: "invalidCode", message: "That code is wrong or has expired. Ask for a new one.")
+    }
+    func sendCode(_ channel: CodeChannel, to target: String) async throws -> CodeSent {
+        CodeSent(expiresIn: 600, resendAfter: 30)
+    }
+    func refresh(_ refreshToken: String) async throws -> TokenResponse { throw AuthError.signedOut }
+    func signOut(_ refreshToken: String) async {}
+}
 // MARK: Storage
 
 /// Where refresh tokens are kept between launches.
@@ -233,8 +279,12 @@ final class AccountStore {
 
     func account(for role: AccountRole) -> StoredAccount? { accounts[role] }
 
-    func sendPhoneCode(to number: String) async throws -> PhoneCodeSent {
-        try await api.sendPhoneCode(to: number)
+    func availableMethods() async throws -> [SignInMethod] {
+        try await api.availableMethods()
+    }
+
+    func sendCode(_ channel: CodeChannel, to target: String) async throws -> CodeSent {
+        try await api.sendCode(channel, to: target)
     }
 
     /// Exchanges a provider's proof for JOEYY tokens and saves the session for this side only.
@@ -283,6 +333,19 @@ final class AccountStore {
         accessTokens[role] = nil
         refreshes[role]?.cancel()
         refreshes[role] = nil
+    }
+}
+
+/// Trims and lowercases an email address, as the backend does, or returns nil when it can't be one.
+enum EmailFormat {
+    static func normalized(_ input: String) -> String? {
+        let email = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let parts = email.split(separator: "@", omittingEmptySubsequences: false)
+        guard email.count <= 254, parts.count == 2, !parts[0].isEmpty, parts[0].count <= 64,
+              parts[1].contains("."), !parts[1].hasPrefix("."), !parts[1].hasSuffix("."),
+              !email.contains(where: \.isWhitespace)
+        else { return nil }
+        return email
     }
 }
 

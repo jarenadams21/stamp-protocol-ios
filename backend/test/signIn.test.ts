@@ -4,7 +4,8 @@ import { after, before, describe, test } from "node:test";
 import { decodeJwt } from "jose";
 import { TOKEN_AUDIENCES, verifyBearer } from "../src/auth.ts";
 import { verifyIdToken, googleVerifier } from "../src/identity.ts";
-import { PHONE_MAX_ATTEMPTS, PHONE_SENDS_PER_HOUR, SIGN_INS_PER_IP_PER_HOUR, parsePhoneNumber, pruneAuthRecords } from "../src/signIn.ts";
+import { buildApp } from "../src/app.ts";
+import { CODE_MAX_ATTEMPTS, CODE_SENDS_PER_HOUR, SIGN_INS_PER_IP_PER_HOUR, parseEmail, parsePhoneNumber, pruneAuthRecords } from "../src/signIn.ts";
 import { setUp, type TestContext } from "./helpers.ts";
 
 let ctx: TestContext;
@@ -170,7 +171,7 @@ describe("phone number and text code", () => {
         await start("+12065550103");
         const code = ctx.sms.lastCode("+12065550103")!;
         const wrong = code === "000000" ? "111111" : "000000";
-        for (let i = 0; i < PHONE_MAX_ATTEMPTS; i++) assert.equal((await verify("+12065550103", wrong)).status, 400);
+        for (let i = 0; i < CODE_MAX_ATTEMPTS; i++) assert.equal((await verify("+12065550103", wrong)).status, 400);
         assert.equal((await verify("+12065550103", code)).body.error, "invalidCode");
     });
 
@@ -187,7 +188,7 @@ describe("phone number and text code", () => {
         assert.equal(tooSoon.status, 429);
         assert.ok(Number(tooSoon.headers["retry-after"]) > 0);
 
-        for (let i = 1; i < PHONE_SENDS_PER_HOUR; i++) {
+        for (let i = 1; i < CODE_SENDS_PER_HOUR; i++) {
             ctx.clockOffsetMs += 31_000;
             assert.equal((await start("+12065550105")).status, 202);
         }
@@ -249,6 +250,129 @@ describe("refresh and sign-out", () => {
         } finally {
             ctx.clockOffsetMs -= 61 * 86_400_000;
         }
+    });
+});
+
+describe("email and one-time code", () => {
+    const start = (email: string) => post("/v1/auth/email/start", { email });
+    const verify = (email: string, code: string | undefined, role = "customer") => post("/v1/auth/email/verify", { role, email, code });
+
+    test("sends a code to the normalized address that signs in once, without storing the address", async () => {
+        const started = await start("  Pat.Owner@Example.COM ");
+        assert.equal(started.status, 202);
+        assert.deepEqual(started.body, { expiresIn: 600, resendAfter: 30 });
+        const code = ctx.email.lastCode("pat.owner@example.com");
+        assert.ok(code, "the code goes to the trimmed, lowercased address");
+        assert.equal(ctx.sms.lastCode("pat.owner@example.com"), undefined);
+
+        const wrong = code === "000000" ? "111111" : "000000";
+        assert.equal((await verify("pat.owner@example.com", wrong)).body.error, "invalidCode");
+        const signedIn = await verify("PAT.OWNER@example.com", code);
+        assert.equal(signedIn.status, 200);
+        const subject = decodeJwt(signedIn.body.accessToken).sub!;
+        assert.match(subject, /^email:[0-9a-f]{64}$/);
+        assert.equal(subject.includes("example"), false);
+        const stored = await ctx.pool.query("SELECT subject FROM customers WHERE subject = $1", [subject]);
+        assert.equal(stored.rowCount, 1);
+        const leaks = await ctx.pool.query("SELECT 1 FROM auth_codes WHERE target_hash LIKE '%example%'");
+        assert.equal(leaks.rowCount, 0);
+
+        assert.equal((await verify("pat.owner@example.com", code)).body.error, "invalidCode", "a code works once");
+    });
+
+    test("the same address is a separate account on each side, and tokens stay on their side", async () => {
+        await start("both@example.com");
+        const customer = await verify("both@example.com", ctx.email.lastCode("both@example.com"));
+        ctx.clockOffsetMs += 31_000;
+        await start("both@example.com");
+        const owner = await verify("both@example.com", ctx.email.lastCode("both@example.com"), "partner");
+        assert.equal(owner.status, 200);
+        assert.equal(decodeJwt(owner.body.accessToken).aud, TOKEN_AUDIENCES.partner);
+        assert.equal((await partnerBusiness(customer.body.accessToken)).statusCode, 401);
+        assert.equal((await partnerBusiness(owner.body.accessToken)).statusCode, 404);
+        await assert.rejects(verifyBearer(ctx.signer.config, `Bearer ${owner.body.accessToken}`, "customer"));
+    });
+
+    test("an email code can't be used as a phone code for the same digits", async () => {
+        await start("cross@example.com");
+        const code = ctx.email.lastCode("cross@example.com")!;
+        const asPhone = await post("/v1/auth/phone/verify", { role: "customer", phoneNumber: "+12065550199", code });
+        assert.equal(asPhone.body.error, "invalidCode");
+    });
+
+    test("uses the same limits as phone codes", async () => {
+        await start("limits@example.com");
+        const code = ctx.email.lastCode("limits@example.com")!;
+        const wrong = code === "000000" ? "111111" : "000000";
+        for (let i = 0; i < CODE_MAX_ATTEMPTS; i++) assert.equal((await verify("limits@example.com", wrong)).status, 400);
+        assert.equal((await verify("limits@example.com", code)).body.error, "invalidCode");
+
+        const tooSoon = await start("limits@example.com");
+        assert.equal(tooSoon.status, 429);
+        for (let i = 1; i < CODE_SENDS_PER_HOUR; i++) {
+            ctx.clockOffsetMs += 31_000;
+            assert.equal((await start("limits@example.com")).status, 202);
+        }
+        ctx.clockOffsetMs += 31_000;
+        assert.equal((await start("limits@example.com")).status, 429);
+
+        await start("expires@example.com");
+        const expiring = ctx.email.lastCode("expires@example.com")!;
+        ctx.clockOffsetMs += 10 * 60_000 + 1000;
+        assert.equal((await verify("expires@example.com", expiring)).body.error, "invalidCode");
+    });
+
+    test("a failed email doesn't use up the cooldown", async () => {
+        ctx.email.failing = true;
+        try {
+            const failed = await start("fails@example.com");
+            assert.equal(failed.status, 503);
+            assert.equal(failed.body.error, "emailUnavailable");
+        } finally {
+            ctx.email.failing = false;
+        }
+        assert.equal((await start("fails@example.com")).status, 202);
+    });
+
+    test("rejects invalid addresses", async () => {
+        for (const email of ["", "no-at-sign", "a@b", "a b@example.com", `${"x".repeat(65)}@example.com`, 42]) {
+            assert.equal((await post("/v1/auth/email/start", { email })).body.error, "invalidEmail");
+        }
+        assert.equal(parseEmail(" Ünïcode@Example.org "), "ünïcode@example.org");
+    });
+});
+
+describe("switching sign-in methods on and off", () => {
+    test("turned-off methods answer 503 and aren't listed", async () => {
+        const app = buildApp({
+            pool: ctx.pool,
+            auth: ctx.signer.config,
+            images: ctx.images,
+            signIn: { ...ctx.signInOptions, methods: ["google", "email"] },
+        });
+        await app.ready();
+        try {
+            const send = (url: string, payload: object) => app.inject({ method: "POST", url, payload, remoteAddress: freshIp() });
+            const methods = await app.inject({ method: "GET", url: "/v1/auth/methods" });
+            assert.deepEqual(methods.json(), { methods: ["google", "email"] });
+
+            const nonce = newNonce();
+            const identityToken = await ctx.apple.idToken({ sub: "off", nonce: sha256Hex(nonce) });
+            const apple = await send("/v1/auth/apple", { role: "customer", identityToken, nonce });
+            assert.equal(apple.statusCode, 503);
+            assert.equal(apple.json().error, "signInUnavailable");
+            assert.equal((await send("/v1/auth/phone/start", { phoneNumber: "+12065550188" })).statusCode, 503);
+            assert.equal((await send("/v1/auth/phone/verify", { role: "customer", phoneNumber: "+12065550188", code: "123456" })).statusCode, 503);
+            assert.equal(ctx.sms.lastCode("+12065550188"), undefined);
+            assert.equal((await send("/v1/auth/email/start", { email: "on@example.com" })).statusCode, 202);
+        } finally {
+            await app.close();
+        }
+    });
+
+    test("lists every method that's on", async () => {
+        const response = await ctx.app.inject({ method: "GET", url: "/v1/auth/methods" });
+        assert.deepEqual(response.json(), { methods: ["apple", "google", "phone", "email"] });
     });
 });
 

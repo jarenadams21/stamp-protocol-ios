@@ -173,8 +173,8 @@ there is no duplicate per-row options menu.
 Deleting a group does not remove cards, punches, favorites, or coupons.
 
 **You** contains appearance, eight accents, local notification preferences, and
-setup replay. The person button next to the title signs in with Apple, Google, or a phone
-number and text code, or signs out. Notifications are not connected. Data/export/reset controls and
+setup replay. The person button next to the title signs in with Google or a one-time email code
+(Apple and text codes are built and appear once the backend turns them on), or signs out. Notifications are not connected. Data/export/reset controls and
 prototype sections are no longer part of this screen. Sign-in is optional, and cards stay
 on the device until account mode connects them to the backend.
 One short demo disclosure lives here rather than repeating on cards,

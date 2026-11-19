@@ -27,7 +27,7 @@ The partner MVP diagram's three flows, plus images and notifications:
 | `GET /v1/partner/dashboard?from&to` | Section 8.4 counts, including `rewardsWaiting` and `customersWithStackedRewards` |
 | `GET /v1/partner/notifications?after&limit` | Newest first, cursor paged |
 | `GET /healthz` | Checks the database connection; no token needed |
-| `POST /v1/auth/…` | Sign-in with Apple, Google, or a phone number and text code (see [Sign-in](#sign-in)) |
+| `/v1/auth/…` | Sign-in with Google, Apple, or a one-time code by email or text (see [Sign-in](#sign-in)) |
 
 Not yet implemented: customer routes, NFC punch intake, Apple Wallet, push notifications, and
 redemption (open decision 1). The schema already has the tables for punches, readers, rewards, and
@@ -182,14 +182,18 @@ AZURE_STORAGE_TEST_ACCOUNT=<the storage account's name> npm test
 ## Sign-in
 
 There is one sign-in system for the apps and the website: **Sign in with Apple**, **Google**, or a
-**phone number and text code**. There is no email-and-password sign-in. The API checks the
-provider's proof itself and then issues its own tokens (spec section 8.5), so there is no
-separate auth service or vendor.
+**one-time code by email or text message**. There are no passwords anywhere. The API checks the
+provider's proof or the code itself and then issues its own tokens (spec section 8.5), so there is
+no separate auth service or vendor. For the first version only Google and email are on; Apple and
+phone are built and turn on with `SIGN_IN_METHODS` once they're set up.
 
 | Route | |
 | --- | --- |
-| `POST /v1/auth/apple` | `{ role, identityToken, nonce }`. Apple's token must carry SHA-256(`nonce`) |
+| `GET /v1/auth/methods` | `{ methods }`: the methods that are on, so apps show only those |
 | `POST /v1/auth/google` | `{ role, idToken, nonce }`. Google's token must carry `nonce` |
+| `POST /v1/auth/email/start` | `{ email }` → `202 { expiresIn, resendAfter }`, and a 6-digit code by email |
+| `POST /v1/auth/email/verify` | `{ role, email, code }` |
+| `POST /v1/auth/apple` | `{ role, identityToken, nonce }`. Apple's token must carry SHA-256(`nonce`) |
 | `POST /v1/auth/phone/start` | `{ phoneNumber }` → `202 { expiresIn, resendAfter }`, and a 6-digit code by text |
 | `POST /v1/auth/phone/verify` | `{ role, phoneNumber, code }` |
 | `POST /v1/auth/refresh` | `{ refreshToken }` → a new session; the old refresh token stops working |
@@ -200,41 +204,78 @@ Sign-in returns `{ accessToken, tokenType: "Bearer", expiresIn, refreshToken }`.
 
 - **Two sides, two accounts.** `role` is `customer` or `partner`. The access token's audience is
   `joeyy-customer` or `joeyy-partner`, and every route checks it, so a customer token gets `401` on
-  partner routes and the other way around. The same Apple ID, Google account, or phone number used
-  on both sides is two separate accounts. Accounts aren't linked across sign-in methods.
+  partner routes and the other way around. The same Google account, email address, Apple ID, or
+  phone number used on both sides is two separate accounts. Accounts aren't linked across methods.
 - **Tokens.** Access tokens are RS256 JWTs that last 15 minutes. Refresh tokens last 60 days from
   their last use and rotate on every refresh. If an old one comes back, the whole session is revoked.
   Only their SHA-256 hashes are stored.
-- **Subjects** are `apple:<Apple user ID>`, `google:<Google user ID>`, or `phone:<keyed hash of the
-  number>`. Phone numbers are never stored or put in tokens.
-- **Phone codes** expire in 10 minutes and allow 5 guesses. A number can get one text every 30
-  seconds and 5 an hour. Each IP address gets 10 code requests and 60 sign-in calls an hour. Only
-  countries in `PHONE_COUNTRY_CODES` (the US and Canada by default) can get texts, to limit SMS fraud.
-- **Errors**: `401 signInFailed` for a bad Apple or Google token, `400 invalidCode`,
+- **Subjects** are `google:<Google user ID>`, `email:<keyed hash>`, `apple:<Apple user ID>`, or
+  `phone:<keyed hash>`. Email addresses are trimmed and lowercased first. Neither email addresses
+  nor phone numbers are stored or put in tokens.
+- **Codes** (email and text work the same way) expire in 10 minutes and allow 5 guesses. An address
+  or number can get one code every 30 seconds and 5 an hour. Each IP address gets 10 code requests
+  and 60 sign-in calls an hour. Only countries in `PHONE_COUNTRY_CODES` (the US and Canada by
+  default) can get texts, to limit SMS fraud.
+- **Errors**: `401 signInFailed` for a bad Apple or Google token, `400 invalidCode`, `400 invalidEmail`,
   `400 invalidPhoneNumber`, `400 unsupportedPhoneNumber`, `429 tooManyRequests` (with
-  `Retry-After`), `503 smsUnavailable`, and `503 signInUnavailable` for a provider that isn't set up.
+  `Retry-After`), `503 emailUnavailable` or `503 smsUnavailable` when a code can't be sent, and
+  `503 signInUnavailable` for a method that's off.
 
 ### Settings
 
-`AUTH_MODE=dev` (the `.env.example` default) signs with a key in `.dev/` and writes phone codes to
-the server log instead of texting them. It still checks real Apple and Google tokens. `npm run token`
-mints tokens with the same key. Dev mode refuses to start when `NODE_ENV=production`.
+`AUTH_MODE=dev` (the `.env.example` default) signs with a key in `.dev/`, turns on every method,
+and writes email and text codes to the server log instead of sending them (unless the Azure
+settings are present). It still checks real Apple and Google tokens. `npm run token` mints tokens
+with the same key. Dev mode refuses to start when `NODE_ENV=production`.
 
 `AUTH_MODE=live` (the default when unset) needs:
 
 | Setting | |
 | --- | --- |
 | `AUTH_ISSUER` | This API's public `https://` URL |
-| `AUTH_SIGNING_KEY`, `PHONE_HASH_PEPPER` | Secrets from `npm run auth:key`. Keep them in the secrets store. Changing the pepper turns every phone account into a new one |
-| `APPLE_AUDIENCES` | The app's bundle ID (`com.joeyy.customer`, the default) and, for the website, its Services ID |
+| `AUTH_SIGNING_KEY`, `SIGN_IN_HASH_PEPPER` | Secrets from `npm run auth:key`. Keep them in the secrets store. Changing the pepper turns every email and phone account into a new one |
+| `SIGN_IN_METHODS` | Which methods are on, for example `google,email`. Unset, every method whose settings are present is on. The API won't start with a method on but not set up |
 | `GOOGLE_CLIENT_IDS` | The Google OAuth iOS client ID and, for the website, the web client ID |
-| `ACS_ENDPOINT`, `SMS_FROM` | An Azure Communication Services resource and its toll-free number. The API signs in with `DefaultAzureCredential`, as it does for the database, so there is no access key |
+| `ACS_EMAIL_ENDPOINT`, `EMAIL_FROM` | An Azure Communication Services resource with a connected email domain, and a sender address on it (see below) |
+| `APPLE_AUDIENCES` | The app's bundle ID (`com.joeyy.customer`) and, for the website, its Services ID |
+| `ACS_ENDPOINT`, `SMS_FROM`, `PHONE_COUNTRY_CODES` | The Communication Services resource and its toll-free number for texts |
 | `TRUST_PROXY` | `true` behind a load balancer, so rate limits see the client's IP |
 
-Before real sign-ins: enable Sign in with Apple for `com.joeyy.customer` in the Apple Developer
-account, create the Google OAuth clients, and create the ACS resource with a verified toll-free
-number. Toll-free verification can take several weeks.
+The API signs in to Communication Services with `DefaultAzureCredential`, as it does for the
+database, so there is no access key or connection string.
 
+### Setting up email codes in Azure
+
+1. **Email Communication Services resource**: in the Azure portal, create an *Email Communication
+   Services* resource (for example `joeyy-dev-email`) in `joeyy-dev-rg`, data location United States.
+2. **Azure-managed domain**: open it, go to **Provision domains**, and choose **Add domain** →
+   **Azure managed domain**. This gives a domain like `<id>.azurecomm.net` that's verified and can
+   send right away, with no DNS work. Its default sender is `DoNotReply@<id>.azurecomm.net`; that's
+   `EMAIL_FROM`. You can rename the sender's display name to JOEYY under **MailFrom addresses**.
+3. **Communication Services resource**: create a *Communication Services* resource (for example
+   `joeyy-dev-acs`) in the same resource group and data location. Its **Endpoint** on the Overview
+   page is `ACS_EMAIL_ENDPOINT` (and later `ACS_ENDPOINT` for texts).
+4. **Connect them**: in the Communication Services resource, go to **Email** → **Domains** →
+   **Connect domain**, and pick the Azure managed domain from step 2.
+5. **Let the API send**: on the Communication Services resource, **Access control (IAM)** → **Add
+   role assignment**, and give the API's managed identity a custom role with
+   `Microsoft.Communication/CommunicationServices/Read` and
+   `Microsoft.Communication/CommunicationServices/Write` (Microsoft documents *Contributor* or that
+   custom role for Entra sign-in; the custom role is narrower). For local runs against Azure, assign
+   it to the `joeyy-devs` group too.
+6. **Turn it on**: set `ACS_EMAIL_ENDPOINT`, `EMAIL_FROM`, and `SIGN_IN_METHODS=google,email`.
+
+Azure managed domains are for development only: they're limited to about 5 emails a minute and
+10 an hour per subscription. Before the pilot, add your own domain under **Provision domains**,
+verify it with the DNS records Azure shows (TXT, SPF, DKIM, and DKIM2), connect it in step 4, and
+use a sender on it. A custom domain starts at 30 a minute and 100 an hour, and higher limits can be
+requested through a support ticket. When Azure throttles, the API answers `503 emailUnavailable`. Email sign-in codes can land in spam from an `azurecomm.net` sender; your
+own domain helps.
+
+For texts later: buy a toll-free number on the Communication Services resource (**Phone numbers**),
+submit toll-free verification (it can take several weeks), then set `ACS_ENDPOINT`, `SMS_FROM`, and
+add `phone` to `SIGN_IN_METHODS`. For Apple, enable Sign in with Apple for `com.joeyy.customer` in
+the Apple Developer account, set `APPLE_AUDIENCES`, and add `apple`.
 ## Production identity
 
 Tokens are issued by this API (see [Sign-in](#sign-in)). Every request is checked for signature,

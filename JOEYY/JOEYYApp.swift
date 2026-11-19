@@ -66,9 +66,10 @@ struct JOEYYApp: App {
         }
         _business = State(initialValue: business)
         // UI tests never touch the Keychain or the network: nothing is signed in, and nothing is kept.
+        let testing = arguments.contains("-ui-testing")
         _accounts = State(initialValue: AccountStore(
-            api: HTTPAuthAPI(baseURL: AppConfiguration.apiBaseURL),
-            store: arguments.contains("-ui-testing") ? MemorySecureStore() : KeychainStore()
+            api: testing ? UITestAuthAPI() : HTTPAuthAPI(baseURL: AppConfiguration.apiBaseURL),
+            store: testing ? MemorySecureStore() : KeychainStore()
         ))
     }
 

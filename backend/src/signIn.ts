@@ -1,43 +1,50 @@
-import { createHmac, randomBytes, randomInt, timingSafeEqual, createHash } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import type { Audience, TokenSigner } from "./auth.ts";
 import { transaction } from "./db.ts";
 import { ApiError, invalid, unauthorized } from "./errors.ts";
 import { verifyIdToken, type IdTokenVerifier } from "./identity.ts";
-import type { SmsSender } from "./sms.ts";
+import type { CodeSender } from "./senders.ts";
 
-// Sign-in (docs/backend-spec.md section 8.5). Apple, Google, or a phone number and text code
-// prove who someone is; the API then issues its own tokens for exactly one side. There is no
-// email-and-password sign-in. The same person can have a customer account and a business owner
-// account, but they are separate accounts, and each token works only on its own side.
+// Sign-in (docs/backend-spec.md section 8.5). Apple, Google, or a one-time code sent by text or
+// email proves who someone is; the API then issues its own tokens for exactly one side. There is
+// no password anywhere. The same person can have a customer account and a business owner account,
+// but they are separate accounts, and each token works only on its own side.
+
+export const SIGN_IN_METHODS = ["apple", "google", "phone", "email"] as const;
+export type SignInMethod = (typeof SIGN_IN_METHODS)[number];
 
 export interface SignInOptions {
     signer: TokenSigner;
+    /** Methods that are switched on. The others answer `503 signInUnavailable`. */
+    methods: SignInMethod[];
     apple: IdTokenVerifier;
     google: IdTokenVerifier;
-    sms: SmsSender;
-    /** Secret key for hashing phone numbers and codes, so neither is stored in the clear. */
-    phonePepper: string;
-    /** Country calling codes that may receive codes, without "+". Limits SMS fraud and cost. */
+    sms: CodeSender;
+    email: CodeSender;
+    /** Secret key for hashing phone numbers, email addresses, and codes, so none is stored in the clear. */
+    hashPepper: string;
+    /** Country calling codes that may receive texts, without "+". Limits SMS fraud and cost. */
     phoneCountryCodes: string[];
     now?: () => Date;
 }
 
 export const ACCESS_TOKEN_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_DAYS = 60;
-export const PHONE_CODE_SECONDS = 10 * 60;
-export const PHONE_RESEND_SECONDS = 30;
-export const PHONE_MAX_ATTEMPTS = 5;
-export const PHONE_SENDS_PER_HOUR = 5;
+export const CODE_SECONDS = 10 * 60;
+export const CODE_RESEND_SECONDS = 30;
+export const CODE_MAX_ATTEMPTS = 5;
+/** Codes sent to one phone number or email address per hour. */
+export const CODE_SENDS_PER_HOUR = 5;
 /** Per client IP, per hour, across all sign-in routes. */
 export const SIGN_INS_PER_IP_PER_HOUR = 60;
-export const PHONE_STARTS_PER_IP_PER_HOUR = 10;
+/** Per client IP, per hour, across text and email codes. */
+export const CODE_STARTS_PER_IP_PER_HOUR = 10;
 
 const tooManyRequests = (message = "Too many tries. Wait a bit and try again.") => new ApiError(429, "tooManyRequests", message);
 const signInFailed = () => new ApiError(401, "signInFailed", "Sign-in didn't work. Try again.");
 const signInUnavailable = () => new ApiError(503, "signInUnavailable", "This sign-in option isn't available yet.");
-const smsUnavailable = () => new ApiError(503, "smsUnavailable", "We couldn't send a text right now. Try again soon.");
 const invalidCode = () => invalid("invalidCode", "That code is wrong or has expired. Ask for a new one.");
 
 /** A fixed-window counter per key, kept in memory. Enough for one API instance. */
@@ -100,11 +107,25 @@ export function parsePhoneNumber(value: unknown, countryCodes: string[]): string
     return number;
 }
 
+/** Returns the address trimmed and lowercased, or throws `invalidEmail`. */
+export function parseEmail(value: unknown): string {
+    const fail = () => invalid("invalidEmail", "Enter a valid email address.");
+    if (typeof value !== "string") throw fail();
+    const email = value.trim().toLowerCase();
+    if (email.length > 254 || !/^[^\s@<>()"',;:\\]+@[^\s@<>()"',;:\\]+\.[^\s@<>()"',;:\\]{2,}$/.test(email)) throw fail();
+    if (email.split("@")[0]!.length > 64) throw fail();
+    return email;
+}
+
 // Hashing -----------------------------------------------------------------------------------
 
+type CodeChannel = "phone" | "email";
 const hmac = (pepper: string, value: string) => createHmac("sha256", pepper).update(value).digest();
-export const phoneHash = (pepper: string, number: string) => hmac(pepper, `phone:${number}`).toString("hex");
-const codeHash = (pepper: string, phone: string, code: string) => hmac(pepper, `code:${phone}:${code}`);
+/** Keyed hash of a normalized phone number or email address. Also the account subject's suffix. */
+export const targetHash = (pepper: string, channel: CodeChannel, target: string) => hmac(pepper, `${channel}:${target}`).toString("hex");
+/** Kept for readability in tests: the phone subject's hash. */
+export const phoneHash = (pepper: string, number: string) => targetHash(pepper, "phone", number);
+const codeHash = (pepper: string, target: string, code: string) => hmac(pepper, `code:${target}:${code}`);
 const refreshHash = (token: string) => createHash("sha256").update(token).digest();
 
 // Sessions ----------------------------------------------------------------------------------
@@ -151,12 +172,12 @@ async function signIn(pool: pg.Pool, options: SignInOptions, audience: Audience,
     return client ? run(client) : transaction(pool, run);
 }
 
-/** Deletes expired refresh tokens and stale phone rows. Run periodically. */
+/** Deletes expired refresh tokens and stale code rows. Run periodically. */
 export async function pruneAuthRecords(pool: pg.Pool, now = new Date()) {
     const dayAgo = new Date(now.getTime() - 86_400_000);
     const tokens = await pool.query("DELETE FROM auth_refresh_tokens WHERE expires_at < $1", [dayAgo]);
-    const phones = await pool.query("DELETE FROM auth_phone_codes WHERE window_started_at < $1 AND expires_at < $2", [dayAgo, now]);
-    return { refreshTokens: tokens.rowCount ?? 0, phoneCodes: phones.rowCount ?? 0 };
+    const codes = await pool.query("DELETE FROM auth_codes WHERE window_started_at < $1 AND expires_at < $2", [dayAgo, now]);
+    return { refreshTokens: tokens.rowCount ?? 0, codes: codes.rowCount ?? 0 };
 }
 
 // Routes ------------------------------------------------------------------------------------
@@ -165,7 +186,10 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
     const { pool } = options;
     const clock = () => options.now?.() ?? new Date();
     const perIp = new RateLimiter(SIGN_INS_PER_IP_PER_HOUR, 3_600_000);
-    const phoneStartsPerIp = new RateLimiter(PHONE_STARTS_PER_IP_PER_HOUR, 3_600_000);
+    const codeStartsPerIp = new RateLimiter(CODE_STARTS_PER_IP_PER_HOUR, 3_600_000);
+    const enabled = (method: SignInMethod) => {
+        if (!options.methods.includes(method)) throw signInUnavailable();
+    };
 
     const limit = (limiter: RateLimiter, request: FastifyRequest, reply: FastifyReply) => {
         const wait = limiter.hit(request.ip, clock().getTime());
@@ -180,7 +204,13 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
         if (request.method === "POST") limit(perIp, request, reply);
     });
 
+    /** Which sign-in options the apps and website should show. */
+    app.get("/methods", async () => ({
+        methods: options.methods.filter((method) => method !== "google" || options.google.audiences.length > 0),
+    }));
+
     const providerRoute = (verifier: IdTokenVerifier, tokenField: "identityToken" | "idToken") => async (request: FastifyRequest) => {
+        enabled(verifier.provider);
         const body = objectBody(request);
         const role = parseRole(body.role);
         const token = parseString(body[tokenField], tokenField, 1, 8192);
@@ -194,92 +224,125 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
     app.post("/apple", providerRoute(options.apple, "identityToken"));
     app.post("/google", providerRoute(options.google, "idToken"));
 
-    app.post("/phone/start", async (request, reply) => {
-        const body = objectBody(request);
-        const number = parsePhoneNumber(body.phoneNumber, options.phoneCountryCodes);
-        limit(phoneStartsPerIp, request, reply);
-        const phone = phoneHash(options.phonePepper, number);
-        const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-        const now = clock();
-        const expiresAt = new Date(now.getTime() + PHONE_CODE_SECONDS * 1000);
+    // One-time codes by text or email -------------------------------------------------------
 
-        const wait = await transaction(pool, async (client) => {
-            const existing = await client.query<{ sent_at: Date; window_started_at: Date; sends_in_window: number }>(
-                "SELECT sent_at, window_started_at, sends_in_window FROM auth_phone_codes WHERE phone_hash = $1 FOR UPDATE",
-                [phone],
-            );
-            const row = existing.rows[0];
-            if (row) {
-                const sinceSent = (now.getTime() - row.sent_at.getTime()) / 1000;
-                if (sinceSent < PHONE_RESEND_SECONDS) return Math.ceil(PHONE_RESEND_SECONDS - sinceSent);
-                const windowEnds = row.window_started_at.getTime() + 3_600_000;
-                const sameWindow = windowEnds > now.getTime();
-                if (sameWindow && row.sends_in_window >= PHONE_SENDS_PER_HOUR) return Math.ceil((windowEnds - now.getTime()) / 1000);
-                await client.query(
-                    `UPDATE auth_phone_codes
-                     SET code_hash = $2, expires_at = $3, attempts = 0, sent_at = $4,
-                         window_started_at = $5, sends_in_window = $6
-                     WHERE phone_hash = $1`,
-                    [phone, codeHash(options.phonePepper, phone, code), expiresAt, now,
-                        sameWindow ? row.window_started_at : now, sameWindow ? row.sends_in_window + 1 : 1],
+    interface Channel {
+        method: CodeChannel;
+        field: "phoneNumber" | "email";
+        parse(value: unknown): string;
+        sender: CodeSender;
+        unavailable(): ApiError;
+    }
+    const channels: Channel[] = [
+        {
+            method: "phone",
+            field: "phoneNumber",
+            parse: (value) => parsePhoneNumber(value, options.phoneCountryCodes),
+            sender: options.sms,
+            unavailable: () => new ApiError(503, "smsUnavailable", "We couldn't send a text right now. Try again soon."),
+        },
+        {
+            method: "email",
+            field: "email",
+            parse: parseEmail,
+            sender: options.email,
+            unavailable: () => new ApiError(503, "emailUnavailable", "We couldn't send an email right now. Try again soon."),
+        },
+    ];
+
+    for (const channel of channels) {
+        app.post(`/${channel.method}/start`, async (request, reply) => {
+            enabled(channel.method);
+            const body = objectBody(request);
+            const target = channel.parse(body[channel.field]);
+            limit(codeStartsPerIp, request, reply);
+            const key = targetHash(options.hashPepper, channel.method, target);
+            const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+            const now = clock();
+            const expiresAt = new Date(now.getTime() + CODE_SECONDS * 1000);
+            const hashed = codeHash(options.hashPepper, key, code);
+
+            const wait = await transaction(pool, async (client) => {
+                const existing = await client.query<{ sent_at: Date; window_started_at: Date; sends_in_window: number }>(
+                    "SELECT sent_at, window_started_at, sends_in_window FROM auth_codes WHERE target_hash = $1 FOR UPDATE",
+                    [key],
                 );
-            } else {
-                const inserted = await client.query(
-                    `INSERT INTO auth_phone_codes (phone_hash, code_hash, expires_at, sent_at, window_started_at, sends_in_window)
-                     VALUES ($1, $2, $3, $4, $4, 1) ON CONFLICT (phone_hash) DO NOTHING`,
-                    [phone, codeHash(options.phonePepper, phone, code), expiresAt, now],
-                );
-                // Another request for the same number got there first.
-                if (inserted.rowCount === 0) return PHONE_RESEND_SECONDS;
+                const row = existing.rows[0];
+                if (row) {
+                    const sinceSent = (now.getTime() - row.sent_at.getTime()) / 1000;
+                    if (sinceSent < CODE_RESEND_SECONDS) return Math.ceil(CODE_RESEND_SECONDS - sinceSent);
+                    const windowEnds = row.window_started_at.getTime() + 3_600_000;
+                    const sameWindow = windowEnds > now.getTime();
+                    if (sameWindow && row.sends_in_window >= CODE_SENDS_PER_HOUR) return Math.ceil((windowEnds - now.getTime()) / 1000);
+                    await client.query(
+                        `UPDATE auth_codes
+                         SET code_hash = $2, expires_at = $3, attempts = 0, sent_at = $4,
+                             window_started_at = $5, sends_in_window = $6
+                         WHERE target_hash = $1`,
+                        [key, hashed, expiresAt, now, sameWindow ? row.window_started_at : now, sameWindow ? row.sends_in_window + 1 : 1],
+                    );
+                } else {
+                    const inserted = await client.query(
+                        `INSERT INTO auth_codes (target_hash, channel, code_hash, expires_at, sent_at, window_started_at, sends_in_window)
+                         VALUES ($1, $2, $3, $4, $5, $5, 1) ON CONFLICT (target_hash) DO NOTHING`,
+                        [key, channel.method, hashed, expiresAt, now],
+                    );
+                    // Another request for the same address got there first.
+                    if (inserted.rowCount === 0) return CODE_RESEND_SECONDS;
+                }
+                // Sent inside the transaction, so a failed send doesn't use up the cooldown or limit.
+                try {
+                    await channel.sender.sendCode(target, code);
+                } catch (error) {
+                    request.log.error({ err: error, sender: channel.sender.label }, "sign-in code not sent");
+                    throw channel.unavailable();
+                }
+                return undefined;
+            });
+            if (wait !== undefined) {
+                reply.header("retry-after", String(wait));
+                throw tooManyRequests("A code was sent recently. Wait a bit before asking for another.");
             }
-            // Sent inside the transaction, so a failed text doesn't use up the cooldown or limit.
-            try {
-                await options.sms.send(number, `${code} is your JOEYY code. It expires in 10 minutes. Don't share it.`);
-            } catch (error) {
-                request.log.error({ err: error, sms: options.sms.label }, "sign-in text not sent");
-                throw smsUnavailable();
-            }
-            return undefined;
+            return reply.code(202).send({ expiresIn: CODE_SECONDS, resendAfter: CODE_RESEND_SECONDS });
         });
-        if (wait !== undefined) {
-            reply.header("retry-after", String(wait));
-            throw tooManyRequests("A code was sent recently. Wait a bit before asking for another.");
-        }
-        return reply.code(202).send({ expiresIn: PHONE_CODE_SECONDS, resendAfter: PHONE_RESEND_SECONDS });
-    });
 
-    app.post("/phone/verify", async (request) => {
-        const body = objectBody(request);
-        const role = parseRole(body.role);
-        const number = parsePhoneNumber(body.phoneNumber, options.phoneCountryCodes);
-        if (typeof body.code !== "string" || !/^\d{6}$/.test(body.code)) throw invalidCode();
-        const code = body.code;
-        const phone = phoneHash(options.phonePepper, number);
-        const now = clock();
+        app.post(`/${channel.method}/verify`, async (request) => {
+            enabled(channel.method);
+            const body = objectBody(request);
+            const role = parseRole(body.role);
+            const target = channel.parse(body[channel.field]);
+            if (typeof body.code !== "string" || !/^\d{6}$/.test(body.code)) throw invalidCode();
+            const code = body.code;
+            const key = targetHash(options.hashPepper, channel.method, target);
+            const now = clock();
 
-        // A wrong guess must be counted even though the request fails, so the transaction returns
-        // the outcome instead of throwing.
-        const outcome = await transaction(pool, async (client) => {
-            const result = await client.query<{ code_hash: Buffer | null; expires_at: Date; attempts: number }>(
-                "SELECT code_hash, expires_at, attempts FROM auth_phone_codes WHERE phone_hash = $1 FOR UPDATE",
-                [phone],
-            );
-            const row = result.rows[0];
-            if (!row?.code_hash || row.expires_at <= now) return { ok: false as const };
-            if (!timingSafeEqual(row.code_hash, codeHash(options.phonePepper, phone, code))) {
-                const attempts = row.attempts + 1;
-                await client.query(
-                    "UPDATE auth_phone_codes SET attempts = $2::int, code_hash = CASE WHEN $2::int >= $3::int THEN NULL ELSE code_hash END WHERE phone_hash = $1",
-                    [phone, attempts, PHONE_MAX_ATTEMPTS],
+            // A wrong guess must be counted even though the request fails, so the transaction
+            // returns the outcome instead of throwing.
+            const outcome = await transaction(pool, async (client) => {
+                const result = await client.query<{ code_hash: Buffer | null; expires_at: Date; attempts: number }>(
+                    "SELECT code_hash, expires_at, attempts FROM auth_codes WHERE target_hash = $1 FOR UPDATE",
+                    [key],
                 );
-                return { ok: false as const };
-            }
-            await client.query("UPDATE auth_phone_codes SET code_hash = NULL WHERE phone_hash = $1", [phone]);
-            return { ok: true as const, session: await signIn(pool, options, role, `phone:${phone}`, client) };
+                const row = result.rows[0];
+                if (!row?.code_hash || row.expires_at <= now) return { ok: false as const };
+                if (!timingSafeEqual(row.code_hash, codeHash(options.hashPepper, key, code))) {
+                    await client.query(
+                        `UPDATE auth_codes SET attempts = $2::int,
+                             code_hash = CASE WHEN $2::int >= $3::int THEN NULL ELSE code_hash END
+                         WHERE target_hash = $1`,
+                        [key, row.attempts + 1, CODE_MAX_ATTEMPTS],
+                    );
+                    return { ok: false as const };
+                }
+                await client.query("UPDATE auth_codes SET code_hash = NULL WHERE target_hash = $1", [key]);
+                return { ok: true as const, session: await signIn(pool, options, role, `${channel.method}:${key}`, client) };
+            });
+            if (!outcome.ok) throw invalidCode();
+            return outcome.session;
         });
-        if (!outcome.ok) throw invalidCode();
-        return outcome.session;
-    });
+    }
+
+    // Sessions ------------------------------------------------------------------------------
 
     app.post("/refresh", async (request) => {
         const body = objectBody(request);

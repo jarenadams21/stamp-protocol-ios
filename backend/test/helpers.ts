@@ -9,7 +9,8 @@ import { createPool } from "../src/db.ts";
 import { appleVerifier, googleVerifier, type IdTokenVerifier } from "../src/identity.ts";
 import { LocalImageStore } from "../src/images.ts";
 import { migrate } from "../src/migrate.ts";
-import { MemorySmsSender } from "../src/sms.ts";
+import { MemoryCodeSender } from "../src/senders.ts";
+import type { SignInOptions } from "../src/signIn.ts";
 
 /**
  * A fresh schema with every migration applied, an app wired to it, and a token signer.
@@ -21,9 +22,12 @@ export interface TestContext {
     pool: pg.Pool;
     signer: DevSigner;
     images: LocalImageStore;
-    sms: MemorySmsSender;
+    sms: MemoryCodeSender;
+    email: MemoryCodeSender;
     apple: FakeProvider;
     google: FakeProvider;
+    /** The sign-in settings the app was built with, for building variants. */
+    signInOptions: SignInOptions;
     /** Moves the sign-in clock (phone codes, refresh expiry) forward by this many milliseconds. */
     clockOffsetMs: number;
     close(): Promise<void>;
@@ -55,6 +59,7 @@ async function fakeProvider(make: typeof appleVerifier, issuer: string, audience
     };
 }
 
+export const TEST_PEPPER = "test-pepper-test-pepper-test-pepper";
 export const APPLE_TEST_AUDIENCE = "com.joeyy.customer";
 export const GOOGLE_TEST_AUDIENCE = "test-ios.apps.googleusercontent.com";
 
@@ -68,24 +73,23 @@ export async function setUp(): Promise<TestContext> {
     // Images go to a temporary folder and are served by the app itself, like IMAGE_STORE=local.
     const imageDirectory = await mkdtemp(path.join(tmpdir(), "joeyy-images-"));
     const images = new LocalImageStore({ directory: imageDirectory, baseUrl: "http://localhost", urlTtlSeconds: 900 });
-    const sms = new MemorySmsSender();
+    const sms = new MemoryCodeSender();
+    const email = new MemoryCodeSender();
     const apple = await fakeProvider(appleVerifier, "https://appleid.apple.com", APPLE_TEST_AUDIENCE);
     const google = await fakeProvider(googleVerifier, "https://accounts.google.com", GOOGLE_TEST_AUDIENCE);
     const ctx = {} as TestContext;
-    const app = buildApp({
-        pool,
-        auth: signer.config,
-        images,
-        signIn: {
-            signer,
-            apple: apple.verifier,
-            google: google.verifier,
-            sms,
-            phonePepper: "test-pepper-test-pepper-test-pepper",
-            phoneCountryCodes: ["1", "44"],
-            now: () => new Date(Date.now() + ctx.clockOffsetMs),
-        },
-    });
+    const signInOptions: SignInOptions = {
+        signer,
+        methods: ["apple", "google", "phone", "email"],
+        apple: apple.verifier,
+        google: google.verifier,
+        sms,
+        email,
+        hashPepper: TEST_PEPPER,
+        phoneCountryCodes: ["1", "44"],
+        now: () => new Date(Date.now() + ctx.clockOffsetMs),
+    };
+    const app = buildApp({ pool, auth: signer.config, images, signIn: signInOptions });
     await app.ready();
     return Object.assign(ctx, {
         app,
@@ -93,8 +97,10 @@ export async function setUp(): Promise<TestContext> {
         signer,
         images,
         sms,
+        email,
         apple,
         google,
+        signInOptions,
         clockOffsetMs: 0,
         async close() {
             await app.close();

@@ -1,22 +1,30 @@
 import AuthenticationServices
 import SwiftUI
 
-/// Sign in to one side of the app with Apple, Google, or a phone number and text code.
-/// There is no email or password.
+/// Sign in to one side of the app with the methods the backend has switched on: Google, Apple, or
+/// a one-time code by email or text. There are no passwords.
 struct SignInView: View {
     let role: AccountRole
     let onDone: () -> Void
     @Environment(AccountStore.self) private var accounts
     @Environment(\.webAuthenticationSession) private var webAuthentication
     @Environment(\.colorScheme) private var colorScheme
+    @State private var methods: [SignInMethod]?
+    @State private var methodsFailed = false
     @State private var appleNonce = ""
+    @State private var emailInput = ""
     @State private var phoneInput = ""
-    @State private var sentTo: String?
+    @State private var pending: PendingCode?
     @State private var code = ""
     @State private var resendAt = Date.distantPast
     @State private var working = false
     @State private var error: String?
     @FocusState private var codeFocused: Bool
+
+    private struct PendingCode: Equatable {
+        let channel: CodeChannel
+        let target: String
+    }
 
     private var subtitle: String {
         switch role {
@@ -36,27 +44,22 @@ struct SignInView: View {
                         .foregroundStyle(Color.muted)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    SignInWithAppleButton(.signIn) { request in
-                        appleNonce = SignInCrypto.randomString()
-                        request.requestedScopes = []
-                        request.nonce = SignInCrypto.sha256Hex(appleNonce)
-                    } onCompletion: { result in
-                        handleApple(result)
+                    if let pending {
+                        codeSection(for: pending)
+                    } else if let methods {
+                        methodsSection(methods)
+                    } else if methodsFailed {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Couldn't reach JOEYY. Check your connection and try again.")
+                                .foregroundStyle(Color.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Try again") { Task { await loadMethods() } }
+                                .buttonStyle(SecondaryButton())
+                                .accessibilityIdentifier("signIn.retry")
+                        }
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 120)
                     }
-                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                    .frame(height: 52)
-                    .accessibilityIdentifier("signIn.apple")
-
-                    Button(action: signInWithGoogle) {
-                        Label("Continue with Google", systemImage: "g.circle")
-                    }
-                    .buttonStyle(SecondaryButton())
-                    .accessibilityIdentifier("signIn.google")
-
-                    Text("Or use your phone number")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.top, 8)
-                    phoneSection
 
                     if let error {
                         Text(error)
@@ -86,62 +89,73 @@ struct SignInView: View {
                     ToolbarItem(placement: .principal) { ProgressView() }
                 }
             }
+            .task { await loadMethods() }
             .trackScreen("Sign in")
         }
     }
 
-    @ViewBuilder private var phoneSection: some View {
-        if let sentTo {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Enter the 6-digit code sent to \(sentTo).")
-                    .font(.subheadline)
-                    .fixedSize(horizontal: false, vertical: true)
-                TextField("Code", text: $code)
-                    .textContentType(.oneTimeCode)
-                    .keyboardType(.numberPad)
-                    .focused($codeFocused)
-                    .padding(12)
-                    .frame(minHeight: 44)
-                    .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.rule))
-                    .accessibilityIdentifier("signIn.code")
-                    .onChange(of: code) { code = String(code.filter(\.isNumber).prefix(6)) }
-                Button("Sign in") { verifyCode(for: sentTo) }
-                    .buttonStyle(PrimaryButton())
-                    .disabled(code.count != 6)
-                    .accessibilityIdentifier("signIn.verify")
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    let wait = Int(resendAt.timeIntervalSince(context.date).rounded(.up))
-                    HStack {
-                        Button("Change number") {
-                            self.sentTo = nil
-                            code = ""
-                        }
-                        Spacer()
-                        Button(wait > 0 ? "Send a new code in \(wait)s" : "Send a new code") { sendCode(to: sentTo) }
-                            .disabled(wait > 0)
-                    }
-                    .buttonStyle(TextButton())
-                    .font(.subheadline)
-                    .frame(minHeight: 44)
-                }
+    // MARK: Sections
+
+    @ViewBuilder private func methodsSection(_ methods: [SignInMethod]) -> some View {
+        if methods.isEmpty {
+            Text("Sign-in isn't available right now. Try again later.")
+                .foregroundStyle(Color.muted)
+        }
+        if methods.contains(.google) {
+            Button(action: signInWithGoogle) {
+                Label("Continue with Google", systemImage: "g.circle")
             }
-        } else {
+            .buttonStyle(SecondaryButton())
+            .accessibilityIdentifier("signIn.google")
+        }
+        if methods.contains(.apple) {
+            SignInWithAppleButton(.signIn) { request in
+                appleNonce = SignInCrypto.randomString()
+                request.requestedScopes = []
+                request.nonce = SignInCrypto.sha256Hex(appleNonce)
+            } onCompletion: { result in
+                handleApple(result)
+            }
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: 52)
+            .accessibilityIdentifier("signIn.apple")
+        }
+        if methods.contains(.email) {
             VStack(alignment: .leading, spacing: 12) {
-                TextField("Mobile number", text: $phoneInput)
+                Text("Continue with email")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.top, 8)
+                inputField("Email address", text: $emailInput, identifier: "signIn.email")
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Email me a code") {
+                    guard let email = EmailFormat.normalized(emailInput) else {
+                        error = "Enter a valid email address."
+                        return
+                    }
+                    sendCode(.email, to: email)
+                }
+                .buttonStyle(PrimaryButton())
+                .disabled(!emailInput.contains("@"))
+                .accessibilityIdentifier("signIn.sendEmailCode")
+            }
+        }
+        if methods.contains(.phone) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Or use your phone number")
+                    .font(.subheadline.weight(.medium))
+                    .padding(.top, 8)
+                inputField("Mobile number", text: $phoneInput, identifier: "signIn.phone")
                     .textContentType(.telephoneNumber)
                     .keyboardType(.phonePad)
-                    .padding(12)
-                    .frame(minHeight: 44)
-                    .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.rule))
-                    .accessibilityIdentifier("signIn.phone")
                 Button("Text me a code") {
                     guard let number = PhoneNumberFormat.e164(phoneInput) else {
                         error = "Enter a mobile number, including the country code outside the US and Canada."
                         return
                     }
-                    sendCode(to: number)
+                    sendCode(.phone, to: number)
                 }
                 .buttonStyle(PrimaryButton())
                 .disabled(phoneInput.filter(\.isNumber).count < 7)
@@ -153,7 +167,64 @@ struct SignInView: View {
         }
     }
 
+    private func codeSection(for pending: PendingCode) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(pending.channel == .email
+                ? "Enter the 6-digit code we emailed to \(pending.target). Check your spam folder if it isn't there."
+                : "Enter the 6-digit code sent to \(pending.target).")
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("signIn.codePrompt")
+            inputField("Code", text: $code, identifier: "signIn.code")
+                .textContentType(.oneTimeCode)
+                .keyboardType(.numberPad)
+                .focused($codeFocused)
+                .onChange(of: code) { code = String(code.filter(\.isNumber).prefix(6)) }
+            Button("Sign in") { verifyCode(pending) }
+                .buttonStyle(PrimaryButton())
+                .disabled(code.count != 6)
+                .accessibilityIdentifier("signIn.verify")
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let wait = Int(resendAt.timeIntervalSince(context.date).rounded(.up))
+                HStack {
+                    Button(pending.channel == .email ? "Change email" : "Change number") {
+                        self.pending = nil
+                        code = ""
+                        error = nil
+                    }
+                    .accessibilityIdentifier("signIn.change")
+                    Spacer()
+                    Button(wait > 0 ? "Send a new code in \(wait)s" : "Send a new code") {
+                        sendCode(pending.channel, to: pending.target)
+                    }
+                    .disabled(wait > 0)
+                }
+                .buttonStyle(TextButton())
+                .font(.subheadline)
+                .frame(minHeight: 44)
+            }
+        }
+    }
+
+    private func inputField(_ title: String, text: Binding<String>, identifier: String) -> some View {
+        TextField(title, text: text)
+            .padding(12)
+            .frame(minHeight: 44)
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.rule))
+            .accessibilityIdentifier(identifier)
+    }
+
     // MARK: Actions
+
+    private func loadMethods() async {
+        methodsFailed = false
+        do {
+            methods = try await accounts.availableMethods()
+        } catch {
+            methodsFailed = true
+        }
+    }
 
     private func run(_ work: @escaping @MainActor () async throws -> Void) {
         error = nil
@@ -189,25 +260,25 @@ struct SignInView: View {
 
     private func signInWithGoogle() {
         guard let clientID = AppConfiguration.googleIOSClientID else {
-            error = AuthError.notConfigured("Google sign-in isn't set up yet. Use Apple or your phone number.").localizedDescription
+            error = AuthError.notConfigured("Google sign-in isn't set up in this build yet. Use email instead.").localizedDescription
             return
         }
         run { try await finish(try await GoogleOAuth(clientID: clientID).signIn(using: webAuthentication)) }
     }
 
-    private func sendCode(to number: String) {
+    private func sendCode(_ channel: CodeChannel, to target: String) {
         run {
-            let sent = try await accounts.sendPhoneCode(to: number)
-            sentTo = number
+            let sent = try await accounts.sendCode(channel, to: target)
+            pending = PendingCode(channel: channel, target: target)
             code = ""
             resendAt = .now.addingTimeInterval(TimeInterval(sent.resendAfter))
             codeFocused = true
         }
     }
 
-    private func verifyCode(for number: String) {
+    private func verifyCode(_ pending: PendingCode) {
         let entered = code
-        run { try await finish(.phone(number: number, code: entered)) }
+        run { try await finish(.code(pending.channel, target: pending.target, code: entered)) }
     }
 
     private func finish(_ proof: SignInProof) async throws {
@@ -215,7 +286,6 @@ struct SignInView: View {
         onDone()
     }
 }
-
 /// The You tab's account control for one side, next to the page title: sign in, or see which
 /// sign-in is used and sign out.
 struct AccountButton: View {

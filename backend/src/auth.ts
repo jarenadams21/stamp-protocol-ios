@@ -13,8 +13,8 @@ import {
 } from "jose";
 import { unauthorized } from "./errors.ts";
 import { appleVerifier, googleVerifier } from "./identity.ts";
-import { AzureSmsSender, LogSmsSender } from "./sms.ts";
-import type { SignInOptions } from "./signIn.ts";
+import { AzureEmailSender, AzureSmsSender, LogCodeSender } from "./senders.ts";
+import { SIGN_IN_METHODS, type SignInMethod, type SignInOptions } from "./signIn.ts";
 
 /** The two sides of the app. A token issued for one side is never accepted by the other. */
 export type Audience = "partner" | "customer";
@@ -125,26 +125,32 @@ const list = (value: string | undefined) => (value ?? "").split(",").map((item) 
 /**
  * Builds token signing and sign-in from the environment.
  *
- * - `AUTH_MODE=live`: AUTH_ISSUER, AUTH_SIGNING_KEY, PHONE_HASH_PEPPER, ACS_ENDPOINT, and SMS_FROM
- *   are required; APPLE_AUDIENCES and GOOGLE_CLIENT_IDS list the app and website client IDs.
- * - `AUTH_MODE=dev`: a local key, a fixed phone pepper, and phone codes written to the log unless
- *   ACS_ENDPOINT is set. Refused when NODE_ENV=production.
+ * - `AUTH_MODE=live`: AUTH_ISSUER, AUTH_SIGNING_KEY, and SIGN_IN_HASH_PEPPER are required. Each
+ *   sign-in method needs its own settings: APPLE_AUDIENCES, GOOGLE_CLIENT_IDS, ACS_ENDPOINT and
+ *   SMS_FROM (phone), and ACS_EMAIL_ENDPOINT and EMAIL_FROM (email).
+ * - `AUTH_MODE=dev`: a local key, a fixed pepper, and codes written to the log unless the Azure
+ *   settings are present. Refused when NODE_ENV=production.
+ *
+ * SIGN_IN_METHODS (for example "google,email") chooses which methods are on. Unset, live turns on
+ * every method that has its settings and dev turns on all of them. Live refuses to start with a
+ * method turned on but not set up.
  */
 export async function authFromEnv(env: NodeJS.ProcessEnv = process.env, log: (line: string) => void = console.warn): Promise<AuthSetup> {
     const mode = env.AUTH_MODE ?? "live";
     if (mode === "oidc") throw new Error('AUTH_MODE=oidc was removed; the API now issues its own tokens. Use "live" or "dev".');
     if (mode !== "live" && mode !== "dev") throw new Error(`AUTH_MODE must be "live" or "dev", not "${mode}"`);
     if (mode === "dev" && env.NODE_ENV === "production") throw new Error("AUTH_MODE=dev is not allowed when NODE_ENV=production");
+    const live = mode === "live";
 
     let signer: TokenSigner;
     let pepper: string;
-    if (mode === "live") {
-        const { AUTH_ISSUER, AUTH_SIGNING_KEY, PHONE_HASH_PEPPER } = env;
-        if (!AUTH_ISSUER || !AUTH_SIGNING_KEY || !PHONE_HASH_PEPPER) {
-            throw new Error("AUTH_MODE=live needs AUTH_ISSUER, AUTH_SIGNING_KEY, and PHONE_HASH_PEPPER");
+    if (live) {
+        const { AUTH_ISSUER, AUTH_SIGNING_KEY, SIGN_IN_HASH_PEPPER } = env;
+        if (!AUTH_ISSUER || !AUTH_SIGNING_KEY || !SIGN_IN_HASH_PEPPER) {
+            throw new Error("AUTH_MODE=live needs AUTH_ISSUER, AUTH_SIGNING_KEY, and SIGN_IN_HASH_PEPPER");
         }
         if (!AUTH_ISSUER.startsWith("https://")) throw new Error("AUTH_ISSUER must be an https:// URL");
-        if (PHONE_HASH_PEPPER.length < 32) throw new Error("PHONE_HASH_PEPPER must be at least 32 characters");
+        if (SIGN_IN_HASH_PEPPER.length < 32) throw new Error("SIGN_IN_HASH_PEPPER must be at least 32 characters");
         let jwk: JWK;
         try {
             jwk = JSON.parse(AUTH_SIGNING_KEY) as JWK;
@@ -152,32 +158,51 @@ export async function authFromEnv(env: NodeJS.ProcessEnv = process.env, log: (li
             throw new Error("AUTH_SIGNING_KEY must be a private JWK in JSON (see `npm run auth:key`)");
         }
         signer = await signerFromJwk(jwk, AUTH_ISSUER);
-        pepper = PHONE_HASH_PEPPER;
+        pepper = SIGN_IN_HASH_PEPPER;
     } else {
         signer = await devSigner({ persist: true });
-        pepper = env.PHONE_HASH_PEPPER ?? "joeyy-dev-phone-pepper-not-secret-000";
+        pepper = env.SIGN_IN_HASH_PEPPER ?? "joeyy-dev-sign-in-pepper-not-secret-0";
     }
 
-    let sms;
-    if (env.ACS_ENDPOINT || mode === "live") {
-        if (!env.ACS_ENDPOINT || !env.SMS_FROM) throw new Error("Phone sign-in needs ACS_ENDPOINT and SMS_FROM");
-        sms = new AzureSmsSender({ endpoint: env.ACS_ENDPOINT, from: env.SMS_FROM });
+    const appleAudiences = env.APPLE_AUDIENCES === undefined ? (live ? [] : ["com.joeyy.customer"]) : list(env.APPLE_AUDIENCES);
+    const googleClientIds = list(env.GOOGLE_CLIENT_IDS);
+    const emailEndpoint = env.ACS_EMAIL_ENDPOINT ?? env.ACS_ENDPOINT;
+    const configured: Record<SignInMethod, boolean> = {
+        apple: appleAudiences.length > 0,
+        google: googleClientIds.length > 0,
+        phone: !live || Boolean(env.ACS_ENDPOINT && env.SMS_FROM),
+        email: !live || Boolean(emailEndpoint && env.EMAIL_FROM),
+    };
+
+    let methods: SignInMethod[];
+    if (env.SIGN_IN_METHODS === undefined) {
+        methods = SIGN_IN_METHODS.filter((method) => configured[method] || (!live && method === "google"));
     } else {
-        sms = new LogSmsSender(log);
+        methods = [];
+        for (const name of list(env.SIGN_IN_METHODS)) {
+            if (!(SIGN_IN_METHODS as readonly string[]).includes(name)) {
+                throw new Error(`SIGN_IN_METHODS: unknown method "${name}" (use ${SIGN_IN_METHODS.join(", ")})`);
+            }
+            const method = name as SignInMethod;
+            if (live && !configured[method]) throw new Error(`SIGN_IN_METHODS includes ${method}, but its settings are missing`);
+            if (!methods.includes(method)) methods.push(method);
+        }
     }
 
-    const appleAudiences = env.APPLE_AUDIENCES === undefined ? ["com.joeyy.customer"] : list(env.APPLE_AUDIENCES);
-    const countryCodes = env.PHONE_COUNTRY_CODES === undefined ? ["1"] : list(env.PHONE_COUNTRY_CODES);
+    const useAzureSms = methods.includes("phone") && Boolean(env.ACS_ENDPOINT && env.SMS_FROM);
+    const useAzureEmail = methods.includes("email") && Boolean(emailEndpoint && env.EMAIL_FROM);
     return {
         mode,
         signer,
         signIn: {
             signer,
+            methods,
             apple: appleVerifier(appleAudiences),
-            google: googleVerifier(list(env.GOOGLE_CLIENT_IDS)),
-            sms,
-            phonePepper: pepper,
-            phoneCountryCodes: countryCodes,
+            google: googleVerifier(googleClientIds),
+            sms: useAzureSms ? new AzureSmsSender({ endpoint: env.ACS_ENDPOINT!, from: env.SMS_FROM! }) : new LogCodeSender("SMS", log),
+            email: useAzureEmail ? new AzureEmailSender({ endpoint: emailEndpoint!, from: env.EMAIL_FROM! }) : new LogCodeSender("email", log),
+            hashPepper: pepper,
+            phoneCountryCodes: env.PHONE_COUNTRY_CODES === undefined ? ["1"] : list(env.PHONE_COUNTRY_CODES),
         },
     };
 }

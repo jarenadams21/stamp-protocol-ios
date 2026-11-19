@@ -105,21 +105,35 @@ final class MerchantFlowTests: XCTestCase {
         XCTAssertTrue(finishing.label.contains("still finishing older versions"))
     }
 
-    func testSignInOffersAppleGoogleAndPhoneButNoPassword() {
+    func testSignInShowsOnlyEnabledMethodsAndEmailCodeFlowWithoutPassword() {
         let app = launchBusiness()
         let signIn = app.buttons["business.signIn"]
         XCTAssertTrue(signIn.waitForExistence(timeout: 10))
         scrollTo(signIn, in: app)
         signIn.tap()
         XCTAssertTrue(app.staticTexts["signIn.heading"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["signIn.apple"].exists)
-        XCTAssertTrue(app.buttons["signIn.google"].exists)
-        XCTAssertTrue(app.textFields["signIn.phone"].exists)
+        // UI tests use a stand-in backend with Google and email on, and Apple and phone off.
+        XCTAssertTrue(app.buttons["signIn.google"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["signIn.email"].exists)
+        XCTAssertFalse(app.buttons["signIn.apple"].exists)
+        XCTAssertFalse(app.textFields["signIn.phone"].exists)
         XCTAssertEqual(app.secureTextFields.count, 0, "There is no password sign-in")
-        XCTAssertFalse(app.buttons["signIn.sendCode"].isEnabled)
-        app.textFields["signIn.phone"].tap()
-        app.textFields["signIn.phone"].typeText("2065550101")
-        XCTAssertTrue(app.buttons["signIn.sendCode"].isEnabled)
+
+        XCTAssertFalse(app.buttons["signIn.sendEmailCode"].isEnabled)
+        app.textFields["signIn.email"].tap()
+        app.textFields["signIn.email"].typeText("owner@example.com")
+        app.buttons["signIn.sendEmailCode"].tap()
+        let prompt = app.staticTexts["signIn.codePrompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 10))
+        XCTAssertTrue(prompt.label.contains("owner@example.com"))
+        XCTAssertFalse(app.buttons["signIn.verify"].isEnabled)
+        app.textFields["signIn.code"].tap()
+        app.textFields["signIn.code"].typeText("123456")
+        app.buttons["signIn.verify"].tap()
+        XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 10), "A wrong code shows an error")
+        app.buttons["signIn.change"].tap()
+        XCTAssertTrue(app.textFields["signIn.email"].waitForExistence(timeout: 10))
+
         app.buttons["signIn.google"].tap()
         XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 5))
         app.buttons["signIn.cancel"].tap()
