@@ -1,12 +1,15 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import type pg from "pg";
 import { buildApp } from "../src/app.ts";
 import { devSigner, type DevSigner } from "../src/auth.ts";
 import { createPool } from "../src/db.ts";
+import { appleVerifier, googleVerifier, type IdTokenVerifier } from "../src/identity.ts";
 import { LocalImageStore } from "../src/images.ts";
 import { migrate } from "../src/migrate.ts";
+import { MemorySmsSender } from "../src/sms.ts";
 
 /**
  * A fresh schema with every migration applied, an app wired to it, and a token signer.
@@ -18,8 +21,42 @@ export interface TestContext {
     pool: pg.Pool;
     signer: DevSigner;
     images: LocalImageStore;
+    sms: MemorySmsSender;
+    apple: FakeProvider;
+    google: FakeProvider;
+    /** Moves the sign-in clock (phone codes, refresh expiry) forward by this many milliseconds. */
+    clockOffsetMs: number;
     close(): Promise<void>;
 }
+
+/** Stands in for Apple or Google: signs ID tokens the API accepts as theirs. */
+export interface FakeProvider {
+    verifier: IdTokenVerifier;
+    idToken(claims: { sub: string; nonce: string; aud?: string; iss?: string; iat?: number; exp?: string | number }): Promise<string>;
+}
+
+async function fakeProvider(make: typeof appleVerifier, issuer: string, audience: string): Promise<FakeProvider> {
+    const { privateKey, publicKey } = await generateKeyPair("RS256", { extractable: true });
+    const jwk = { ...(await exportJWK(publicKey)), kid: "fake", alg: "RS256" };
+    const verifier = make([audience], createLocalJWKSet({ keys: [jwk] }));
+    return {
+        verifier,
+        idToken: (claims) => {
+            const jwt = new SignJWT({ nonce: claims.nonce })
+                .setProtectedHeader({ alg: "RS256", kid: "fake" })
+                .setIssuer(claims.iss ?? issuer)
+                .setAudience(claims.aud ?? audience)
+                .setSubject(claims.sub)
+                .setExpirationTime(claims.exp ?? "1h");
+            if (claims.iat === undefined) jwt.setIssuedAt();
+            else jwt.setIssuedAt(claims.iat);
+            return jwt.sign(privateKey);
+        },
+    };
+}
+
+export const APPLE_TEST_AUDIENCE = "com.joeyy.customer";
+export const GOOGLE_TEST_AUDIENCE = "test-ios.apps.googleusercontent.com";
 
 export async function setUp(): Promise<TestContext> {
     const schema = `test_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
@@ -31,13 +68,34 @@ export async function setUp(): Promise<TestContext> {
     // Images go to a temporary folder and are served by the app itself, like IMAGE_STORE=local.
     const imageDirectory = await mkdtemp(path.join(tmpdir(), "joeyy-images-"));
     const images = new LocalImageStore({ directory: imageDirectory, baseUrl: "http://localhost", urlTtlSeconds: 900 });
-    const app = buildApp({ pool, auth: signer.config, images });
+    const sms = new MemorySmsSender();
+    const apple = await fakeProvider(appleVerifier, "https://appleid.apple.com", APPLE_TEST_AUDIENCE);
+    const google = await fakeProvider(googleVerifier, "https://accounts.google.com", GOOGLE_TEST_AUDIENCE);
+    const ctx = {} as TestContext;
+    const app = buildApp({
+        pool,
+        auth: signer.config,
+        images,
+        signIn: {
+            signer,
+            apple: apple.verifier,
+            google: google.verifier,
+            sms,
+            phonePepper: "test-pepper-test-pepper-test-pepper",
+            phoneCountryCodes: ["1", "44"],
+            now: () => new Date(Date.now() + ctx.clockOffsetMs),
+        },
+    });
     await app.ready();
-    return {
+    return Object.assign(ctx, {
         app,
         pool,
         signer,
         images,
+        sms,
+        apple,
+        google,
+        clockOffsetMs: 0,
         async close() {
             await app.close();
             await rm(imageDirectory, { recursive: true, force: true });
@@ -45,7 +103,7 @@ export async function setUp(): Promise<TestContext> {
             await admin.query(`DROP SCHEMA ${schema} CASCADE`);
             await admin.end();
         },
-    };
+    });
 }
 
 export const validTheme = {

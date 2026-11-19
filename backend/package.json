@@ -12,9 +12,11 @@
     "token": "node --env-file-if-exists=.env scripts/dev-token.ts",
     "images:cleanup": "node --env-file-if-exists=.env scripts/cleanup-images.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 'test/**/*.test.ts'"
+    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 'test/**/*.test.ts'",
+    "auth:key": "node scripts/auth-key.ts"
   },
   "dependencies": {
+    "@azure/communication-sms": "1.1.0",
     "@azure/identity": "4.14.1",
     "@azure/storage-blob": "12.34.0",
     "fastify": "5.12.8",

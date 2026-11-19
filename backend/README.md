@@ -27,6 +27,7 @@ The partner MVP diagram's three flows, plus images and notifications:
 | `GET /v1/partner/dashboard?from&to` | Section 8.4 counts, including `rewardsWaiting` and `customersWithStackedRewards` |
 | `GET /v1/partner/notifications?after&limit` | Newest first, cursor paged |
 | `GET /healthz` | Checks the database connection; no token needed |
+| `POST /v1/auth/…` | Sign-in with Apple, Google, or a phone number and text code (see [Sign-in](#sign-in)) |
 
 Not yet implemented: customer routes, NFC punch intake, Apple Wallet, push notifications, and
 redemption (open decision 1). The schema already has the tables for punches, readers, rewards, and
@@ -84,6 +85,7 @@ next number instead.
 | `0001_initial_schema` | Copied unchanged from the standalone partner prototype (`joeyy-partner-ios/backend`), where it was first applied |
 | `0002_align_with_backend_spec` | OIDC subjects, one business per owner with a single location, the section 3.1 theme JSON, `closed`/archived/favorite cards, punches from readers, notifications, and a trigger that keeps punches within the card's version |
 | `0003_images` | The `images` table (one row per upload), foreign keys so a logo or cover must be an image the same business uploaded, and the `image_deletions` queue with the trigger that fills it |
+| `0004_sign_in` | Hashed refresh tokens grouped into sessions, and hashed phone codes with their send limits |
 
 To check what's applied:
 
@@ -177,9 +179,64 @@ One test talks to the real storage account and is skipped unless you name it:
 AZURE_STORAGE_TEST_ACCOUNT=<the storage account's name> npm test
 ```
 
+## Sign-in
+
+There is one sign-in system for the apps and the website: **Sign in with Apple**, **Google**, or a
+**phone number and text code**. There is no email-and-password sign-in. The API checks the
+provider's proof itself and then issues its own tokens (spec section 8.5), so there is no
+separate auth service or vendor.
+
+| Route | |
+| --- | --- |
+| `POST /v1/auth/apple` | `{ role, identityToken, nonce }`. Apple's token must carry SHA-256(`nonce`) |
+| `POST /v1/auth/google` | `{ role, idToken, nonce }`. Google's token must carry `nonce` |
+| `POST /v1/auth/phone/start` | `{ phoneNumber }` → `202 { expiresIn, resendAfter }`, and a 6-digit code by text |
+| `POST /v1/auth/phone/verify` | `{ role, phoneNumber, code }` |
+| `POST /v1/auth/refresh` | `{ refreshToken }` → a new session; the old refresh token stops working |
+| `POST /v1/auth/sign-out` | `{ refreshToken }` → `204`; ends that session on the server |
+| `GET /.well-known/jwks.json` | The public key that signs access tokens |
+
+Sign-in returns `{ accessToken, tokenType: "Bearer", expiresIn, refreshToken }`.
+
+- **Two sides, two accounts.** `role` is `customer` or `partner`. The access token's audience is
+  `joeyy-customer` or `joeyy-partner`, and every route checks it, so a customer token gets `401` on
+  partner routes and the other way around. The same Apple ID, Google account, or phone number used
+  on both sides is two separate accounts. Accounts aren't linked across sign-in methods.
+- **Tokens.** Access tokens are RS256 JWTs that last 15 minutes. Refresh tokens last 60 days from
+  their last use and rotate on every refresh. If an old one comes back, the whole session is revoked.
+  Only their SHA-256 hashes are stored.
+- **Subjects** are `apple:<Apple user ID>`, `google:<Google user ID>`, or `phone:<keyed hash of the
+  number>`. Phone numbers are never stored or put in tokens.
+- **Phone codes** expire in 10 minutes and allow 5 guesses. A number can get one text every 30
+  seconds and 5 an hour. Each IP address gets 10 code requests and 60 sign-in calls an hour. Only
+  countries in `PHONE_COUNTRY_CODES` (the US and Canada by default) can get texts, to limit SMS fraud.
+- **Errors**: `401 signInFailed` for a bad Apple or Google token, `400 invalidCode`,
+  `400 invalidPhoneNumber`, `400 unsupportedPhoneNumber`, `429 tooManyRequests` (with
+  `Retry-After`), `503 smsUnavailable`, and `503 signInUnavailable` for a provider that isn't set up.
+
+### Settings
+
+`AUTH_MODE=dev` (the `.env.example` default) signs with a key in `.dev/` and writes phone codes to
+the server log instead of texting them. It still checks real Apple and Google tokens. `npm run token`
+mints tokens with the same key. Dev mode refuses to start when `NODE_ENV=production`.
+
+`AUTH_MODE=live` (the default when unset) needs:
+
+| Setting | |
+| --- | --- |
+| `AUTH_ISSUER` | This API's public `https://` URL |
+| `AUTH_SIGNING_KEY`, `PHONE_HASH_PEPPER` | Secrets from `npm run auth:key`. Keep them in the secrets store. Changing the pepper turns every phone account into a new one |
+| `APPLE_AUDIENCES` | The app's bundle ID (`com.joeyy.customer`, the default) and, for the website, its Services ID |
+| `GOOGLE_CLIENT_IDS` | The Google OAuth iOS client ID and, for the website, the web client ID |
+| `ACS_ENDPOINT`, `SMS_FROM` | An Azure Communication Services resource and its toll-free number. The API signs in with `DefaultAzureCredential`, as it does for the database, so there is no access key |
+| `TRUST_PROXY` | `true` behind a load balancer, so rate limits see the client's IP |
+
+Before real sign-ins: enable Sign in with Apple for `com.joeyy.customer` in the Apple Developer
+account, create the Google OAuth clients, and create the ACS resource with a verified toll-free
+number. Toll-free verification can take several weeks.
+
 ## Production identity
 
-Set `AUTH_MODE=oidc` with `OIDC_ISSUER`, `OIDC_JWKS_URI`, `PARTNER_AUDIENCE`, and
-`CUSTOMER_AUDIENCE` from the identity provider (Entra External ID was prototyped). The API checks
-the signature, issuer, audience, and expiry on every request, and resolves the business from the
-token's `sub`, never from the request body.
+Tokens are issued by this API (see [Sign-in](#sign-in)). Every request is checked for signature,
+issuer, audience, and expiry, and the business or customer comes from the token's `sub`, never from
+the request body.

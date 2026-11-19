@@ -4,18 +4,24 @@ import type { AuthConfig } from "./auth.ts";
 import { ApiError } from "./errors.ts";
 import { imageTooLarge, unsupportedImageType, type ImageStore } from "./images.ts";
 import { partnerRoutes } from "./routes/partner.ts";
+import { signInRoutes, type SignInOptions } from "./signIn.ts";
 
 export interface AppOptions {
     pool: pg.Pool;
     auth: AuthConfig;
     images: ImageStore;
+    /** Sign-in routes and the public signing key. Left out by tests that only need tokens. */
+    signIn?: SignInOptions;
+    /** Fastify's trustProxy, so rate limits see the client's IP behind a load balancer. */
+    trustProxy?: FastifyServerOptions["trustProxy"];
     logger?: FastifyServerOptions["logger"];
 }
 
 /** The single backend application (spec section 2). Handlers are modules registered under /v1. */
-export function buildApp({ pool, auth, images, logger = false }: AppOptions) {
+export function buildApp({ pool, auth, images, signIn, trustProxy = false, logger = false }: AppOptions) {
     const app = Fastify({
         logger,
+        trustProxy,
         // Every request gets its own ID for structured logs; client-supplied IDs are not trusted.
         genReqId: () => crypto.randomUUID(),
         requestIdHeader: false,
@@ -55,6 +61,13 @@ export function buildApp({ pool, auth, images, logger = false }: AppOptions) {
         }
     });
 
+    if (signIn) {
+        app.register(signInRoutes, { prefix: "/v1/auth", ...signIn, pool });
+        app.get("/.well-known/jwks.json", async (request, reply) => {
+            reply.header("cache-control", "public, max-age=3600");
+            return signIn.signer.jwks;
+        });
+    }
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
     if (images.routes) app.register(images.routes);
 

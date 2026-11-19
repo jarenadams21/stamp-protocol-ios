@@ -2,7 +2,6 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import {
     createLocalJWKSet,
-    createRemoteJWKSet,
     exportJWK,
     generateKeyPair,
     importJWK,
@@ -13,10 +12,15 @@ import {
     type JWTVerifyGetKey,
 } from "jose";
 import { unauthorized } from "./errors.ts";
+import { appleVerifier, googleVerifier } from "./identity.ts";
+import { AzureSmsSender, LogSmsSender } from "./sms.ts";
+import type { SignInOptions } from "./signIn.ts";
 
+/** The two sides of the app. A token issued for one side is never accepted by the other. */
 export type Audience = "partner" | "customer";
+export const AUDIENCES: readonly Audience[] = ["partner", "customer"];
 
-/** How the API verifies bearer tokens. There is no separate auth service (spec section 2). */
+/** How the API verifies its own access tokens (spec section 8.5). */
 export interface AuthConfig {
     issuer: string;
     audiences: Record<Audience, string>;
@@ -42,64 +46,138 @@ export async function verifyBearer(config: AuthConfig, header: string | undefine
     }
 }
 
-// Development tokens ------------------------------------------------------------------------
-// Until the identity provider is set up, AUTH_MODE=dev verifies tokens signed by a key pair kept in
-// backend/.dev/ (git-ignored). `npm run token` mints them. Never enabled in production.
+// Token signing -----------------------------------------------------------------------------
+// The API is its own token issuer: after Apple, Google, or a phone code proves who someone is, it
+// signs a short-lived access token for exactly one side. Live, the private key comes from
+// AUTH_SIGNING_KEY; AUTH_MODE=dev keeps one in backend/.dev/ (git-ignored).
 
 export const DEV_ISSUER = "https://joeyy.dev.invalid";
-export const DEV_AUDIENCES: Record<Audience, string> = { partner: "joeyy-partner-dev", customer: "joeyy-customer-dev" };
+export const TOKEN_AUDIENCES: Record<Audience, string> = { partner: "joeyy-partner", customer: "joeyy-customer" };
+/** Kept for tests and scripts written against the dev issuer; the audiences are the same live. */
+export const DEV_AUDIENCES = TOKEN_AUDIENCES;
 const DEV_KEY_FILE = fileURLToPath(new URL("../.dev/signing-key.json", import.meta.url));
 
-export interface DevSigner {
+export interface TokenSigner {
     config: AuthConfig;
-    sign(audience: Audience, subject: string, expiresIn?: string): Promise<string>;
+    /** The public key, served at /.well-known/jwks.json so other services can verify tokens. */
+    jwks: { keys: JWK[] };
+    sign(audience: Audience, subject: string, expiresIn?: string | number): Promise<string>;
+}
+/** The dev signer has the same shape; the name is kept for tests and scripts. */
+export type DevSigner = TokenSigner;
+
+/** Creates a new RS256 private key as a JWK with a random `kid`. */
+export async function generateSigningKey(): Promise<JWK> {
+    const pair = await generateKeyPair("RS256", { extractable: true, modulusLength: 2048 });
+    return { ...(await exportJWK(pair.privateKey)), kid: crypto.randomUUID(), alg: "RS256", use: "sig" };
 }
 
-/** Creates a signer and matching verifier from a key pair. With `persist`, reuses the key in .dev/. */
-export async function devSigner(options: { persist: boolean }): Promise<DevSigner> {
+/** Builds a signer and matching verifier from a private RS256 JWK. */
+export async function signerFromJwk(privateJwk: JWK, issuer: string): Promise<TokenSigner> {
+    if (privateJwk.kty !== "RSA" || !privateJwk.d || !privateJwk.kid) {
+        throw new Error("The signing key must be a private RSA JWK with a kid");
+    }
+    const { d, p, q, dp, dq, qi, ...publicJwk } = privateJwk;
+    const publicKey = { ...publicJwk, alg: "RS256", use: "sig" };
+    const privateKey = (await importJWK(privateJwk, "RS256")) as CryptoKey;
+    return {
+        config: { issuer, audiences: TOKEN_AUDIENCES, keys: createLocalJWKSet({ keys: [publicKey] }) },
+        jwks: { keys: [publicKey] },
+        sign: (audience, subject, expiresIn = "15m") =>
+            new SignJWT({})
+                .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid!, typ: "at+jwt" })
+                .setIssuer(issuer)
+                .setAudience(TOKEN_AUDIENCES[audience])
+                .setSubject(subject)
+                .setIssuedAt()
+                .setJti(crypto.randomUUID())
+                .setExpirationTime(typeof expiresIn === "number" ? Math.floor(Date.now() / 1000) + expiresIn : expiresIn)
+                .sign(privateKey),
+    };
+}
+
+/** A signer for the dev issuer. With `persist`, reuses the key in .dev/ so `npm run token` matches the server. */
+export async function devSigner(options: { persist: boolean }): Promise<TokenSigner> {
     let privateJwk: JWK | undefined;
     if (options.persist) {
         privateJwk = await readFile(DEV_KEY_FILE, "utf8").then((text) => JSON.parse(text) as JWK, () => undefined);
     }
     if (!privateJwk) {
-        const pair = await generateKeyPair("RS256", { extractable: true });
-        privateJwk = { ...(await exportJWK(pair.privateKey)), kid: crypto.randomUUID(), alg: "RS256" };
+        privateJwk = await generateSigningKey();
         if (options.persist) {
             await mkdir(new URL("../.dev/", import.meta.url), { recursive: true });
             await writeFile(DEV_KEY_FILE, JSON.stringify(privateJwk), { mode: 0o600 });
         }
     }
-    const { d, p, q, dp, dq, qi, ...publicJwk } = privateJwk;
-    const privateKey = (await importJWK(privateJwk, "RS256")) as CryptoKey;
-    return {
-        config: { issuer: DEV_ISSUER, audiences: DEV_AUDIENCES, keys: createLocalJWKSet({ keys: [publicJwk] }) },
-        sign: (audience, subject, expiresIn = "1h") =>
-            new SignJWT({})
-                .setProtectedHeader({ alg: "RS256", kid: privateJwk.kid })
-                .setIssuer(DEV_ISSUER)
-                .setAudience(DEV_AUDIENCES[audience])
-                .setSubject(subject)
-                .setIssuedAt()
-                .setExpirationTime(expiresIn)
-                .sign(privateKey),
-    };
+    return signerFromJwk(privateJwk, DEV_ISSUER);
 }
 
-/** Builds the auth configuration from AUTH_MODE and the OIDC_* settings. */
-export async function authFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<AuthConfig> {
-    const mode = env.AUTH_MODE ?? "oidc";
-    if (mode === "dev") {
-        if (env.NODE_ENV === "production") throw new Error("AUTH_MODE=dev is not allowed when NODE_ENV=production");
-        return (await devSigner({ persist: true })).config;
+// Configuration -----------------------------------------------------------------------------
+
+export interface AuthSetup {
+    signer: TokenSigner;
+    signIn: SignInOptions;
+    mode: "live" | "dev";
+}
+
+const list = (value: string | undefined) => (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+
+/**
+ * Builds token signing and sign-in from the environment.
+ *
+ * - `AUTH_MODE=live`: AUTH_ISSUER, AUTH_SIGNING_KEY, PHONE_HASH_PEPPER, ACS_ENDPOINT, and SMS_FROM
+ *   are required; APPLE_AUDIENCES and GOOGLE_CLIENT_IDS list the app and website client IDs.
+ * - `AUTH_MODE=dev`: a local key, a fixed phone pepper, and phone codes written to the log unless
+ *   ACS_ENDPOINT is set. Refused when NODE_ENV=production.
+ */
+export async function authFromEnv(env: NodeJS.ProcessEnv = process.env, log: (line: string) => void = console.warn): Promise<AuthSetup> {
+    const mode = env.AUTH_MODE ?? "live";
+    if (mode === "oidc") throw new Error('AUTH_MODE=oidc was removed; the API now issues its own tokens. Use "live" or "dev".');
+    if (mode !== "live" && mode !== "dev") throw new Error(`AUTH_MODE must be "live" or "dev", not "${mode}"`);
+    if (mode === "dev" && env.NODE_ENV === "production") throw new Error("AUTH_MODE=dev is not allowed when NODE_ENV=production");
+
+    let signer: TokenSigner;
+    let pepper: string;
+    if (mode === "live") {
+        const { AUTH_ISSUER, AUTH_SIGNING_KEY, PHONE_HASH_PEPPER } = env;
+        if (!AUTH_ISSUER || !AUTH_SIGNING_KEY || !PHONE_HASH_PEPPER) {
+            throw new Error("AUTH_MODE=live needs AUTH_ISSUER, AUTH_SIGNING_KEY, and PHONE_HASH_PEPPER");
+        }
+        if (!AUTH_ISSUER.startsWith("https://")) throw new Error("AUTH_ISSUER must be an https:// URL");
+        if (PHONE_HASH_PEPPER.length < 32) throw new Error("PHONE_HASH_PEPPER must be at least 32 characters");
+        let jwk: JWK;
+        try {
+            jwk = JSON.parse(AUTH_SIGNING_KEY) as JWK;
+        } catch {
+            throw new Error("AUTH_SIGNING_KEY must be a private JWK in JSON (see `npm run auth:key`)");
+        }
+        signer = await signerFromJwk(jwk, AUTH_ISSUER);
+        pepper = PHONE_HASH_PEPPER;
+    } else {
+        signer = await devSigner({ persist: true });
+        pepper = env.PHONE_HASH_PEPPER ?? "joeyy-dev-phone-pepper-not-secret-000";
     }
-    if (mode !== "oidc") throw new Error(`AUTH_MODE must be "oidc" or "dev", not "${mode}"`);
-    const { OIDC_ISSUER, OIDC_JWKS_URI, PARTNER_AUDIENCE, CUSTOMER_AUDIENCE } = env;
-    if (!OIDC_ISSUER || !OIDC_JWKS_URI || !PARTNER_AUDIENCE || !CUSTOMER_AUDIENCE) {
-        throw new Error("AUTH_MODE=oidc needs OIDC_ISSUER, OIDC_JWKS_URI, PARTNER_AUDIENCE, and CUSTOMER_AUDIENCE");
+
+    let sms;
+    if (env.ACS_ENDPOINT || mode === "live") {
+        if (!env.ACS_ENDPOINT || !env.SMS_FROM) throw new Error("Phone sign-in needs ACS_ENDPOINT and SMS_FROM");
+        sms = new AzureSmsSender({ endpoint: env.ACS_ENDPOINT, from: env.SMS_FROM });
+    } else {
+        sms = new LogSmsSender(log);
     }
+
+    const appleAudiences = env.APPLE_AUDIENCES === undefined ? ["com.joeyy.customer"] : list(env.APPLE_AUDIENCES);
+    const countryCodes = env.PHONE_COUNTRY_CODES === undefined ? ["1"] : list(env.PHONE_COUNTRY_CODES);
     return {
-        issuer: OIDC_ISSUER,
-        audiences: { partner: PARTNER_AUDIENCE, customer: CUSTOMER_AUDIENCE },
-        keys: createRemoteJWKSet(new URL(OIDC_JWKS_URI)),
+        mode,
+        signer,
+        signIn: {
+            signer,
+            apple: appleVerifier(appleAudiences),
+            google: googleVerifier(list(env.GOOGLE_CLIENT_IDS)),
+            sms,
+            phonePepper: pepper,
+            phoneCountryCodes: countryCodes,
+        },
     };
 }
