@@ -95,8 +95,10 @@ enum AppConfiguration {
         return URL(string: "http://localhost:8080")!
     }
 
-    /// The Google OAuth iOS client ID. Google sign-in stays off until it's set (backend README, Sign-in).
-    static let googleIOSClientID: String? = nil
+    /// The Google OAuth iOS client "JOEYY iOS" (project joeyy-515223, bundle com.joeyy.customer). Not a secret.
+    /// Google redirects to its reversed form, which ASWebAuthenticationSession catches itself, so no
+    /// URL type is registered in Info.plist.
+    static let googleIOSClientID: String? = "461007702405-0fe1j629n2a79j3n0ss2mkoso67l9gqq.apps.googleusercontent.com"
 }
 
 struct HTTPAuthAPI: AuthAPI {

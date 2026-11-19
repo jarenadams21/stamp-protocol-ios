@@ -244,6 +244,22 @@ with the same key. Dev mode refuses to start when `NODE_ENV=production`.
 The API signs in to Communication Services with `DefaultAzureCredential`, as it does for the
 database, so there is no access key or connection string.
 
+### Google
+
+- **Project**: Google Cloud project `joeyy-515223`, owned by `joeyy.dev@gmail.com`.
+- **iOS client** "JOEYY iOS" for bundle ID `com.joeyy.customer`:
+  `461007702405-0fe1j629n2a79j3n0ss2mkoso67l9gqq.apps.googleusercontent.com`. Client IDs aren't
+  secrets. The app has it in `AppConfiguration.googleIOSClientID`, and the backend needs it in
+  `GOOGLE_CLIENT_IDS`. The website will need a separate web client ID added there too.
+- **How the app signs in**: authorization code with PKCE in `ASWebAuthenticationSession`, redirecting
+  to the reversed client ID (`com.googleusercontent.apps.461007702405-…:/oauth2redirect`). The
+  session catches that redirect itself, so the app registers no URL scheme. iOS clients have no
+  client secret.
+- **Consent screen**: External, in **Testing** mode. Only the test users can sign in:
+  `joeyy.dev@gmail.com` and `elshiekh.a7@gmail.com`. Add pilot testers under **Audience** → **Test
+  users** (up to 100), or publish the app before the pilot. Only the `openid` scope is requested,
+    so publishing doesn't need Google's sensitive-scope verification.
+
 ### Setting up email codes in Azure
 
 1. **Email Communication Services resource**: in the Azure portal, create an *Email Communication

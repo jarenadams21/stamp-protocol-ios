@@ -202,5 +202,11 @@ final class AccountStoreTests: XCTestCase {
         let callback = URL(string: "com.googleusercontent.apps.123-abc:/oauth2redirect?state=state&code=auth-code")!
         XCTAssertEqual(try google.code(from: callback, state: "state"), "auth-code")
         XCTAssertThrowsError(try google.code(from: callback, state: "other"))
+
+        let configured = try XCTUnwrap(AppConfiguration.googleIOSClientID)
+        XCTAssertEqual(
+            GoogleOAuth(clientID: configured).redirectURI,
+            "com.googleusercontent.apps.461007702405-0fe1j629n2a79j3n0ss2mkoso67l9gqq:/oauth2redirect"
+        )
     }
 }

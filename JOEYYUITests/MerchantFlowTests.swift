@@ -133,9 +133,8 @@ final class MerchantFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 10), "A wrong code shows an error")
         app.buttons["signIn.change"].tap()
         XCTAssertTrue(app.textFields["signIn.email"].waitForExistence(timeout: 10))
-
-        app.buttons["signIn.google"].tap()
-        XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 5))
+        // Google opens a real web sign-in sheet, so it's not tapped here.
+        XCTAssertTrue(app.buttons["signIn.google"].isEnabled)
         app.buttons["signIn.cancel"].tap()
         XCTAssertTrue(app.buttons["business.setup"].waitForExistence(timeout: 10))
         let sample = app.buttons["business.sample"]
