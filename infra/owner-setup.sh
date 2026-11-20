@@ -15,7 +15,9 @@ REPO=${GITHUB_REPOSITORY:-jarenadams21/stamp-protocol-ios}
 
 echo "Registering Azure services (first time can take a few minutes)…"
 for ns in Microsoft.App Microsoft.ContainerRegistry Microsoft.KeyVault Microsoft.OperationalInsights Microsoft.ManagedIdentity; do
-  az provider register --namespace "$ns" --wait --only-show-errors
+  if [[ $(az provider show -n "$ns" --query registrationState -o tsv) != Registered ]]; then
+    az provider register --namespace "$ns" --wait --only-show-errors
+  fi
 done
 
 group_id=$(az ad group show --group "$TEAM_GROUP" --query id -o tsv)
@@ -24,14 +26,15 @@ subject_prefix=$(curl -fsS "https://api.github.com/repos/$REPO/actions/oidc/cust
   python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("sub_claim_prefix") or "")')
 [[ -n $subject_prefix ]] || subject_prefix="repo:$REPO"
 
-echo "Creating shared resources in $RG…"
+echo "Creating shared resources in ${RG}…"
 az deployment group create -g "$RG" -n joeyy-foundation -f foundation.bicep \
   -p teamGroupObjectId="$group_id" githubSubjectPrefix="$subject_prefix" --only-show-errors -o none
 out() { az deployment group show -g "$RG" -n joeyy-foundation --query "properties.outputs.$1.value" -o tsv; }
 
 principal=$(out apiIdentityPrincipalId)
 if [[ $(az ad group member check --group "$group_id" --member-id "$principal" --query value -o tsv) != true ]]; then
-  az ad group member add --group "$group_id" --member-id "$principal"
+  az ad group member add --group "$group_id" --member-id "$principal" ||
+    echo "Could not add the app identity to $TEAM_GROUP (needs Entra group owner). Use the database-login step in infra/README.md instead." >&2
 fi
 
 cat <<EOF

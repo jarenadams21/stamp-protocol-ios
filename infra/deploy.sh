@@ -36,7 +36,7 @@ if [[ -n $(git status --porcelain -- backend infra) ]]; then
 fi
 export IMAGE_TAG=${IMAGE_TAG:-$(git rev-parse --short=12 HEAD)}
 
-echo "Building images $IMAGE_TAG in Azure Container Registry $REGISTRY_NAME…"
+echo "Building images $IMAGE_TAG in Azure Container Registry ${REGISTRY_NAME}…"
 az acr build -r "$REGISTRY_NAME" -t "joeyy-api:$IMAGE_TAG" --platform linux/amd64 --no-logs --only-show-errors -o none backend
 az acr build -r "$REGISTRY_NAME" -t "joeyy-verifier:$IMAGE_TAG" --platform linux/amd64 --no-logs --only-show-errors -o none backend/verifier
 

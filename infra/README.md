@@ -37,6 +37,17 @@ This does the following:
 
 Finally, the script prints three values to add to GitHub. Go to the repo → **Settings → Secrets and variables → Actions → Variables** and add them.
 
+### Database login for the app
+
+The app signs in to PostgreSQL as its own login, `joeyy-api-identity`, which is a member of the `joeyy-devs` role. A PostgreSQL Microsoft Entra admin creates this login once, connected to the `postgres` database:
+
+```sql
+SELECT * FROM pgaadauth_create_principal_with_oid('joeyy-api-identity', '<apiIdentityPrincipalId>', 'service', false, false);
+GRANT "joeyy-devs" TO "joeyy-api-identity";
+```
+
+(Done for `joeyy-dev-pg` on 2026-11-19.)
+
 ## 2. First deploy (any `joeyy-devs` member)
 
 The first deploy also uploads the Wallet signing files and the verifier key to Key Vault:

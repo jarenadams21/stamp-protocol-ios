@@ -10,3 +10,6 @@ param passTypeId = 'pass.com.cafewallet.prototype'
 param teamId = 'S23DT2V34P'
 param prototypeMode = '1'
 param nfcKeyMode = 'factory-test'
+
+// The app's own database login (created once by a PostgreSQL Entra admin, member of joeyy-devs).
+param databaseUser = 'joeyy-api-identity'
