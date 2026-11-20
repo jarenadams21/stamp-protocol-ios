@@ -3,6 +3,7 @@ import {
   ApiError,
   type CardState,
   type Identity,
+  type Place,
   type PlaceSummary,
   type RedeemIntent,
   type Redemption,
@@ -396,6 +397,37 @@ function signInTo(device: Device, account: Customer): SignInResult {
 export const places = (): PlaceSummary[] => Object.values(BUSINESSES)
   .filter(({ business }) => Object.values(TAGS).some((tag) => tag.businessId === business.id && tag.status === 'active'))
   .map(({ business, program }) => ({ business, program }));
+
+/**
+ * The shared backend's place search (backend/src/routes/places.ts in stamp-protocol-ios), with the
+ * same rules: trimmed, any case, the exact ID first, then names starting with the query, then names
+ * containing it, A to Z, at most 20, live places only. Answers in the backend's shape.
+ */
+export function searchPlaces(raw: string): { places: Place[] } {
+  const query = raw.trim();
+  if (!query || [...query].length > 40) throw new BadRequest(query ? 'Use a shorter search.' : 'Type a place’s name to search.');
+  const needle = query.toLowerCase();
+  const rank = ({ business }: PlaceSummary) => {
+    const name = business.name.toLowerCase();
+    if (business.id.toLowerCase() === needle) return 0;
+    if (name.startsWith(needle)) return 1;
+    return name.includes(needle) ? 2 : 3;
+  };
+  const found = places()
+    .filter((place) => rank(place) < 3)
+    .sort((a, b) => rank(a) - rank(b) || a.business.name.localeCompare(b.business.name))
+    .slice(0, 20);
+  return {
+    places: found.map(({ business, program }) => ({
+      id: business.id,
+      clientId: business.id,
+      name: business.name,
+      location: business.location,
+      logoURL: null,
+      program: { ...program, theme: { ...program.theme, coverURL: program.theme.coverURL ?? null } },
+    })),
+  };
+}
 
 /** Returns where to download this card's pass. Each business's card keeps one pass serial for good. */
 export function walletPass(device: Device, cardId: string, platform: string) {

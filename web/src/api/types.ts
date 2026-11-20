@@ -82,6 +82,20 @@ export interface PlaceSummary {
   program: ProgramVersion;
 }
 
+/**
+ * A place as the shared backend's Places API returns it (`GET /v1/places?query=`, backend-spec
+ * §8.2): the business's own fields with its live card under `program`. Open to anyone, no sign-in.
+ * The client turns it into a PlaceSummary, so screens only ever see one shape.
+ */
+export interface Place {
+  id: string;
+  clientId: string;
+  name: string;
+  location: string;
+  logoURL: string | null;
+  program: Omit<ProgramVersion, 'theme'> & { theme: Omit<MerchantTheme, 'coverURL'> & { coverURL: string | null } };
+}
+
 export type SignInProvider = 'apple' | 'google';
 
 export interface Identity {
@@ -189,6 +203,8 @@ export interface StampApi {
   signOut(): Promise<void>;
   walletPass(cardId: string, platform: WalletPlatform): Promise<{ url: string }>;
   places(): Promise<PlaceSummary[]>;
+  /** Places whose name contains `query` (any case; names starting with it first), or whose ID is exactly it. At most 20. */
+  searchPlaces(query: string): Promise<PlaceSummary[]>;
   /** Saves the diner's own order for their cards (Your cards). */
   reorderCards(businessIds: string[]): Promise<void>;
   /** Sets what the diner is called (1–40 characters; empty clears it). Signed-in diners only. */

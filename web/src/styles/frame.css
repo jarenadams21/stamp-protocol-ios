@@ -298,6 +298,50 @@ body.has-tabbar .toast {
 
 /* ---------- Discover ---------- */
 
+/* Discover's search box: a search field with a magnifier drawn in the text colour. */
+.place-search {
+  position: relative;
+  margin-top: var(--space-5);
+}
+
+.place-search::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: var(--space-4);
+  width: 18px;
+  height: 18px;
+  translate: 0 -50%;
+  background: var(--muted);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m15.5 15.5 5 5'/%3E%3C/svg%3E") center / contain no-repeat;
+  pointer-events: none;
+}
+
+.search-input {
+  padding-left: calc(var(--space-4) + 28px);
+  color: var(--text);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-input::placeholder {
+  color: var(--muted);
+}
+
+.search-status:empty {
+  display: none;
+}
+
+.search-status {
+  margin-top: var(--space-3);
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.filters[hidden] {
+  display: none;
+}
+
 .filters {
   display: flex;
   gap: var(--space-2);
