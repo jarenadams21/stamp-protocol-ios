@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOEYY architecture – how a scan flows through Azure</title>
+<style>
+  :root {
+    --bg: #f6f3ec; --ink: #1d2a33; --muted: #6b7780; --line: #c9c3b6;
+    --azure: #0f6cbd; --azure-soft: #e3effa; --phone: #19394f; --phone-soft: #e5ecf1;
+    --github: #24292f; --github-soft: #ebedf0; --apple: #8a2be2; --apple-soft: #f1e8fb;
+    --hot: #e8590c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { padding: 28px 32px 8px; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  header p { margin: 0; color: var(--muted); }
+  main { padding: 12px 32px 48px; max-width: 1280px; }
+  .flows { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+  .flows button, .controls button {
+    border: 1px solid var(--line); background: #fff; padding: 8px 14px; border-radius: 999px;
+    font: inherit; cursor: pointer; color: var(--ink);
+  }
+  .flows button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  @media (max-width: 1000px) { .stage { grid-template-columns: 1fr; } }
+  svg { width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px; position: sticky; top: 12px; }
+  .panel h2 { margin: 0 0 6px; font-size: 18px; }
+  .panel .count { color: var(--muted); font-size: 13px; }
+  .panel .step-title { font-weight: 650; margin: 12px 0 4px; font-size: 16px; }
+  .panel .step-text { margin: 0; min-height: 96px; }
+  .controls { display: flex; gap: 8px; margin-top: 14px; }
+  .panel ol { padding-left: 20px; margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+  .panel ol li.current { color: var(--hot); font-weight: 600; }
+  .panel ol li { cursor: pointer; }
+
+  /* diagram */
+  .group-label { font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+  .node rect { stroke-width: 1.5; transition: stroke .2s, stroke-width .2s, filter .2s; }
+  .node .t { font-size: 14px; font-weight: 650; }
+  .node .s { font-size: 11.5px; fill: var(--muted); }
+  .node.lit rect { stroke: var(--hot) !important; stroke-width: 3.5; filter: drop-shadow(0 0 6px rgba(232, 89, 12, .45)); }
+  .arrow { fill: none; stroke: #b7b0a2; stroke-width: 2; opacity: .18; transition: opacity .2s, stroke .2s; }
+  .arrow.in-flow { opacity: .55; stroke: #8c8577; }
+  .arrow.lit { opacity: 1; stroke: var(--hot); stroke-width: 3.5; stroke-dasharray: 8 6; animation: dash 1s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -28; } }
+  .alabel { font-size: 11.5px; fill: var(--muted); opacity: .25; transition: opacity .2s; }
+  .alabel.in-flow { opacity: .8; }
+  .alabel.lit { opacity: 1; fill: var(--hot); font-weight: 700; }
+
+  section.explain { margin-top: 28px; }
+  section.explain h2 { font-size: 20px; margin: 0 0 10px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #ece7dc; vertical-align: top; }
+  th { background: #faf8f3; font-size: 13px; color: var(--muted); font-weight: 600; }
+  td code { background: #f2efe7; padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--azure-soft); color: var(--azure); font-weight: 600; }
+  .tag.old { background: #eef3e8; color: #3d6b21; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .card p { margin: 0; color: #3b4952; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JOEYY architecture: how a scan flows through Azure</h1>
+  <p>Pick a flow, then use <b>Next</b> (or the → key) to step through it. The orange box and arrow show what is happening right now.</p>
+</header>
+<main>
+  <div class="flows" id="flows"></div>
+
+  <div class="stage">
+    <svg viewBox="0 0 1180 760" role="img" aria-label="JOEYY architecture diagram">
+      <defs>
+        <marker id="head" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+        </marker>
+      </defs>
+
+      <!-- Group backgrounds -->
+      <rect x="20" y="70" width="210" height="265" rx="16" fill="var(--phone-soft)" stroke="var(--phone)" stroke-opacity=".35"/>
+      <text class="group-label" x="36" y="94" fill="var(--phone)">📱 YOUR IPHONE</text>
+
+      <rect x="20" y="465" width="210" height="240" rx="16" fill="var(--github-soft)" stroke="var(--github)" stroke-opacity=".3"/>
+      <text class="group-label" x="36" y="489" fill="var(--github)">GITHUB</text>
+
+      <rect x="262" y="100" width="908" height="645" rx="18" fill="var(--azure-soft)" stroke="var(--azure)" stroke-opacity=".45"/>
+      <text class="group-label" x="280" y="92" fill="var(--azure)">☁️ AZURE · resource group joeyy-dev-rg (West US)</text>
+
+      <rect x="284" y="140" width="490" height="330" rx="14" fill="#f3f8fd" stroke="var(--azure)" stroke-dasharray="5 4" stroke-opacity=".6"/>
+      <text class="group-label" x="298" y="162" fill="var(--azure)">Container Apps environment · joeyy-dev-env</text>
+
+      <!-- Arrows (drawn before nodes so boxes sit on top) -->
+      <g id="arrows">
+        <path id="a-tap"      class="arrow" marker-end="url(#head)" d="M210,140 L320,262"/>
+        <path id="a-verify"   class="arrow" marker-end="url(#head)" d="M550,292 L568,292"/>
+        <path id="a-verified" class="arrow" marker-end="url(#head)" d="M570,338 L552,338"/>
+        <path id="a-db"       class="arrow" marker-end="url(#head)" d="M500,235 V122 H990 V138"/>
+        <path id="a-reply"    class="arrow" marker-end="url(#head)" d="M320,312 L212,168"/>
+        <path id="a-add"      class="arrow" marker-end="url(#head)" d="M125,190 L125,228"/>
+        <path id="a-push"     class="arrow" marker-end="url(#head)" d="M460,235 L548,78"/>
+        <path id="a-ping"     class="arrow" marker-end="url(#head)" d="M432,58 L212,252"/>
+        <path id="a-fetch"    class="arrow" marker-end="url(#head)" d="M210,292 L320,400"/>
+        <path id="a-commit"   class="arrow" marker-end="url(#head)" d="M125,560 L125,608"/>
+        <path id="a-login"    class="arrow" marker-end="url(#head)" d="M210,662 L552,662"/>
+        <path id="a-build"    class="arrow" marker-end="url(#head)" d="M210,628 L288,578"/>
+        <path id="a-pull"     class="arrow" marker-end="url(#head)" d="M400,520 L400,458"/>
+        <path id="a-secrets"  class="arrow" marker-end="url(#head)" d="M820,300 L758,300"/>
+        <path id="a-idkv"     class="arrow" marker-end="url(#head)" d="M780,540 V330 H818"/>
+        <path id="a-idpg"     class="arrow" marker-end="url(#head)" d="M800,540 V190 H818"/>
+        <path id="a-logs"     class="arrow" marker-end="url(#head)" d="M700,455 V490 H990 V518"/>
+      </g>
+      <g id="arrow-labels">
+        <text class="alabel" data-for="a-tap" x="232" y="190">HTTPS: chip read</text>
+        <text class="alabel" data-for="a-verify" x="545" y="282">decrypt?</text>
+        <text class="alabel" data-for="a-verified" x="540" y="356">✓ chip + #</text>
+        <text class="alabel" data-for="a-db" x="640" y="117">+1 stamp (SQL transaction)</text>
+        <text class="alabel" data-for="a-reply" x="226" y="232">stamps + pass</text>
+        <text class="alabel" data-for="a-add" x="134" y="214">add / replace</text>
+        <text class="alabel" data-for="a-push" x="512" y="150">“pass changed”</text>
+        <text class="alabel" data-for="a-ping" x="300" y="128">wake up Wallet</text>
+        <text class="alabel" data-for="a-fetch" x="236" y="372">GET new pass</text>
+        <text class="alabel" data-for="a-commit" x="134" y="590">merge to main</text>
+        <text class="alabel" data-for="a-login" x="330" y="680">sign in with OIDC badge</text>
+        <text class="alabel" data-for="a-build" x="226" y="606">build images</text>
+        <text class="alabel" data-for="a-pull" x="408" y="500">pull image</text>
+        <text class="alabel" data-for="a-secrets" x="770" y="292">secrets</text>
+        <text class="alabel" data-for="a-idkv" x="706" y="520">badge</text>
+        <text class="alabel" data-for="a-idpg" x="806" y="250">token</text>
+        <text class="alabel" data-for="a-logs" x="860" y="485">logs</text>
+      </g>
+
+      <!-- Nodes -->
+      <g class="node" id="n-app">
+        <rect x="35" y="110" width="180" height="80" rx="12" fill="#fff" stroke="var(--phone)"/>
+        <text class="t" x="50" y="140">JOEYY app (SwiftUI)</text>
+        <text class="s" x="50" y="160">reads the NFC chip,</text>
+        <text class="s" x="50" y="176">talks to the backend</text>
+      </g>
+      <g class="node" id="n-wallet">
+        <rect x="35" y="230" width="180" height="80" rx="12" fill="#fff" stroke="var(--phone)"/>
+        <text class="t" x="50" y="260">Apple Wallet</text>
+        <text class="s" x="50" y="280">the loyalty card;</text>
+        <text class="s" x="50" y="296">updates itself</text>
+      </g>
+      <g class="node" id="n-chip">
+        <rect x="35" y="360" width="180" height="70" rx="12" fill="#fff" stroke="#7a6a4f"/>
+        <text class="t" x="50" y="388">NFC chip (NTAG 424)</text>
+        <text class="s" x="50" y="408">at the counter; makes a new</text>
+        <text class="s" x="50" y="422">encrypted link on every tap</text>
+      </g>
+      <g class="node" id="n-apns">
+        <rect x="430" y="18" width="250" height="60" rx="12" fill="var(--apple-soft)" stroke="var(--apple)"/>
+        <text class="t" x="446" y="44">Apple Push service (APNs)</text>
+        <text class="s" x="446" y="64">Apple’s server that pings iPhones</text>
+      </g>
+      <g class="node" id="n-repo">
+        <rect x="35" y="500" width="180" height="60" rx="12" fill="#fff" stroke="var(--github)"/>
+        <text class="t" x="50" y="526">Code repo</text>
+        <text class="s" x="50" y="545">backend/, infra/, iOS app</text>
+      </g>
+      <g class="node" id="n-actions">
+        <rect x="35" y="610" width="180" height="80" rx="12" fill="#fff" stroke="var(--github)"/>
+        <text class="t" x="50" y="638">GitHub Actions</text>
+        <text class="s" x="50" y="658">robot: test → build →</text>
+        <text class="s" x="50" y="674">deploy (on merge)</text>
+      </g>
+
+      <g class="node" id="n-capp">
+        <rect x="300" y="175" width="460" height="282" rx="12" fill="#fff" stroke="var(--azure)"/>
+        <text class="t" x="316" y="200">Container App · joeyy-api</text>
+        <text class="s" x="316" y="218">joeyy-api.happycoast-32e2d60b.westus.azurecontainerapps.io · always 1 copy running</text>
+      </g>
+      <g class="node" id="n-api">
+        <rect x="316" y="235" width="234" height="205" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="330" y="260">api container</text>
+        <text class="s" x="330" y="278">Node.js + Fastify (TypeScript)</text>
+        <text class="s" x="330" y="302">• /api/v1 – scans, cards, passes</text>
+        <text class="s" x="330" y="320">• /wallet/v1 – Apple Wallet calls</text>
+        <text class="s" x="330" y="338">• /v1/partner – cafe setup</text>
+        <text class="s" x="330" y="356">• signs Wallet passes</text>
+        <text class="s" x="330" y="374">• worker every 15 s sends</text>
+        <text class="s" x="342" y="390">Wallet update pings</text>
+        <text class="s" x="330" y="414">public HTTPS · port 8080</text>
+      </g>
+      <g class="node" id="n-verifier">
+        <rect x="570" y="235" width="175" height="205" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="584" y="260">verifier (sidecar)</text>
+        <text class="s" x="584" y="278">Python · sdm-backend</text>
+        <text class="s" x="584" y="302">• decrypts the chip</text>
+        <text class="s" x="584" y="318">  data (AES-128)</text>
+        <text class="s" x="584" y="336">• checks signature</text>
+        <text class="s" x="584" y="352">  (CMAC)</text>
+        <text class="s" x="584" y="370">• returns chip ID +</text>
+        <text class="s" x="584" y="386">  read number</text>
+        <text class="s" x="584" y="414">private: 127.0.0.1 only</text>
+      </g>
+
+      <g class="node" id="n-pg">
+        <rect x="820" y="140" width="335" height="100" rx="12" fill="#fff" stroke="#336791"/>
+        <text class="t" x="836" y="166">PostgreSQL · joeyy-dev-pg <tspan class="s">(existed before)</tspan></text>
+        <text class="s" x="836" y="186">database joeyyRewards: cafes, chips + last read #,</text>
+        <text class="s" x="836" y="202">cards, stamps, events, Wallet passes + registrations,</text>
+        <text class="s" x="836" y="218">partner businesses. Sign-in: Entra ID (no password)</text>
+      </g>
+      <g class="node" id="n-kv">
+        <rect x="820" y="260" width="335" height="90" rx="12" fill="#fff" stroke="#c48a00"/>
+        <text class="t" x="836" y="286">Key Vault · joeyy-dev-kv-q6nfbh</text>
+        <text class="s" x="836" y="306">locked safe: Apple Wallet certificate + key,</text>
+        <text class="s" x="836" y="322">Apple WWDR cert, chip master key.</text>
+        <text class="s" x="836" y="338">Never in GitHub.</text>
+      </g>
+      <g class="node" id="n-blob">
+        <rect x="820" y="370" width="335" height="70" rx="12" fill="#fff" stroke="#5c7f3a"/>
+        <text class="t" x="836" y="396">Blob storage · joeyydevimages <tspan class="s">(existed)</tspan></text>
+        <text class="s" x="836" y="416">partner/cafe images uploaded by the partner side</text>
+      </g>
+
+      <g class="node" id="n-acr">
+        <rect x="288" y="520" width="225" height="95" rx="12" fill="#fff" stroke="var(--azure)"/>
+        <text class="t" x="304" y="546">Container Registry</text>
+        <text class="s" x="304" y="564">joeyydevacrq6nfbh.azurecr.io</text>
+        <text class="s" x="304" y="582">shelf of packaged versions:</text>
+        <text class="s" x="304" y="598">joeyy-api, joeyy-verifier</text>
+      </g>
+      <g>
+        <rect x="540" y="500" width="265" height="215" rx="12" fill="#fff" stroke="var(--azure)" stroke-dasharray="5 4"/>
+        <text class="group-label" x="554" y="522" fill="var(--azure)">Managed identities (ID badges)</text>
+      </g>
+      <g class="node" id="n-apiid">
+        <rect x="552" y="532" width="240" height="78" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="566" y="556">joeyy-api-identity</text>
+        <text class="s" x="566" y="574">the running app’s badge: opens Key</text>
+        <text class="s" x="566" y="590">Vault, pulls images, signs in to the DB</text>
+      </g>
+      <g class="node" id="n-deployer">
+        <rect x="552" y="625" width="240" height="78" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="566" y="649">joeyy-github-deployer</text>
+        <text class="s" x="566" y="667">GitHub’s badge: only commits on</text>
+        <text class="s" x="566" y="683">main may deploy (no password)</text>
+      </g>
+      <g class="node" id="n-logs">
+        <rect x="820" y="520" width="335" height="70" rx="12" fill="#fff" stroke="var(--azure)"/>
+        <text class="t" x="836" y="546">Log Analytics · joeyy-dev-logs</text>
+        <text class="s" x="836" y="566">the app’s logs and errors, for debugging</text>
+      </g>
+
+      <!-- Legend -->
+      <g transform="translate(820,620)">
+        <text class="group-label" x="0" y="0" fill="var(--muted)">LEGEND</text>
+        <rect x="0" y="12" width="14" height="14" rx="3" fill="var(--azure-soft)" stroke="var(--azure)"/>
+        <text class="s" x="22" y="24">Azure (new for hosting, unless marked)</text>
+        <rect x="0" y="36" width="14" height="14" rx="3" fill="var(--phone-soft)" stroke="var(--phone)"/>
+        <text class="s" x="22" y="48">your phone</text>
+        <rect x="0" y="60" width="14" height="14" rx="3" fill="var(--apple-soft)" stroke="var(--apple)"/>
+        <text class="s" x="22" y="72">Apple</text>
+        <rect x="0" y="84" width="14" height="14" rx="3" fill="var(--github-soft)" stroke="var(--github)"/>
+        <text class="s" x="22" y="96">GitHub</text>
+      </g>
+    </svg>
+
+    <aside class="panel" aria-live="polite">
+      <h2 id="flow-title"></h2>
+      <div class="count" id="flow-sub"></div>
+      <div class="step-title" id="step-title"></div>
+      <p class="step-text" id="step-text"></p>
+      <div class="controls">
+        <button id="prev">← Back</button>
+        <button id="next">Next →</button>
+        <button id="play">▶ Play</button>
+      </div>
+      <ol id="step-list"></ol>
+    </aside>
+  </div>
+
+  <section class="explain">
+    <h2>What each Azure piece is (plain English)</h2>
+    <table>
+      <tr><th>Azure resource</th><th>Name</th><th>Think of it as…</th><th>Why we need it</th></tr>
+      <tr><td>Resource group</td><td><code>joeyy-dev-rg</code></td><td>A folder</td><td>Everything for the dev setup lives in one place with shared permissions (the <code>joeyy-devs</code> group are Owners).</td></tr>
+      <tr><td>Container Apps environment <span class="tag">new</span></td><td><code>joeyy-dev-env</code></td><td>The building</td><td>A private network area where our containers run. More services (e.g. a .NET accounts service) could be added here later.</td></tr>
+      <tr><td>Container App <span class="tag">new</span></td><td><code>joeyy-api</code></td><td>The kitchen, open 24/7</td><td>Runs two containers side by side: the Node backend (public) and the verifier (private). Gives us a permanent HTTPS address, so your Mac can be off.</td></tr>
+      <tr><td>Container Registry <span class="tag">new</span></td><td><code>joeyydevacrq6nfbh</code></td><td>A shelf of packaged meals</td><td>Stores each built version (“image”) of the backend and verifier. Deploying = telling the Container App which version to run.</td></tr>
+      <tr><td>Key Vault <span class="tag">new</span></td><td><code>joeyy-dev-kv-q6nfbh</code></td><td>A locked safe</td><td>Holds the Apple Wallet signing certificate and the chip master key. The app reads them at startup using its ID badge. They are never stored in GitHub.</td></tr>
+      <tr><td>Managed identity <span class="tag">new</span></td><td><code>joeyy-api-identity</code></td><td>The app’s ID badge</td><td>Lets the running app open Key Vault, pull images and sign in to PostgreSQL <b>without any password</b>. It has its own database login (a member of <code>joeyy-devs</code>).</td></tr>
+      <tr><td>Managed identity <span class="tag">new</span></td><td><code>joeyy-github-deployer</code></td><td>GitHub’s ID badge</td><td>Lets GitHub Actions deploy, but only for commits on <code>main</code> in our repo (OIDC trust, no stored password).</td></tr>
+      <tr><td>Log Analytics <span class="tag">new</span></td><td><code>joeyy-dev-logs</code></td><td>The kitchen’s logbook</td><td>Collects app logs so we can see what went wrong.</td></tr>
+      <tr><td>PostgreSQL <span class="tag old">existed</span></td><td><code>joeyy-dev-pg</code></td><td>The memory</td><td>The single source of truth: cafes, chips, cards, stamps, Wallet registrations, partner data.</td></tr>
+      <tr><td>Blob storage <span class="tag old">existed</span></td><td><code>joeyydevimages</code></td><td>A photo cabinet</td><td>Images uploaded on the partner (cafe setup) side.</td></tr>
+    </table>
+  </section>
+
+  <section class="explain">
+    <h2>The big ideas</h2>
+    <div class="cards">
+      <div class="card"><h3>Your Mac is out of the picture</h3><p>Before, the backend, verifier and a temporary tunnel ran on your laptop. Now all three jobs are done in Azure at one permanent address.</p></div>
+      <div class="card"><h3>Keys stay in one locked place</h3><p>The phone never holds keys. It just forwards the chip’s encrypted link. Only the verifier, reading from Key Vault, can decrypt it.</p></div>
+      <div class="card"><h3>Three anti-cheat checks</h3><p>1) A forged or edited link fails decryption. 2) Every tap has a higher read number, so old links are refused. 3) A retry with the same request ID never adds a second stamp.</p></div>
+      <div class="card"><h3>Code never “moves into” Azure by hand</h3><p>Code lives in GitHub. A build packages it and Azure runs the package. Merging to <code>main</code> is the deploy button.</p></div>
+      <div class="card"><h3>Badges instead of passwords</h3><p>The app and GitHub prove who they are with Azure managed identities, so no database password or deploy password exists to leak.</p></div>
+      <div class="card"><h3>Still a prototype</h3><p>Anonymous “guest” cards (no sign-in yet) and factory test keys on the chips. Before real customers: turn prototype mode off, connect real accounts, program chips with real keys.</p></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const flows = {
+  scan: {
+    title: "1 · Scanning a chip",
+    sub: "What happens when a customer taps their iPhone on the NFC chip.",
+    steps: [
+      { nodes: ["n-chip", "n-app"], arrows: [], title: "Tap the chip",
+        text: "The iPhone reads the NFC chip. The chip produces a brand-new encrypted link each time, containing its ID and a read number, plus a signature (CMAC). The app can’t read what’s inside; it only has the scrambled text." },
+      { nodes: ["n-app", "n-api"], arrows: ["a-tap"], title: "Send it to Azure",
+        text: "The app sends the scrambled link to POST /api/v1/taps at the permanent Azure address, along with a unique request ID (so a retry can’t double-count)." },
+      { nodes: ["n-api", "n-verifier"], arrows: ["a-verify"], title: "Ask the private verifier",
+        text: "The api container forwards the encrypted fields to the verifier running right next to it (127.0.0.1:5005). Nothing outside this Container App can reach the verifier." },
+      { nodes: ["n-verifier", "n-api"], arrows: ["a-verified"], title: "Decrypt and check",
+        text: "The verifier decrypts with AES-128, using the chip key that came from Key Vault, and checks the CMAC signature. If anything was edited or forged it says “invalid”. Otherwise it returns the chip ID and read number (e.g. #21)." },
+      { nodes: ["n-api", "n-pg"], arrows: ["a-db"], title: "Award the stamp (one transaction)",
+        text: "In PostgreSQL, all-or-nothing: is the chip linked to a cafe? Is read #21 higher than the last one seen? If so, add 1 stamp (a full card becomes a reward), save the event, remember #21, and mark the Wallet pass as changed." },
+      { nodes: ["n-api", "n-app"], arrows: ["a-reply"], title: "Reply to the phone",
+        text: "The app gets back the new stamp count and “verified · read #21”, then downloads the freshly signed Wallet pass." },
+      { nodes: ["n-app", "n-wallet"], arrows: ["a-add"], title: "Update Apple Wallet",
+        text: "First time: Apple shows “Add to Wallet”. After that, the app replaces the card silently. The Wallet card now shows the new stamp count." },
+    ],
+  },
+  wallet: {
+    title: "2 · Wallet updating by itself",
+    sub: "How the Wallet card updates even when the app is closed.",
+    steps: [
+      { nodes: ["n-wallet", "n-api"], arrows: ["a-fetch"], title: "Wallet registers (once)",
+        text: "When the card is added, Wallet calls /wallet/v1/devices/… on our backend: “tell me when this card changes”. The backend stores that registration in PostgreSQL." },
+      { nodes: ["n-api", "n-pg"], arrows: ["a-db"], title: "A stamp changes the card",
+        text: "After a scan the card is marked “changed” in the database, and the new signed pass is stored there too." },
+      { nodes: ["n-api", "n-apns"], arrows: ["a-push"], title: "Ping Apple",
+        text: "The background worker inside the api container runs every 15 seconds. It sends Apple’s push service an empty “this pass changed” message, signed with the Wallet certificate from Key Vault." },
+      { nodes: ["n-apns", "n-wallet"], arrows: ["a-ping"], title: "Apple wakes up Wallet",
+        text: "Apple delivers the ping to the iPhone. The message contains no data, just “go check”." },
+      { nodes: ["n-wallet", "n-api"], arrows: ["a-fetch"], title: "Wallet downloads the new card",
+        text: "Wallet asks our backend which passes changed, then downloads the new one. That’s why the pass’s address must stay permanent: Wallet always calls the address the card was created with." },
+    ],
+  },
+  deploy: {
+    title: "3 · Shipping new code",
+    sub: "How a code change gets from GitHub into Azure, without anyone’s laptop.",
+    steps: [
+      { nodes: ["n-repo", "n-actions"], arrows: ["a-commit"], title: "Merge to main",
+        text: "A teammate merges a pull request. The Backend workflow runs the tests. If they pass, the Deploy backend workflow starts." },
+      { nodes: ["n-actions", "n-deployer"], arrows: ["a-login"], title: "GitHub signs in to Azure",
+        text: "GitHub proves it is “our repo, main branch” with a short-lived OIDC token. Azure trusts that for the joeyy-github-deployer badge. No password is stored anywhere." },
+      { nodes: ["n-actions", "n-acr"], arrows: ["a-build"], title: "Build in the cloud",
+        text: "infra/deploy.sh asks the Container Registry to build two packages (“images”) from the code: joeyy-api (Node) and joeyy-verifier (Python), tagged with the commit ID." },
+      { nodes: ["n-acr", "n-capp"], arrows: ["a-pull"], title: "Roll out the new version",
+        text: "infra/app.bicep tells the Container App to run the new tag. Azure pulls the images (using the app’s badge), starts the new copy, and switches traffic once it is healthy. No downtime." },
+      { nodes: ["n-capp", "n-logs"], arrows: ["a-logs"], title: "Check it’s healthy",
+        text: "The script waits for /api/v1/healthz to say “ok” (database and verifier both answering). Logs go to Log Analytics if something is wrong." },
+    ],
+  },
+  startup: {
+    title: "4 · App start-up and security",
+    sub: "How the running app gets its secrets and database access with no passwords.",
+    steps: [
+      { nodes: ["n-capp", "n-apiid"], arrows: [], title: "Wear the badge",
+        text: "The Container App is assigned the joeyy-api-identity managed identity. Azure can issue it short-lived tokens; there is no password to store or leak." },
+      { nodes: ["n-apiid", "n-kv"], arrows: ["a-idkv"], title: "Open the safe",
+        text: "Using the badge, Azure reads the four secrets from Key Vault: Wallet certificate, Wallet key, Apple WWDR certificate and the chip master key." },
+      { nodes: ["n-kv", "n-capp"], arrows: ["a-secrets"], title: "Hand secrets to the containers",
+        text: "The Wallet files appear as read-only files in the api container (/secrets/…). The chip master key becomes a setting for the verifier only." },
+      { nodes: ["n-apiid", "n-pg"], arrows: ["a-idpg"], title: "Sign in to the database",
+        text: "The api asks Azure for a database token for its badge and signs in to PostgreSQL as joeyy-api-identity. That login is a member of joeyy-devs, so it has exactly the team’s table access." },
+      { nodes: ["n-capp", "n-logs"], arrows: ["a-logs"], title: "Ready",
+        text: "Startup checks pass: signing identity valid, migrations present, verifier answering. The app is live at its permanent address." },
+    ],
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+let flowKey = "scan", step = 0, timer = null;
+
+for (const [key, flow] of Object.entries(flows)) {
+  const b = document.createElement("button");
+  b.textContent = flow.title; b.dataset.key = key;
+  b.onclick = () => { stop(); flowKey = key; step = 0; render(); };
+  $("flows").append(b);
+}
+
+function render() {
+  const flow = flows[flowKey], s = flow.steps[step];
+  document.querySelectorAll("#flows button").forEach((b) => b.classList.toggle("active", b.dataset.key === flowKey));
+  const inFlow = new Set(flow.steps.flatMap((x) => x.arrows));
+  document.querySelectorAll(".arrow").forEach((a) => {
+    a.classList.toggle("in-flow", inFlow.has(a.id));
+    a.classList.toggle("lit", s.arrows.includes(a.id));
+  });
+  document.querySelectorAll(".alabel").forEach((l) => {
+    l.classList.toggle("in-flow", inFlow.has(l.dataset.for));
+    l.classList.toggle("lit", s.arrows.includes(l.dataset.for));
+  });
+  document.querySelectorAll(".node").forEach((n) => n.classList.toggle("lit", s.nodes.includes(n.id)));
+  $("flow-title").textContent = flow.title;
+  $("flow-sub").textContent = `${flow.sub} Step ${step + 1} of ${flow.steps.length}.`;
+  $("step-title").textContent = `${step + 1}. ${s.title}`;
+  $("step-text").textContent = s.text;
+  const list = $("step-list"); list.innerHTML = "";
+  flow.steps.forEach((x, i) => {
+    const li = document.createElement("li"); li.textContent = x.title;
+    if (i === step) li.className = "current";
+    li.onclick = () => { stop(); step = i; render(); };
+    list.append(li);
+  });
+}
+function move(d) { const n = flows[flowKey].steps.length; step = (step + d + n) % n; render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "▶ Play"; }
+$("next").onclick = () => { stop(); move(1); };
+$("prev").onclick = () => { stop(); move(-1); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  $("play").textContent = "⏸ Pause";
+  timer = setInterval(() => move(1), 3500);
+};
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") { stop(); move(1); }
+  if (e.key === "ArrowLeft") { stop(); move(-1); }
+});
+render();
+</script>
+</body>
+</html>
