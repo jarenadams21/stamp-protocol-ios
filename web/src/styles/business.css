@@ -1,0 +1,706 @@
+/* The business site (src/business): the same passport cover, serif and Oswald figures as the diner
+   side, laid out wider for a laptop. On a phone it's one column, like the diner pages. */
+
+.page-business {
+  --measure: 30rem;
+}
+
+@media (min-width: 900px) {
+  .page-business {
+    --measure: 68rem;
+  }
+}
+
+/* ---------- Header ---------- */
+
+.biz-topbar {
+  gap: var(--space-4);
+}
+
+.biz-nav {
+  display: flex;
+  gap: var(--space-1);
+  margin-right: auto;
+}
+
+.biz-tab {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: var(--step-0);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--press), background-color var(--press);
+}
+
+.biz-tab[aria-current='page'] {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+
+@media (hover: hover) {
+  .biz-tab:hover {
+    color: var(--text);
+  }
+}
+
+.biz-signout {
+  padding: var(--space-2) 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--step-0);
+  cursor: pointer;
+}
+
+/* A phone has room for the wordmark or the tabs: the tabs win, on a row of their own. */
+@media (max-width: 899px) {
+  .biz-topbar {
+    flex-wrap: wrap;
+  }
+
+  .biz-topbar .brand-sub {
+    display: none;
+  }
+
+  .biz-nav {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0 0 var(--space-2);
+  }
+
+  .biz-tab {
+    flex: 1;
+    text-align: center;
+  }
+}
+
+/* ---------- Two columns: words on the left, the card on the right ---------- */
+
+.biz-split {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .biz-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    align-items: start;
+    gap: var(--space-7);
+  }
+
+  .biz-side {
+    position: sticky;
+    top: 80px;
+  }
+}
+
+.biz-side {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.biz-hero {
+  margin-top: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .biz-hero .headline {
+    font-size: clamp(2.5rem, 4.4vw, 3.75rem);
+  }
+}
+
+.biz-cta {
+  margin-top: var(--space-3);
+  justify-self: start;
+  min-width: 14rem;
+}
+
+.biz-aside {
+  color: var(--muted);
+  font-size: var(--step-0);
+}
+
+.biz-aside a {
+  color: var(--accent);
+}
+
+.biz-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding-left: 1.25rem;
+  color: var(--muted);
+  font-size: var(--step-0);
+}
+
+.biz-steps strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.biz-steps li::marker {
+  color: var(--accent);
+  font-family: var(--font-stamp);
+}
+
+/* ---------- Forms ---------- */
+
+.biz-form,
+.biz-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.biz-form .button {
+  margin-top: var(--space-2);
+}
+
+.biz-signin {
+  max-width: 26rem;
+}
+
+fieldset.biz-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+fieldset.biz-field legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
+.field-input::placeholder {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.idea-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-1));
+}
+
+.idea {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--step--1);
+  cursor: pointer;
+  transition: transform var(--press), box-shadow var(--press);
+}
+
+.idea:active {
+  transform: scale(var(--press-scale));
+}
+
+@media (hover: hover) {
+  .idea:hover {
+    box-shadow: 0 0 0 1px var(--muted);
+  }
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+
+.stepper-button {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.stepper-button:disabled {
+  color: var(--rule);
+  cursor: default;
+}
+
+.stepper-value {
+  min-width: 3ch;
+  font-family: var(--font-stamp);
+  font-size: 1.625rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Swatches and chips are radio buttons: the input sits over the face, so keys and screen readers
+   work as normal, and the face shows what's picked. */
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.choice {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+
+.choice-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.choice-name {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.choice-input:checked ~ .choice-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.swatch,
+.type-face,
+.art-face {
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 1px var(--rule);
+  transition: box-shadow var(--press), transform var(--press);
+}
+
+/* Eight papers: one row on a laptop, two even rows of four on a phone. */
+.is-paper .choice-row {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  gap: var(--space-3) var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .is-paper .choice-row {
+    grid-template-columns: repeat(8, max-content);
+    gap: var(--space-3);
+  }
+}
+
+.swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+/* The ink shows as a dot, so a swatch says both colours. */
+.swatch::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--swatch-ink);
+}
+
+.type-face {
+  width: 64px;
+  height: 48px;
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  font-size: 1.375rem;
+}
+
+.art-face {
+  width: 88px;
+  height: 48px;
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.art-face .cover-art {
+  width: 100%;
+  height: 100%;
+}
+
+.choice-input:checked + .swatch,
+.choice-input:checked + .type-face,
+.choice-input:checked + .art-face {
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+}
+
+.choice-input:focus-visible + * {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+}
+
+.choice:active .swatch,
+.choice:active .type-face,
+.choice:active .art-face {
+  transform: scale(var(--press-scale));
+}
+
+/* ---------- The live card ---------- */
+
+.preview {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.preview .passport {
+  margin: 0;
+}
+
+/* ---------- Setup ---------- */
+
+.setup {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+}
+
+/* On a phone: the question, then the card, then the fields. On a laptop the card sits to the right
+   of both and stays in view while the owner types. */
+@media (min-width: 900px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    grid-template-areas: 'head card' 'body card';
+    align-items: start;
+    column-gap: var(--space-7);
+  }
+
+  .setup-head { grid-area: head; }
+  .setup-body { grid-area: body; }
+
+  .setup > .preview {
+    grid-area: card;
+    position: sticky;
+    top: 96px;
+  }
+}
+
+/* Linking a stand is about the stand, not the card: on a phone the card goes last. */
+@media (max-width: 899px) {
+  .setup.is-stand > .preview {
+    order: 1;
+  }
+}
+
+.setup-head,
+.setup-body {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+/* Four steps as four stamp slots: a finished step gets its stamp. */
+.setup-progress {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.setup-progress li {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+}
+
+.setup-dot {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1.5px dashed var(--rule);
+  border-radius: 50%;
+  color: var(--muted);
+  font-family: var(--font-stamp);
+  font-size: var(--step-0);
+}
+
+.setup-progress .is-done .setup-dot {
+  border: 2px solid var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+  transform: rotate(-10deg);
+}
+
+.setup-progress .is-current .setup-dot {
+  border: 2px solid var(--text);
+  color: var(--text);
+}
+
+.setup-label {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.setup-progress .is-current .setup-label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.setup-kicker {
+  color: var(--muted);
+  font-size: var(--step-0);
+}
+
+.setup-question {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.setup-fields {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.setup-actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+@media (min-width: 900px) {
+  .setup-actions {
+    grid-auto-flow: column;
+    justify-content: start;
+  }
+
+  .setup-actions .button {
+    min-width: 11rem;
+  }
+}
+
+/* ---------- Linking a stand ---------- */
+
+.linker {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.linker .headline {
+  margin-top: 0;
+}
+
+.linker-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 168px;
+  height: 168px;
+  margin: var(--space-4) auto;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+}
+
+@media (min-width: 900px) {
+  .linker-ring {
+    margin-left: 0;
+  }
+}
+
+/* A slow ring outward, like the phone looking for the tag. */
+.linker-pulse {
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  animation: linker-pulse 1.8s var(--ease-out) infinite;
+}
+
+@keyframes linker-pulse {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(1.35); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linker-pulse {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.linker-time {
+  font-family: var(--font-stamp);
+  font-size: 2.25rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.linker-done {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--ok);
+  border-radius: 50%;
+  color: var(--ok);
+  transform: rotate(-10deg);
+}
+
+/* ---------- Today ---------- */
+
+.biz-figures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.biz-figure {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+
+.biz-figure-num {
+  font-family: var(--font-stamp);
+  font-size: clamp(1.875rem, 8vw, 2.75rem);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.biz-figure-label {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+/* The day's taps, newest first, like a till roll. */
+.till {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.till-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px dashed var(--rule);
+  font-size: var(--step-0);
+}
+
+.till-row time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.till-row.is-earned span,
+.till-row.is-used span {
+  color: var(--accent);
+}
+
+.till-empty {
+  margin-top: var(--space-3);
+}
+
+.till + .button {
+  margin-top: var(--space-3);
+}
+
+.biz-alert .button {
+  margin-top: var(--space-3);
+}
+
+/* ---------- Card ---------- */
+
+.desk-form {
+  display: grid;
+}
+
+.desk-form .block.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.desk-title {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 400;
+}
+
+/* ---------- Stands ---------- */
+
+.stand-list {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.stand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.stand-text {
+  display: grid;
+  gap: 2px;
+}
+
+.stand-name {
+  font-weight: 600;
+}
+
+.stand-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.stand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.stand-row.is-off .stand-dot {
+  background: var(--rule);
+}
+
+.stand-row.is-off .stand-name {
+  color: var(--muted);
+}
+
+.button.stand-off {
+  width: auto;
+  min-height: 40px;
+}
+
+.linker:not(:empty) {
+  margin-top: var(--space-4);
+}
+
+/* The demo's Sample data bar drives the diner side; the business pages have their own preview buttons. */
+body:has(.page-business) .demo-bar {
+  display: none;
+}

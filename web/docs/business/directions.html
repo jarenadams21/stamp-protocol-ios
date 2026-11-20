@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Business site directions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Oswald:wght@500;600&display=swap" />
+<link rel="stylesheet" href="/src/styles/tokens.css" />
+<style>
+  body { margin: 0; background: var(--paper); color: var(--text); font: 15px/1.45 var(--font-ui); padding: 32px 24px 64px; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 400; margin: 0; }
+  h1 { font-size: 40px; } .lede { color: var(--muted); max-width: 46rem; margin: 8px 0 32px; }
+  .dir { margin: 0 0 56px; } .dir > h2 { font-size: 30px; } .dir > p { color: var(--muted); max-width: 44rem; margin: 6px 0 18px; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .frame { background: var(--paper); border-radius: 18px; box-shadow: var(--shadow-raised); overflow: hidden; position: relative; }
+  .phone { width: 300px; height: 600px; padding: 20px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .desk { width: 760px; max-width: 100%; height: 480px; display: grid; }
+  .label { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .wm { font-family: var(--font-display); color: #d9b979; font-size: 18px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .btn { background: var(--accent-fill); color: var(--on-accent); border-radius: 10px; padding: 11px 14px; text-align: center; font-weight: 600; font-size: 14px; }
+  .btn.q { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--rule); }
+  .field { background: var(--surface); border-radius: 10px; padding: 10px 12px; box-shadow: 0 0 0 1px var(--rule); font-size: 14px; }
+  .field small { display: block; color: var(--muted); font-size: 11px; }
+  .card { border-radius: 14px; padding: 14px; background: #F5A174; color: #351B13; box-shadow: var(--shadow-depth); }
+  .card .nm { font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 600; }
+  .card .rw { font-size: 12px; opacity: .8; }
+  .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .slot { aspect-ratio: 1; border-radius: 50%; border: 1.5px dashed currentColor; opacity: .35; }
+  .slot.on { opacity: 1; border: 2px solid #A0302A; color: #A0302A; display: grid; place-items: center; font: 600 10px var(--font-stamp); transform: rotate(-12deg); }
+  .swatches { display: flex; gap: 8px; } .sw { width: 28px; height: 28px; border-radius: 50%; box-shadow: 0 0 0 1px var(--rule); }
+  .sw.sel { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent); }
+  .q-head { font-family: var(--font-display); font-size: 30px; line-height: 1.05; }
+  .progress { display: flex; gap: 6px; } .progress i { flex: 1; height: 26px; border-radius: 50%; border: 1.5px dashed var(--rule); max-width: 26px; }
+  .progress i.on { border: 2px solid var(--accent); background: var(--accent-wash); }
+  .stat { font: 500 34px var(--font-stamp); } .feed li { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 13px; }
+  .feed { list-style: none; margin: 0; padding: 0; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px; }
+  .pick { margin: 0 0 40px; padding: 18px 20px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-raised); max-width: 52rem; }
+  .pick h2 { font-size: 26px; } .pick p { margin: 6px 0 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>JOEYY for business: three directions</h1>
+<p class="lede">The site an owner uses to sign up, make their card, set up their stands and see how it's going. All three keep the passport navy, the serif and the Oswald figures, so it feels like the other side of the same product. They differ in what comes first.</p>
+
+<section class="dir">
+  <h2>A. The card desk</h2>
+  <p>Laptop first. The card sits big on the right and redraws as you type; every setting sits in one column on the left. Good for an owner fiddling with colours at home. Weak on a phone, where the preview drops below the form.</p>
+  <div class="row">
+    <div class="frame desk" style="grid-template-columns: 200px 1fr 1fr;">
+      <div style="padding:20px;border-right:1px solid var(--rule);display:flex;flex-direction:column;gap:12px">
+        <span class="wm">Joeyy business</span>
+        <span class="muted">Today</span><span style="color:var(--accent)">Your card</span><span class="muted">Stands</span><span class="muted">Staff</span>
+      </div>
+      <div style="padding:22px;display:flex;flex-direction:column;gap:12px">
+        <h3 style="font-size:26px">Your card</h3>
+        <div class="field"><small>Reward</small>A free espresso</div>
+        <div class="field"><small>Stamps to earn it</small>8</div>
+        <div><small class="muted">Paper</small><div class="swatches" style="margin-top:6px"><span class="sw sel" style="background:#F5A174"></span><span class="sw" style="background:#F7EFD9"></span><span class="sw" style="background:#DDE9F2"></span><span class="sw" style="background:#E8DFC8"></span><span class="sw" style="background:#E9E2F4"></span></div></div>
+        <div class="field"><small>Type</small>Monospaced</div>
+        <div class="btn" style="margin-top:auto">Publish card</div>
+      </div>
+      <div style="padding:30px;background:var(--accent-wash);display:grid;place-items:center">
+        <div class="card" style="width:260px"><div class="nm">Ferrous Coffee</div><div class="rw">8 stamps for a free espresso</div><div class="slots"><span class="slot on">NOV 15</span><span class="slot on">NOV 14</span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dir">
+  <h2>B. One question at a time</h2>
+  <p>Phone first, because the kit's QR code opens on the owner's phone, stand in hand. Each screen asks one thing in big serif ("What do people get?"), and the card underneath fills in as they answer. Progress is a row of stamp slots that fill as steps finish. The last step is tapping the stand itself.</p>
+  <div class="row">
+    <div>
+      <div class="frame phone">
+        <div class="progress"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+        <p class="muted" style="margin:6px 0 0">Your card</p>
+        <p class="q-head">What do people get?</p>
+        <div class="field">A free espresso</div>
+        <div class="field" style="display:flex;justify-content:space-between"><span>After</span><span style="font:500 18px var(--font-stamp)">− 8 +</span><span>stamps</span></div>
+        <div class="card" style="margin-top:auto"><div class="nm">Ferrous Coffee</div><div class="rw">8 stamps for a free espresso</div><div class="slots"><span class="slot on">NOV 15</span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span></div></div>
+        <div class="btn">Next</div>
+      </div>
+      <p class="label">Step 2 of 4: the reward</p>
+    </div>
+    <div>
+      <div class="frame phone">
+        <div class="progress"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+        <p class="muted" style="margin:6px 0 0">Your stand</p>
+        <p class="q-head">Hold your phone on the stand.</p>
+        <p class="muted">Top of the phone, flat on the JOEYY mark. This links it to Ferrous Coffee.</p>
+        <div style="flex:1;display:grid;place-items:center"><div style="width:140px;height:140px;border-radius:50%;border:2px solid var(--accent);display:grid;place-items:center;font:500 30px var(--font-stamp)">1:54</div></div>
+        <div class="btn q">I don't have a stand yet</div>
+      </div>
+      <p class="label">Step 3 of 4: link the stand</p>
+    </div>
+  </div>
+</section>
+
+<section class="dir">
+  <h2>C. The counter ledger</h2>
+  <p>The day comes first: stamps today, rewards used and a live list of taps as they land, like a till roll. The card and stands are settings behind it. Best for the weeks after setup; poor for the first five minutes, when there's nothing to show.</p>
+  <div class="row">
+    <div class="frame desk" style="grid-template-columns: 1fr 1fr; padding:24px; gap:24px">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <span class="wm">Joeyy business</span>
+        <h3 style="font-size:28px">Today at Ferrous</h3>
+        <div style="display:flex;gap:28px"><div><div class="stat">42</div><span class="muted">stamps</span></div><div><div class="stat">5</div><span class="muted">rewards used</span></div><div><div class="stat">9</div><span class="muted">new diners</span></div></div>
+        <p class="muted"><span class="dot"></span>Counter stand · last tap 2 min ago</p>
+      </div>
+      <ul class="feed">
+        <li><span>Stamp 6 of 8</span><span class="muted">10:42</span></li>
+        <li><span>Reward used: a free espresso</span><span class="muted">10:39</span></li>
+        <li><span>First stamp</span><span class="muted">10:31</span></li>
+        <li><span>Stamp 3 of 8</span><span class="muted">10:30</span></li>
+        <li><span>Stamp 8 of 8: reward earned</span><span class="muted">10:22</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="pick">
+  <h2>Building: B for setup, then A and C behind it</h2>
+  <p>Sign-up and setup are B: phone first, one question per screen, with the real card filling in underneath and the stand tap as the finish. Once live, the owner lands on C's Today view, and "Your card" opens A's desk to edit and republish.</p>
+</div>
+</body>
+</html>

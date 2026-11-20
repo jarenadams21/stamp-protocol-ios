@@ -1,0 +1,82 @@
+/* JOEYY passport theme: a dark navy ground (the passport cover) with each business's
+   pages in their own light paper and ink. Orange stays the JOEYY accent, as in the iOS app. */
+
+:root {
+  color-scheme: dark;
+
+  --paper: #111522;
+  --surface: #1a2033;
+  --text: #f2eee4;
+  --muted: #a9aebc;
+  --rule: #2b3349;
+  --accent: #ffb07c;
+  --accent-fill: #f47b35;
+  --on-accent: #191b18;
+  --accent-wash: #1a2240;
+  --danger: #ff9a8f;
+  --ok: #8fd3a8;
+  --ok-solid: #2d7a4d;
+
+  /* A business's published card theme (set per page by applyMerchantTheme). Passport pages
+     always use the light paper and ink: they're paper, whatever the lighting. */
+  --m-light-paper: #f1eada;
+  --m-light-ink: #22201c;
+  --m-dark-paper: #1c1f1e;
+  --m-dark-ink: #f2f3ef;
+  --m-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --card-paper: var(--m-light-paper);
+  --card-ink: var(--m-light-ink);
+
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --font-stamp: 'Oswald', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --font-figures: ui-monospace, 'SF Mono', Menlo, 'Roboto Mono', monospace;
+
+  /* Type scale follows iOS text styles: footnote 13, subheadline 15, body 17, title2 22. */
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.0625rem;
+  --step-2: 1.375rem;
+  --step-4: clamp(2.125rem, 10vw, 2.5rem);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-control: 10px;
+  /* Cards and tiles share one corner. Anything nested inside uses radius minus padding. */
+  --radius-card: 16px;
+
+  /* Depth instead of outlines: a faint top light, a hairline edge, a short contact shadow and a
+     soft one below. Rings that take the card's colour use --shadow-depth after their own edge. */
+  --edge-light: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --shadow-depth: 0 1px 2px rgb(0 0 0 / 0.28), 0 12px 28px -14px rgb(0 0 0 / 0.6);
+  --shadow-raised: var(--edge-light), 0 0 0 1px var(--rule), var(--shadow-depth);
+  /* A photo's edge on the dark ground. */
+  --image-outline: oklch(1 0 0 / 0.1);
+  --gutter: max(18px, env(safe-area-inset-left), env(safe-area-inset-right));
+  --measure: 30rem;
+  /* Motion. Springs come from src/ui/spring.ts (installSpringEasings writes linear() curves over
+     these fallbacks); every transition uses one of these, never a hand-typed curve. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --spring-smooth: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring-lift: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --press-in: 80ms;
+  --press-out: 240ms;
+  /* Press feedback for anything outside the shared rule in base.css: the same scale and timing. */
+  --press-scale: 0.97;
+  --press: var(--press-out) var(--ease-out);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* A small overshoot: things that land settle. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Frosted glass for sheets and toasts: the navy, see-through, with a lit rim. */
+  --glass: color-mix(in srgb, var(--paper) 80%, transparent);
+  --glass-strong: color-mix(in srgb, var(--surface) 80%, transparent);
+  --glass-rim: rgb(255 255 255 / 0.09);
+  --glass-blur: blur(22px) saturate(160%);
+}

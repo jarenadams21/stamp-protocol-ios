@@ -1,0 +1,545 @@
+/* The app frame and the structure around content: tab bar, panels, milestones,
+   recent stamps, Discover, skeletons, and empty states. */
+
+/* ---------- Tab bar ---------- */
+
+.tabbar {
+  /* Holds still while pages slide (page-transition.ts). */
+  view-transition-name: tabbar;
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 7.5rem));
+  justify-content: center;
+  padding: 6px var(--gutter) calc(6px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: 0 -1px 0 color-mix(in srgb, var(--rule) 80%, transparent);
+}
+
+.tabbar[hidden] {
+  display: none;
+}
+
+.tab {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-height: 52px;
+  padding-top: 4px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.tab-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 30px;
+  border-radius: 15px;
+  transition: background-color 200ms ease, transform 160ms var(--ease-out);
+}
+
+.tab:active .tab-icon {
+  transform: scale(0.92);
+}
+
+.tab[aria-current='page'] {
+  color: var(--accent);
+}
+
+.tab[aria-current='page'] .tab-icon {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.tab:focus-visible {
+  outline: none;
+}
+
+.tab:focus-visible .tab-icon {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.icon {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.has-tabbar .page {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+body.has-tabbar .toast {
+  bottom: calc(76px + env(safe-area-inset-bottom));
+}
+
+/* ---------- Panels ---------- */
+
+/* Each section under a card is its own panel, so a long page scans in blocks. The custom gutter
+   lets strips that bleed to the page edge bleed to the panel's edge instead. */
+.block.panel {
+  --pad: var(--space-4);
+  --gutter: var(--pad);
+  margin-top: var(--space-3);
+  padding: var(--pad);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+  overflow: clip;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.panel-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.panel-note {
+  margin-top: calc(-1 * var(--space-1));
+  color: var(--muted);
+  font-size: var(--step-0);
+}
+
+/* Rewards, Keep this card: the panel's own padding replaces their old spacing. */
+.panel.rewards,
+.panel.save {
+  gap: var(--space-3);
+}
+
+/* Narrow phones: a little less padding so tiles and tickets keep their words on fewer lines. */
+@media (max-width: 360px) {
+  .block.panel {
+    --pad: var(--space-3);
+  }
+}
+
+/* The place's cover runs to the panel's edges, under its title. */
+.place-block .biz {
+  margin: 0 calc(-1 * var(--pad)) calc(-1 * var(--pad));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.how-summary .panel-title {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 400;
+}
+
+.how {
+  border-radius: 20px;
+}
+
+.block:has(> .how) {
+  margin-top: var(--space-3);
+}
+
+/* ---------- Milestones ---------- */
+
+.milestones {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px dashed color-mix(in srgb, var(--page-paper) 28%, transparent);
+  list-style: none;
+}
+
+.milestone {
+  padding: 5px 10px 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--page-paper) 12%, transparent);
+  color: var(--page-paper);
+  font-family: var(--font-stamp);
+  font-size: var(--step--1);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+/* ---------- Nearly there (Your cards) ---------- */
+
+.nearly {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  margin-top: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--page-paper) 7%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--page-paper) 22%, var(--rule));
+  color: var(--text);
+  font-size: var(--step-0);
+  text-decoration: none;
+}
+
+.nearly[hidden] {
+  display: none;
+}
+
+.nearly strong {
+  color: var(--page-paper);
+  font-weight: 600;
+}
+
+.nearly-dots {
+  flex: none;
+  display: flex;
+  gap: 3px;
+}
+
+.nearly + .rewards {
+  margin-top: var(--space-4);
+}
+
+.nearly-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.2px color-mix(in srgb, var(--page-paper) 55%, transparent);
+}
+
+.nearly-dots span.is-on {
+  background: var(--page-paper);
+  box-shadow: none;
+}
+
+.nearly:active {
+  opacity: 0.8;
+}
+
+/* ---------- Recent stamps (passport page) ---------- */
+
+.activity {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-day {
+  padding: var(--space-3) 0 var(--space-1);
+  color: var(--muted);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.activity-day:first-child {
+  padding-top: 0;
+}
+
+.activity-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+/* A thread joins the day's stamps, like entries down a page. */
+.activity-item + .activity-item::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: -12px;
+  height: 22px;
+  border-left: 1.5px dotted var(--rule);
+}
+
+.activity-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--page-paper);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--page-paper) 22%, transparent);
+}
+
+.activity-name {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-time {
+  color: var(--muted);
+  font-family: var(--font-stamp);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Discover ---------- */
+
+.filters {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-chip {
+  flex: none;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: var(--muted);
+  font-size: var(--step-0);
+  font-weight: 500;
+  touch-action: manipulation;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.filter-chip[aria-pressed='true'] {
+  background: var(--text);
+  box-shadow: none;
+  color: var(--paper);
+}
+
+.discover-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discover-list > li:only-child:has(.empty) {
+  grid-column: 1 / -1;
+}
+
+a.spot-button {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.spot-button {
+  height: 100%;
+  align-content: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms var(--ease-out);
+}
+
+.spot-button:active {
+  transform: scale(0.97);
+}
+
+.spot.is-mine .spot-reward {
+  color: var(--ok);
+}
+
+@media (max-width: 340px) {
+  .discover-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Skeletons ---------- */
+
+.skeleton {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.skeleton-line,
+.skeleton-card {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(100deg, var(--surface) 30%, color-mix(in srgb, var(--rule) 70%, var(--surface)) 50%, var(--surface) 70%) 0 0 / 300% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.skeleton-line.is-title {
+  width: 62%;
+  height: 38px;
+}
+
+.skeleton-line.is-short {
+  width: 44%;
+  height: 16px;
+  margin-bottom: var(--space-4);
+}
+
+.skeleton-stack {
+  display: grid;
+}
+
+.skeleton-card {
+  height: 92px;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -1px 0 var(--rule);
+}
+
+.skeleton-card + .skeleton-card {
+  margin-top: -28px;
+}
+
+.skeleton-card:last-child {
+  height: 200px;
+  border-radius: 18px;
+}
+
+@keyframes shimmer {
+  to { background-position: -300% 0; }
+}
+
+/* ---------- Empty states ---------- */
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+  text-align: center;
+}
+
+.empty-art {
+  margin-bottom: var(--space-2);
+}
+
+.empty-line,
+.empty-accent,
+.empty-stamp {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.empty-line {
+  stroke: var(--muted);
+}
+
+.empty-accent {
+  stroke: var(--accent);
+}
+
+.empty-stamp {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  transform: rotate(-12deg);
+  transform-origin: 32px 70px;
+}
+
+.empty-stamp.is-inner {
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.empty-title {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 400;
+}
+
+.empty-text {
+  max-width: 30ch;
+  color: var(--muted);
+  font-size: var(--step-0);
+  text-wrap: pretty;
+}
+
+.empty .button {
+  margin-top: var(--space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line,
+  .skeleton-card {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .tabbar {
+    background: var(--paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* The visa page runs to the panel's edges, under its title, like the place's cover. */
+.panel .entry-stamps {
+  margin: 0 calc(-1 * var(--pad)) calc(-1 * var(--pad));
+  border-radius: 0;
+}
+
+/* ---------- Landing (/): the sample card and its one button ---------- */
+
+.try {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.try-card {
+  margin-top: 0;
+}
+
+.try-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.try-button {
+  width: auto;
+  padding: 0 var(--space-5);
+}
+
+.try-note {
+  color: var(--muted);
+  font-size: var(--step--1);
+  text-wrap: pretty;
+}
+
+.home-find {
+  margin-top: var(--space-5);
+}
+
+/* Right under an empty state, the sign-in row belongs to it: no section-sized gap between them. */
+.empty + .block {
+  margin-top: var(--space-3);
+}
+
+.empty + .block > .signin-banner {
+  margin-top: 0;
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#111522" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Oswald:wght@500;600&family=Roboto:wght@500&display=swap" />
+    <meta name="description" content="Your JOEYY stamp card. Tap the stand, collect stamps, earn rewards." />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <title>JOEYY</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Shown until the first page draws (src/ui/placeholders.ts draws the same shapes later). -->
+      <main class="page" aria-busy="true">
+        <div class="skeleton" aria-hidden="true">
+          <span class="skeleton-line is-title"></span>
+          <span class="skeleton-line is-short"></span>
+          <div class="skeleton-stack"><span class="skeleton-card"></span><span class="skeleton-card"></span></div>
+        </div>
+      </main>
+    </div>
+    <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+    <noscript><p class="noscript">JOEYY needs JavaScript to add your stamp. Turn it on, then tap the stand again.</p></noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

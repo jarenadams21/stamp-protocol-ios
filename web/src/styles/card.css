@@ -1,0 +1,987 @@
+/* ---------- The Wallet stack and the passport page ---------- */
+
+.wallet-stack {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-5);
+}
+
+/* A card's name and count as a tab, for Your other cards. */
+.peek {
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: 54px;
+  box-sizing: border-box;
+  padding: 13px var(--space-4);
+  border-radius: 14px;
+  background: var(--page-paper);
+  color: var(--page-ink);
+}
+
+.peek-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 400;
+}
+
+.peek-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-stamp);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+/* All cards, above a card shown on its own (a tap, the Wallet link), as in Your cards. */
+a.wallet-back {
+  align-self: flex-start;
+  margin-bottom: var(--space-2);
+  text-decoration: none;
+}
+
+/* The page is paper: fibres you can almost feel, a security print and a rosette watermark in the
+   place's own ink (so every card's print matches its colours), and edges a shade darker, as a sheet
+   is. Each layer stays faint enough that the stamps and text lead. */
+:root {
+  --paper-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.16 -0.02'/%3E%3C/filter%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.025 0.35' numOctaves='2' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.14 -0.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
+  --paper-waves: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='32'%3E%3Cg fill='none' stroke='black' stroke-width='0.6'%3E%3Cpath d='M0 8 C16 0 32 0 48 8 S80 16 96 8'/%3E%3Cpath d='M0 8 C16 16 32 16 48 8 S80 0 96 8'/%3E%3Cpath d='M0 24 C16 16 32 16 48 24 S80 32 96 24'/%3E%3Cpath d='M0 24 C16 32 32 32 48 24 S80 16 96 24'/%3E%3C/g%3E%3C/svg%3E");
+  --paper-rosette: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cg fill='none' stroke='white' stroke-opacity='1' stroke-width='.8'%3E%3Cpath d='M486 300 538 317 569 338 566 356 530 366 475 364 422 354 389 347 385 353 408 378 442 420 472 466 482 502 467 514 434 498 393 461 358 420 338 393 331 395 332 429 332 483 325 538 309 571 291 571 275 538 268 483 268 429 269 395 262 393 242 420 207 461 166 498 133 514 118 502 128 466 158 420 192 378 215 353 211 347 178 354 125 364 70 366 34 356 31 338 62 317 114 300 167 291 201 286 202 279 172 263 125 236 82 203 60 172 70 156 107 160 158 180 204 208 233 225 238 221 226 190 207 139 195 85 198 48 216 42 242 68 268 117 286 168 296 200 304 200 314 168 332 117 358 68 384 42 402 48 405 85 393 139 374 190 362 221 367 225 396 208 442 180 493 160 530 156 540 172 518 203 475 236 428 263 398 279 399 286 433 291Z'/%3E%3Cpath d='M485 319 535 340 564 364 559 383 522 388 468 381 416 366 384 356 379 361 399 389 430 433 454 482 461 519 445 530 413 510 376 470 346 425 328 396 321 398 319 432 314 485 301 539 282 571 264 569 251 534 250 479 255 425 260 392 253 389 230 413 191 451 147 484 112 496 99 483 112 448 146 405 185 367 210 344 207 338 174 342 120 346 65 343 30 330 29 311 61 293 115 281 169 278 202 276 204 269 176 251 132 219 93 182 74 149 85 134 122 141 170 167 214 198 241 219 246 215 237 183 224 130 217 76 224 39 242 35 266 64 286 115 299 167 307 200 313 201 327 170 350 121 381 75 409 51 426 60 426 97 409 149 385 198 369 227 374 232 404 218 454 195 506 180 544 180 551 197 527 225 480 254 431 276 400 289 400 296 433 304Z'/%3E%3Cpath d='M482 337 530 364 556 390 549 408 512 410 459 397 408 377 378 364 373 369 390 398 416 445 436 497 438 534 421 543 392 521 359 476 333 429 318 399 311 400 306 433 295 486 277 538 256 568 237 564 228 528 232 473 243 420 251 387 245 384 219 406 177 439 130 468 94 477 82 462 99 429 137 389 179 355 206 335 204 329 170 329 116 328 62 319 28 303 29 284 63 269 118 263 172 265 205 267 208 260 182 239 141 203 105 162 90 128 103 113 138 124 184 155 224 190 249 214 255 210 249 177 241 124 240 69 250 33 269 30 289 61 305 114 313 167 316 201 323 202 340 173 368 127 403 84 433 63 450 73 445 110 423 161 395 207 376 235 381 240 412 228 463 211 517 201 554 205 560 223 533 248 484 272 433 289 400 299 400 306 432 317Z'/%3E%3Cpath d='M478 355 523 386 546 415 537 432 500 431 448 412 400 388 371 371 366 376 380 406 401 456 415 509 414 546 397 554 369 529 341 481 320 432 309 400 302 400 293 433 277 485 254 534 229 562 211 557 206 520 215 466 231 414 242 382 237 378 209 397 164 427 114 450 77 455 67 439 87 408 129 372 174 343 203 326 201 319 168 316 114 309 61 295 29 276 32 257 67 246 122 245 176 252 209 257 212 251 189 227 152 188 120 143 108 107 122 95 157 109 199 144 236 183 258 209 264 206 261 173 259 119 263 64 277 29 296 28 313 61 323 115 326 169 326 203 333 205 352 178 385 134 424 96 456 78 471 89 463 126 436 173 404 216 382 243 386 249 419 240 471 228 526 223 563 230 567 249 537 271 486 291 433 303 400 309 399 316 430 330Z'/%3E%3Cpath d='M471 372 513 408 533 439 523 455 486 450 436 427 391 397 363 378 358 382 369 414 385 466 394 520 389 557 371 562 346 534 323 485 307 433 298 400 291 400 280 432 259 481 231 529 203 554 186 546 185 509 199 456 220 406 234 376 229 371 200 388 152 412 100 431 63 432 54 415 77 386 122 355 170 330 201 316 200 309 167 303 114 291 63 271 33 249 37 230 74 223 129 228 181 240 214 249 218 243 196 216 164 173 137 126 129 89 144 78 176 96 215 134 248 178 267 205 274 203 274 169 277 115 287 61 304 28 323 29 337 64 341 119 339 173 336 206 342 209 364 183 401 144 443 109 478 95 492 107 480 143 448 188 411 227 388 251 391 257 424 252 478 245 533 246 568 257 571 276 539 295 486 309 432 316 399 319 397 326 426 343Z'/%3E%3Cpath d='M463 389 501 429 518 462 506 477 470 468 423 439 381 406 355 384 349 387 357 420 368 473 372 528 363 564 344 568 323 538 305 486 294 433 289 400 282 399 267 429 241 476 208 521 179 543 162 534 164 497 184 445 210 398 227 369 222 364 192 377 141 397 88 410 51 408 44 390 70 364 118 337 168 317 200 306 200 299 167 289 116 272 67 248 40 223 46 205 83 201 137 211 188 228 219 240 224 235 205 207 177 161 155 110 150 73 167 63 197 84 232 127 260 173 277 202 284 201 287 167 295 114 311 61 331 30 350 33 360 69 359 124 351 177 345 210 351 214 376 190 416 155 462 124 497 113 510 128 495 162 459 203 418 239 392 260 395 267 428 265 482 263 537 269 571 284 572 303 538 319 484 328 430 329 396 329 394 335 421 355Z'/%3E%3Cpath d='M454 405 488 448 501 483 488 496 453 484 409 451 370 413 347 389 340 392 345 425 350 479 349 534 336 569 318 571 299 539 286 485 281 432 279 398 272 396 254 425 224 470 187 510 155 530 139 519 146 482 170 433 201 389 221 361 216 356 184 366 132 381 78 388 41 383 36 364 65 340 115 319 167 304 200 296 200 289 169 276 120 254 73 225 49 197 56 180 94 180 146 195 196 218 226 232 231 227 215 198 191 149 174 97 174 60 191 51 219 75 250 121 273 170 287 201 293 200 301 167 314 115 334 64 358 35 376 39 383 76 376 130 363 183 354 215 359 219 386 198 430 167 478 141 515 134 526 149 507 182 468 219 424 251 396 269 398 276 431 278 485 281 539 293 571 311 570 330 535 343 480 346 426 342 393 338 390 344 415 367Z'/%3E%3Ccircle cx='300' cy='300' r='84'/%3E%3Ccircle cx='300' cy='300' r='90'/%3E%3Ccircle cx='300' cy='300' r='285'/%3E%3Ccircle cx='300' cy='300' r='291'/%3E%3C/g%3E%3C/svg%3E");
+  /* Rubber-stamp ink never lands evenly: this mask leaves small gaps in every impression. */
+  --ink-grunge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -9 0 0 0 6.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+.passport {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: 14px;
+  background-color: var(--page-paper);
+  background-image:
+    radial-gradient(140% 110% at 50% 35%, transparent 55%, rgb(0 0 0 / 0.08)),
+    linear-gradient(170deg, rgb(255 255 255 / 0.18), transparent 40%),
+    var(--paper-fibre);
+  background-size: auto, auto, 240px 240px;
+  color: var(--page-ink);
+  box-shadow: 0 -6px 16px rgb(0 0 0 / 0.4);
+}
+
+/* The security print, in the page's ink. */
+.passport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--page-ink);
+  opacity: 0.075;
+  -webkit-mask-image: var(--paper-waves), var(--paper-rosette);
+  mask-image: var(--paper-waves), var(--paper-rosette);
+  -webkit-mask-size: 96px 32px, 380px 380px;
+  mask-size: 96px 32px, 380px 380px;
+  -webkit-mask-repeat: repeat, no-repeat;
+  mask-repeat: repeat, no-repeat;
+  -webkit-mask-position: 0 0, right -150px bottom -160px;
+  mask-position: 0 0, right -150px bottom -160px;
+  pointer-events: none;
+}
+
+@media (prefers-contrast: more) {
+  .passport {
+    background-image: none;
+  }
+
+  .passport::before {
+    content: none;
+  }
+}
+
+.passport.is-just-stamped {
+  outline: 2px solid var(--ok);
+  outline-offset: 2px;
+}
+
+.passport-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.passport-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--page-ink) 40%, transparent);
+  font-family: var(--font-display);
+  font-size: var(--step-0);
+}
+
+.passport-title {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+.passport-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.passport-where {
+  font-size: 0.6875rem;
+  opacity: 0.75;
+}
+
+.badge-new {
+  justify-self: start;
+  margin-top: var(--space-1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--ok-solid);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.passport-count {
+  font-variant-numeric: tabular-nums;
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-stamp);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.passport-label {
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.ink-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: 10px 0;
+  border-block: 1px solid color-mix(in srgb, var(--page-ink) 15%, transparent);
+  justify-items: center;
+  align-items: center;
+}
+
+.ink-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 64px;
+  aspect-ratio: 64 / 70;
+}
+
+/* A rubber-stamp impression: double rule, slightly faded ink, set at its own angle. */
+.ink-stamp {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 3.5px double var(--ink);
+  outline: 1.5px solid var(--ink);
+  outline-offset: 2px;
+  /* A wash of ink inside the rim, as a well-inked stamp leaves. */
+  background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--ink) 16%, transparent), color-mix(in srgb, var(--ink) 7%, transparent) 70%);
+  color: var(--ink);
+  opacity: 0.94;
+  mix-blend-mode: multiply;
+  -webkit-mask-image: var(--ink-grunge);
+  mask-image: var(--ink-grunge);
+  -webkit-mask-size: 140px 140px;
+  mask-size: 140px 140px;
+  /* Each stamp catches a different patch of the grain. */
+  -webkit-mask-position: var(--grain-x, 0) var(--grain-y, 0);
+  mask-position: var(--grain-x, 0) var(--grain-y, 0);
+  transform: rotate(var(--rot));
+}
+
+.ink-stamp.is-round { width: 92%; aspect-ratio: 1; border-radius: 50%; }
+.ink-stamp.is-rect { width: 98%; height: 68%; border-radius: 6px; }
+.ink-stamp.is-oval { width: 100%; height: 72%; border-radius: 50%; }
+
+.ink-date {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-stamp);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.ink-no {
+  font-family: var(--font-stamp);
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.ink-empty {
+  display: grid;
+  place-items: center;
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  /* Printed on the page like a target, waiting for its stamp. */
+  border: 1px solid color-mix(in srgb, var(--page-ink) 40%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--page-ink) 18%, transparent);
+  outline-offset: -5px;
+  color: color-mix(in srgb, var(--page-ink) 62%, transparent);
+  font-family: var(--font-stamp);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* The last slot is the reward: a heavier ring, so the goal reads at a glance. */
+.ink-slot:last-child .ink-empty {
+  border: 2px solid color-mix(in srgb, var(--page-ink) 70%, transparent);
+  color: var(--page-ink);
+  font-size: 0.8125rem;
+}
+
+/* The visit that just landed: a "New" tag under it (or "Sample" on the landing page). No ring:
+   the stamp keeps its own shape and ink. */
+.ink-slot.is-newest::after {
+  content: attr(data-tag);
+  position: absolute;
+  z-index: 2;
+  bottom: -4px;
+  left: 50%;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--ok-solid);
+  color: #fff;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.passport-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.passport-foot p {
+  display: grid;
+}
+
+.passport-foot .is-end {
+  justify-items: end;
+  text-align: right;
+}
+
+.passport-reward {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.passport-togo {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-stamp);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* ---------- Your cards: the wallet ---------- */
+
+.wallet {
+  position: relative;
+  /* Trim at the bottom edge, so cards dropping away disappear behind it, while outlines and
+     shadows can still spill over the top and sides. */
+  clip-path: inset(-24px -100vw 0 -100vw);
+  transition: height 600ms var(--spring-smooth);
+}
+
+/* Every card is a full page, stacked absolutely; layout() slides them with transforms. */
+.wallet-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform-origin: 50% 0;
+  --delay: 0ms;
+  --ease: var(--spring-smooth);
+  box-shadow: 0 -4px 14px rgb(0 0 0 / 0.38);
+  transition:
+    transform 600ms var(--ease) var(--delay),
+    scale var(--press-out) var(--ease-out),
+    opacity 320ms var(--ease-out) calc(var(--delay) + 60ms),
+    outline-color 300ms ease;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.wallet:not(.is-ready),
+.wallet:not(.is-ready) .wallet-card {
+  transition: none;
+}
+
+/* The opened card lifts on a spring with a whisper of overshoot, like a pass out of Wallet. */
+.wallet-card.is-open {
+  outline-color: var(--accent);
+  --ease: var(--spring-lift);
+}
+
+.wallet-card.is-away {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 600ms var(--ease) var(--delay),
+    opacity 260ms var(--ease-out) var(--delay),
+    visibility 0s linear calc(var(--delay) + 600ms);
+}
+
+/* Cards being dealt in on arrival. */
+.wallet.is-dealing .wallet-card {
+  opacity: 0;
+}
+
+/* A card gives under your finger the moment it lands, before it opens. */
+.wallet-card:has(.wallet-hit:active) {
+  scale: 0.975;
+  transition-duration: 600ms, var(--press-in), 320ms, 300ms;
+}
+
+/* Swiping between open cards: the finger (then a JS spring) drives the transform directly. */
+.wallet-card.is-swiping {
+  transition: opacity 260ms var(--ease-out), outline-color 300ms ease, visibility 0s linear 260ms;
+}
+
+/* The next card, alongside the one you're swiping. */
+.wallet-card.is-away.is-peeking {
+  opacity: 1;
+  visibility: visible;
+}
+
+.wallet-card:not(.is-away) {
+  opacity: 1;
+  visibility: visible;
+}
+
+.wallet-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Only takes room when All cards or Edit order shows (never for a single card). */
+.wallet-toolbar:has(> :not([hidden])) {
+  min-height: 44px;
+  margin-bottom: var(--space-2);
+}
+
+.wallet-edit {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--step-0);
+  font-weight: 600;
+  transition: opacity var(--press);
+}
+
+.wallet-edit:active,
+.wallet-back:active {
+  opacity: 0.6;
+}
+
+.wallet-edit[hidden] {
+  display: none;
+}
+
+.wallet-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--step-0);
+  font-weight: 600;
+  transition: opacity var(--press);
+}
+
+/* Chevron stroke matches the semibold label beside it. */
+.wallet-back::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: solid currentColor;
+  border-width: 0 0 2px 2px;
+  transform: rotate(45deg);
+}
+
+.wallet-back[hidden] {
+  display: none;
+}
+
+/* An invisible button over each card in the list or the pile. */
+.wallet-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wallet-hit:focus-visible {
+  outline-offset: -3px;
+}
+
+.wallet-hit:active {
+  background: rgb(0 0 0 / 0.04);
+}
+
+.stack-hint:empty {
+  display: none;
+}
+
+.stack-hint {
+  min-height: 1lh;
+  margin-top: var(--space-3);
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet,
+  .wallet-card {
+    transition: none;
+  }
+}
+
+/* Above Your cards. Two classes, so the general .rewards spacing (screens.css) doesn't win. */
+.rewards.list-rewards {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.list-rewards[hidden] {
+  display: none;
+}
+
+/* ---------- Loading: the page's shape, breathing, before the real card arrives ---------- */
+
+.passport.is-skeleton {
+  --page-paper: color-mix(in srgb, var(--text) 8%, var(--paper));
+  --page-ink: var(--muted);
+  margin-top: var(--space-5);
+  background-image: none;
+  box-shadow: none;
+  animation: breathe 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  to { opacity: 0.55; }
+}
+
+
+/* ---------- Reward ticket ---------- */
+
+.ticket {
+  --notch: 10px;
+  display: flex;
+  align-items: stretch;
+  min-height: 72px;
+  background: var(--page-paper, var(--card-paper));
+  color: var(--page-ink, var(--card-ink));
+  border-radius: 12px;
+  transition: scale var(--press);
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at 0 50%, #0000 98%, #000) 0 0 / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% 50%, #0000 98%, #000) 100% 0 / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at 0 50%, #0000 98%, #000) 0 0 / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% 50%, #0000 98%, #000) 100% 0 / 51% 100% no-repeat;
+}
+
+.ticket-main {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--notch) + var(--space-4));
+}
+
+.ticket-reward {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.ticket-meta {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.ticket-use {
+  flex: none;
+  min-width: 104px;
+  padding: 0 calc(var(--notch) + var(--space-3)) 0 var(--space-4);
+  border: 0;
+  border-left: 1.5px dashed color-mix(in srgb, currentColor 45%, transparent);
+  background: none;
+  color: inherit;
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.ticket-use:active {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+/* The ticket's notch mask would cut an outside ring off, so it sits inside the stub. */
+.ticket-use:focus-visible {
+  outline-color: currentColor;
+  outline-offset: -6px;
+}
+
+/* ---------- Card details (under an opened card, and on the card page) ---------- */
+
+.wallet-details:empty {
+  display: none;
+}
+
+.card-details {
+  display: grid;
+  margin-top: var(--space-4);
+  animation: details-in 480ms var(--ease-out) 140ms both;
+}
+
+/* Under an opened card, each section rises in on its own, 60ms apart, after the page lifts. */
+.card-details > * {
+  animation: details-in 420ms var(--ease-out) backwards;
+  animation-delay: calc(160ms + var(--n, 0) * 60ms);
+}
+
+.card-details > :nth-child(2) { --n: 1; }
+.card-details > :nth-child(3) { --n: 2; }
+.card-details > :nth-child(4) { --n: 3; }
+.card-details > :nth-child(n + 5) { --n: 4; }
+
+.other-cards-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.other-cards-list .peek {
+  align-items: center;
+}
+
+@keyframes details-in {
+  from { opacity: 0; transform: translateY(16px); }
+}
+
+/* Progress is the first panel under a card, tinted with the place's paper. */
+.block.panel.next {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+  background:
+    radial-gradient(circle at 16% 40%, color-mix(in srgb, var(--page-paper) 16%, transparent), transparent 55%),
+    color-mix(in srgb, var(--page-paper) 6%, var(--surface));
+  box-shadow: var(--edge-light), 0 0 0 1px color-mix(in srgb, var(--page-paper) 20%, var(--rule)), var(--shadow-depth);
+}
+
+.next-art {
+  width: 92px;
+  aspect-ratio: 1;
+}
+
+.vessel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.vessel-line {
+  fill: none;
+  stroke: var(--page-paper);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vessel-fill {
+  fill: var(--page-paper);
+  opacity: 0.88;
+  transform: translateY(var(--level));
+}
+
+.next-text {
+  display: grid;
+  gap: 2px;
+}
+
+.next-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--page-paper);
+  font-family: var(--font-stamp);
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.next-reward {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.next.is-done .next-reward {
+  color: var(--muted);
+  font-size: 1.25rem;
+}
+
+.rules-issuer {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-details > * {
+    animation: none;
+  }
+}
+
+/* ---------- Depth and motion ---------- */
+
+/* Paper edge: a hairline of light along the top of every page. */
+.passport {
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 -6px 16px rgb(0 0 0 / 0.4),
+    0 18px 40px -18px rgb(0 0 0 / 0.6);
+}
+
+/* The page on the card screen tilts toward your finger. */
+.passport.is-tiltable {
+  transform: perspective(1100px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+  transition: transform 600ms var(--spring-lift);
+  touch-action: pan-y;
+}
+
+.passport.is-tiltable.is-tilting,
+.wallet-card.is-tilting {
+  transition: transform 70ms linear;
+}
+
+.wallet-card {
+  touch-action: pan-y;
+}
+
+/* Light follows your finger while you tilt. */
+.passport.is-tilting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--shine-x, 50%) var(--shine-y, 50%), rgb(255 255 255 / 0.32), transparent 55%);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+/* One sweep of light as a page lifts open. */
+.sheen {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  z-index: 2;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+/* A soft glow in the page's own colour sits behind the card in front. */
+.has-glow,
+.wallet-wrap {
+  position: relative;
+  isolation: isolate;
+}
+
+.has-glow::before,
+.wallet-wrap[data-open]::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -30px -40px;
+  background: radial-gradient(60% 45% at 50% 40%, color-mix(in srgb, var(--page-paper) 26%, transparent), transparent 72%);
+  filter: blur(8px);
+  pointer-events: none;
+  animation: glow-in 640ms var(--ease-out) 110ms both;
+}
+
+@keyframes glow-in {
+  from { opacity: 0; }
+}
+
+/* Sections ease up as they scroll into view. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+}
+
+.reveal.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* The page's entrance (enterPage in motion.ts): the headline leads and comes into focus, the
+   rest follow a beat behind with less travel; decorations only fade. */
+[data-enter] {
+  animation: enter-support 480ms var(--ease-out) var(--enter-delay, 0ms) both;
+}
+
+[data-enter='lead'] {
+  animation-name: enter-lead;
+  animation-duration: 560ms;
+}
+
+[data-enter='card'] {
+  animation-name: enter-card;
+  animation-duration: 640ms;
+  animation-timing-function: var(--spring-smooth);
+}
+
+[data-enter='fade'] {
+  animation-name: enter-fade;
+  animation-duration: 400ms;
+}
+
+@keyframes enter-lead {
+  from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+}
+
+@keyframes enter-support {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes enter-card {
+  from { opacity: 0; transform: translateY(22px) scale(0.98); }
+}
+
+@keyframes enter-fade {
+  from { opacity: 0; }
+}
+
+/* Reduce Motion: everything fades in together, nothing travels. */
+@media (prefers-reduced-motion: reduce) {
+  [data-enter] {
+    animation: enter-fade 200ms ease both;
+  }
+}
+
+/* ---------- Reordering ---------- */
+
+/* Long-press shouldn't select text or pop iOS's callout menu. */
+.wallet-card {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The lifted card: raised, flat, following the finger with no lag. */
+.wallet-card.is-lifted {
+  transition: none;
+  outline-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 28px 50px -14px rgb(0 0 0 / 0.75),
+    0 0 0 1px rgb(0 0 0 / 0.08);
+}
+
+/* The others slide aside quickly to make room. */
+.wallet.is-reordering .wallet-card:not(.is-lifted) {
+  transition: transform 280ms var(--ease-out);
+}
+
+/* Edit order: up and down buttons where the visit count sits. */
+.reorder-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  display: none;
+  gap: var(--space-2);
+}
+
+.wallet.is-editing .reorder-controls {
+  display: flex;
+}
+
+.wallet.is-editing .passport-count {
+  visibility: hidden;
+}
+
+.reorder-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--page-ink) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--page-ink) 28%, transparent);
+  color: var(--page-ink);
+}
+
+.reorder-button::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 2px 0 0 2px;
+  transform: translateY(2px) rotate(45deg);
+}
+
+/* 40px to see, 44px to hit: the 8px gap keeps the two hit areas apart. */
+.reorder-button::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.reorder-button.is-down::before {
+  transform: translateY(-2px) rotate(-135deg);
+}
+
+.reorder-button:disabled {
+  opacity: 0.3;
+}
+
+.reorder-button:not(:disabled):active {
+  background: color-mix(in srgb, var(--page-ink) 18%, transparent);
+}
+
+
+/* ---------- Stamp landing and the card-full moment (passport.ts) ---------- */
+
+.passport-num {
+  display: inline-block;
+  overflow: hidden;
+}
+
+.passport-tick {
+  display: inline-block;
+}
+
+/* Ink spreading out from the impact, in the stamp's own ink. */
+.ink-splash {
+  position: absolute;
+  inset: 6% 2% 10%;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  pointer-events: none;
+}
+
+/* The stamp's shadow on the page, gathering as it comes down. */
+.ink-shadow {
+  position: absolute;
+  inset: 12% 8%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.5), transparent);
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.ink-burst {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.ink-fleck {
+  position: absolute;
+  width: var(--size, 8px);
+  height: var(--size, 8px);
+  margin: calc(var(--size, 8px) / -2);
+  border-radius: 50% 40% 55% 45%;
+  background: var(--ink);
+}
+
+/* A ring of JOEYY orange runs round the page as it fills. */
+.passport-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 3px var(--accent), inset 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+/* ---------- Hover (mouse and trackpad only) ---------- */
+
+@media (hover: hover) and (pointer: fine) {
+  .wallet-edit:hover,
+  .wallet-back:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .wallet-hit:hover {
+    background: color-mix(in srgb, var(--page-ink) 4%, transparent);
+  }
+
+  .ticket-use:hover {
+    background: color-mix(in srgb, currentColor 6%, transparent);
+  }
+
+  .reorder-button:not(:disabled):hover {
+    background: color-mix(in srgb, var(--page-ink) 16%, transparent);
+  }
+
+  .peek:hover {
+    filter: brightness(1.04);
+  }
+}
+
