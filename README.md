@@ -334,10 +334,19 @@ xcodebuild test -project JOEYY.xcodeproj -scheme JOEYY \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'
 ```
 
-GitHub Actions (`.github/workflows/ios.yml`) runs on every push to `main` and every pull
-request: it fails if `JOEYY.xcodeproj` differs from `xcodegen generate`, then builds and runs
-unit tests and UI tests on an iPhone simulator. Results
-are uploaded as an artifact. Keep `main` green; open a pull request for changes.
+GitHub Actions (`.github/workflows/ios.yml`) runs only when the app changes (`JOEYY/`,
+`JOEYYTests/`, `JOEYYUITests/`, `project.yml`, `JOEYY.xcodeproj/`, or the workflow itself):
+
+| When | What runs |
+| --- | --- |
+| Every qualifying push to `main` and every qualifying pull request | The check that `JOEYY.xcodeproj` matches `xcodegen generate`, the build, and unit tests |
+| Qualifying pull requests into `main` | The above, plus the UI tests |
+| Nightly at 09:00 UTC, on `main` | The above, plus the UI tests (regardless of changes) |
+| Manual runs (**Run workflow**) | The above, plus the UI tests unless **Also run the UI tests** is unchecked |
+
+Results, including the `.xcresult` bundles and logs, are uploaded as an artifact. A failed project
+check also uploads the regenerated `project.pbxproj` as the `xcodeproj` artifact. Backend changes
+run `.github/workflows/backend.yml` instead. Keep `main` green; open a pull request for changes.
 
 `-skip-welcome -reset-demo` supports repeatable walkthroughs.
 `-ui-testing` isolates defaults; `-reset-demo` then clears only test state.
