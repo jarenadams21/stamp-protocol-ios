@@ -111,7 +111,7 @@ The page is a **passport in a Wallet stack** (the direction picked on the design
 | `/w/:token` | The "Open my JOEYY card" link on a Wallet pass: signs this browser in and shows the card |
 | `/w/:token?use=reward` | "Use my reward" on a Wallet pass: signs in, then opens the redeem sheet |
 | `/signed-in?next=/c/…` | Where the backend sends the diner back after Sign in with Apple or Google: shows what came over |
-| `/discover` | Every place using JOEYY, filtered by All, New to you and Your cards |
+| `/discover` | Every place using JOEYY, filtered by All, New to you and Your cards, with a search box (`?q=` keeps the search) that asks the backend's Places API |
 | `/me` | Profile: your name (only you see it), a stamp for every place, how you're signed in, save, sign out, delete your account |
 | `/privacy`, `/terms` | Placeholders until the real policies exist |
 | `/business` | The business site for owners: what JOEYY is, then sign in with an email code |

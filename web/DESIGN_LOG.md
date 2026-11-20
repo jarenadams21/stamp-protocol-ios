@@ -10,6 +10,7 @@ shared from its Share menu).
 
 | Version | Date | What changed | Why |
 | --- | --- | --- | --- |
+| [v4.2](#v42-search-places) | 2026-11-20 | A search box on Discover finds places by name through the shared backend's Places API; tap a result to see its card | Yemi's task: search the restaurants in our database and open one to see its card |
 | [v4.1](#v41-stamps-with-punch-paper-with-texture) | 2026-11-15 | Stamps land harder (shadow, squash, wet ink drying, ink flecks, the count pops) and look inked (patchy rubber-stamp ink, heavier rims); the card is real paper (fibres, a security print and rosette in the place's ink, darker edges); empty slots printed as targets, the reward slot heavier | Demo feedback: more pop on the stamps, more texture on the card |
 | [v4.0](#v40-the-business-site) | 2026-11-15 | The business site at `/business`: email sign-in, a four-step setup with the real card filling in as you type, stand linking, Today, Card and Stands. A card made there is live on the diner side | Owners had no way to sign up and make their own card |
 | [v3.16](#v316-landing-page-profile-and-the-cover) | 2026-11-15 | Landing page with a Try a tap sample card; profile with your name, sign out and delete account; the page is now a printed passport cover (security lines, rosette, grain); quieter foil wordmark; no ring over the newest stamp | Feedback: no page for newcomers, a thin profile, a bare background, a loud wordmark, an awkward ring on new stamps |
@@ -36,6 +37,27 @@ shared from its Share menu).
 | [v1](#v1-paper-card) | 2026-11-11 | First build: punch card matching the iOS app, every tap and error state, redeem and staff screens | First version |
 
 ---
+
+## v4.2: search places
+
+**Why:** the team's task list: build a working search over the restaurants in our database, and let
+diners tap one to see its card.
+
+**What changed:**
+- **A search box on Discover** (`src/screens/discover.ts`), above the filter chips. It asks the
+  shared backend's Places API (`GET /v1/places?query=`, `backend/src/routes/places.ts`) after a
+  short pause in typing, so it finds every live place in the database, not just the ones listed.
+  While searching, the chips hide and the results replace the list; clearing the box brings the
+  list straight back. "1 place found" is read out to screen readers; no match shows "No places
+  found" with a way back to all places; no signal says so in place.
+- **Tap a result to see its card:** results are the same place tiles as Discover, so a new place
+  opens its details sheet (card, reward, hours, address) and one you already have opens your card.
+- **The search is in the address** (`/discover?q=cafe`), so a reload or a shared link keeps it.
+- **One shape for screens:** the backend answers `{ places }` with the business's own fields;
+  `searchPlaces()` in `src/api/http.ts` turns each into the `PlaceSummary` the tiles already use.
+  The demo backend answers `?query=` with the backend's exact rules and shape.
+
+![Search at 390px](docs/iterations/v4.2-search-390.jpg) ![Search at 320px](docs/iterations/v4.2-search-320.jpg)
 
 ## v4.1: stamps with punch, paper with texture
 

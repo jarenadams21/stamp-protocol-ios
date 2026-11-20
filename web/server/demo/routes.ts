@@ -15,7 +15,7 @@ import { customerOf, deviceFor, persist, type Device, syncFromDisk } from './sto
 const COOKIE = 'joeyy_device';
 const LATENCY_MS = 300; // Enough to see loading states, like a real network.
 
-type Handler = (context: { device: Device; body: Record<string, unknown>; params: string[] }) => unknown;
+type Handler = (context: { device: Device; body: Record<string, unknown>; params: string[]; query: URLSearchParams }) => unknown;
 
 const routes: { method: string; pattern: RegExp; handler: Handler; slow?: boolean }[] = [];
 const on = (method: string, pattern: RegExp, handler: Handler, slow = true) => routes.push({ method, pattern, handler, slow });
@@ -36,7 +36,8 @@ on('POST', /^\/v1\/web\/sign-out$/, ({ device }) => service.signOut(device));
 on('PUT', /^\/v1\/web\/me\/profile$/, ({ device, body }) => service.saveProfile(device, body.displayName));
 on('DELETE', /^\/v1\/web\/me$/, ({ device }) => service.deleteAccount(device));
 on('POST', /^\/v1\/web\/cards\/([^/]+)\/wallet$/, ({ device, params, body }) => service.walletPass(device, params[0], String(body.platform ?? '')));
-on('GET', /^\/v1\/places$/, () => service.places());
+// With ?query= this is the shared backend's Places API, answered the same way; without, the Discover list.
+on('GET', /^\/v1\/places$/, ({ query }) => (query.has('query') ? service.searchPlaces(query.get('query') ?? '') : service.places()));
 
 // The business site (docs/business-api.md).
 on('GET', /^\/v1\/partner\/me$/, ({ device }) => partner.me(device), false);
@@ -113,7 +114,7 @@ function servePass(req: IncomingMessage, res: ServerResponse, path: string) {
   }
 }
 
-async function serveApi(req: IncomingMessage, res: ServerResponse, path: string) {
+async function serveApi(req: IncomingMessage, res: ServerResponse, path: string, query: URLSearchParams) {
   const device = deviceFor(readCookie(req));
   res.setHeader('Set-Cookie', `${COOKIE}=${device.id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`);
 
@@ -126,7 +127,7 @@ async function serveApi(req: IncomingMessage, res: ServerResponse, path: string)
       if (device.offline) throw new ApiError('offline', 'No connection');
     }
     const params = match.slice(1).map(decodeSegment);
-    const result = route.handler({ device, body: await readJson(req), params });
+    const result = route.handler({ device, body: await readJson(req), params, query });
     persist();
     // A stamp, redemption or sign-in may have changed a card that's in someone's Wallet.
     pushChangedPasses();
@@ -148,8 +149,9 @@ function answerError(res: ServerResponse, error: unknown) {
 /** Connect middleware: answers the demo backend's routes and passes everything else to Vite. */
 export async function demoBackend(req: IncomingMessage, res: ServerResponse, next: () => void) {
   let path: string;
+  let query: URLSearchParams;
   try {
-    path = new URL(req.url ?? '/', 'http://localhost').pathname;
+    ({ pathname: path, searchParams: query } = new URL(req.url ?? '/', 'http://localhost'));
   } catch {
     return next();
   }
@@ -160,7 +162,7 @@ export async function demoBackend(req: IncomingMessage, res: ServerResponse, nex
     partner.registerPartners();
     if (path.startsWith('/api/wallet/')) servePass(req, res, path);
     else if (path.startsWith('/passkit/v1/')) await passkitService(req, res, path);
-    else await serveApi(req, res, path);
+    else await serveApi(req, res, path, query);
   } catch (error) {
     answerError(res, error);
   }

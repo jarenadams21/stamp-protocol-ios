@@ -1,6 +1,7 @@
 import {
   ApiError,
   type CardState,
+  type Place,
   type PlaceSummary,
   type Identity,
   type RedeemIntent,
@@ -96,6 +97,10 @@ export class HttpStampApi implements StampApi {
   places() {
     return this.request<PlaceSummary[]>('GET', '/v1/places');
   }
+  async searchPlaces(query: string) {
+    const { places } = await this.request<{ places: Place[] }>('GET', `/v1/places?query=${encodeURIComponent(query)}`);
+    return places.map(toPlaceSummary);
+  }
   async reorderCards(businessIds: string[]) {
     await this.request<unknown>('PUT', '/v1/web/me/cards/order', { businessIds });
   }
@@ -105,4 +110,13 @@ export class HttpStampApi implements StampApi {
   async deleteAccount() {
     await this.request<unknown>('DELETE', '/v1/web/me');
   }
+}
+
+/** The backend's place, in the shape the screens use (a business and its live card). */
+export function toPlaceSummary(place: Place): PlaceSummary {
+  const { theme, ...program } = place.program;
+  return {
+    business: { id: place.id, name: place.name, location: place.location },
+    program: { ...program, theme: { ...theme, coverURL: theme.coverURL ?? undefined } },
+  };
 }

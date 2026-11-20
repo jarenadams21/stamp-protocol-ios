@@ -30,7 +30,7 @@ async function start() {
   route('/r/:intentId', ({ intentId }) => redeemScreen(api, intentId));
   route('/w/:token', ({ token }) => walletRestoreScreen(api, token));
   route('/signed-in', (_params, query) => signedInScreen(api, query));
-  route('/discover', () => discoverScreen(api));
+  route('/discover', (_params, query) => discoverScreen(api, query.get('q') ?? ''));
   route('/me', () => profileScreen(api));
   // The business site, loaded only when an owner opens it.
   const business = () => import('./business');
