@@ -260,38 +260,56 @@ database, so there is no access key or connection string.
   users** (up to 100), or publish the app before the pilot. Only the `openid` scope is requested,
     so publishing doesn't need Google's sensitive-scope verification.
 
-### Setting up email codes in Azure
+### Email codes in Azure
 
-1. **Email Communication Services resource**: in the Azure portal, create an *Email Communication
-   Services* resource (for example `joeyy-dev-email`) in `joeyy-dev-rg`, data location United States.
-2. **Azure-managed domain**: open it, go to **Provision domains**, and choose **Add domain** →
-   **Azure managed domain**. This gives a domain like `<id>.azurecomm.net` that's verified and can
-   send right away, with no DNS work. Its default sender is `DoNotReply@<id>.azurecomm.net`; that's
-   `EMAIL_FROM`. You can rename the sender's display name to JOEYY under **MailFrom addresses**.
-3. **Communication Services resource**: create a *Communication Services* resource (for example
-   `joeyy-dev-acs`) in the same resource group and data location. Its **Endpoint** on the Overview
-   page is `ACS_EMAIL_ENDPOINT` (and later `ACS_ENDPOINT` for texts).
-4. **Connect them**: in the Communication Services resource, go to **Email** → **Domains** →
-   **Connect domain**, and pick the Azure managed domain from step 2.
-5. **Let the API send**: on the Communication Services resource, **Access control (IAM)** → **Add
-   role assignment**, and give the API's managed identity a custom role with
-   `Microsoft.Communication/CommunicationServices/Read` and
-   `Microsoft.Communication/CommunicationServices/Write` (Microsoft documents *Contributor* or that
-   custom role for Entra sign-in; the custom role is narrower). For local runs against Azure, assign
-   it to the `joeyy-devs` group too.
-6. **Turn it on**: set `ACS_EMAIL_ENDPOINT`, `EMAIL_FROM`, and `SIGN_IN_METHODS=google,email`.
+**The dev resources exist** in `joeyy-dev-rg` (the `Microsoft.Communication` provider is registered
+on the subscription):
 
-Azure managed domains are for development only: they're limited to about 5 emails a minute and
-10 an hour per subscription. Before the pilot, add your own domain under **Provision domains**,
-verify it with the DNS records Azure shows (TXT, SPF, DKIM, and DKIM2), connect it in step 4, and
-use a sender on it. A custom domain starts at 30 a minute and 100 an hour, and higher limits can be
-requested through a support ticket. When Azure throttles, the API answers `503 emailUnavailable`. Email sign-in codes can land in spam from an `azurecomm.net` sender; your
-own domain helps.
+| | |
+| --- | --- |
+| Email Communication Services | `joeyy-dev-email`, with an Azure managed domain |
+| Communication Services | `joeyy-dev-acs`, data location United States, connected to that domain |
+| `ACS_EMAIL_ENDPOINT` | `https://joeyy-dev-acs.unitedstates.communication.azure.com` |
+| `EMAIL_FROM` | `DoNotReply@9aa68052-30df-47a1-98ee-71efb451688c.azurecomm.net` |
+| Who can send | The `joeyy-devs` group is Owner of `joeyy-dev-rg`, so `az login` as a member is enough locally |
+
+Both values are in `.env.example`, so `AUTH_MODE=dev` really emails codes through
+`DefaultAzureCredential` once you're signed in. Remove either one to write codes to the log instead.
+To try the flow locally:
+
+```sh
+curl -X POST localhost:8080/v1/auth/email/start -H "Content-Type: application/json" -d '{ "email": "you@example.com" }'
+curl -X POST localhost:8080/v1/auth/email/verify -H "Content-Type: application/json" \
+  -d '{ "role": "customer", "email": "you@example.com", "code": "<the 6 digits>" }'
+```
+
+**Rate limits.** The managed domain is for development only: about 5 emails a minute and 10 an hour
+**per subscription**, shared by everyone testing. Past that, Azure throttles and the API answers
+`503 emailUnavailable`. The API's own limits (one code per address every 30 seconds, 5 an hour)
+apply first. Codes from an `azurecomm.net` sender can also land in spam.
+
+**Before the pilot:** add your own domain to `joeyy-dev-email` (or a production resource) under
+**Provision domains**, verify it with the DNS records Azure shows (TXT, SPF, DKIM, and DKIM2),
+connect it under the Communication Services resource's **Email** → **Domains**, and set `EMAIL_FROM`
+to a sender on it. A custom domain starts at 30 emails a minute and 100 an hour; higher limits can
+be requested through a support ticket.
+
+**In Azure hosting**, give the API's managed identity a role on `joeyy-dev-acs` (or the production
+resource): *Contributor*, or a narrower custom role with
+`Microsoft.Communication/CommunicationServices/Read` and `.../Write`, which is what Microsoft
+documents for Entra sign-in. Then set `ACS_EMAIL_ENDPOINT`, `EMAIL_FROM`, and
+`SIGN_IN_METHODS=google,email`.
+
+To create the resources again elsewhere: create an *Email Communication Services* resource, add an
+**Azure managed domain** under **Provision domains** (its sender `DoNotReply@<id>.azurecomm.net` is
+`EMAIL_FROM`), create a *Communication Services* resource in the same data location (its
+**Endpoint** is `ACS_EMAIL_ENDPOINT`), and connect the domain under **Email** → **Domains**.
 
 For texts later: buy a toll-free number on the Communication Services resource (**Phone numbers**),
 submit toll-free verification (it can take several weeks), then set `ACS_ENDPOINT`, `SMS_FROM`, and
 add `phone` to `SIGN_IN_METHODS`. For Apple, enable Sign in with Apple for `com.joeyy.customer` in
 the Apple Developer account, set `APPLE_AUDIENCES`, and add `apple`.
+
 ## Production identity
 
 Tokens are issued by this API (see [Sign-in](#sign-in)). Every request is checked for signature,

@@ -58,4 +58,17 @@ test("dev mode logs codes, is refused in production, and oidc mode is gone", asy
     assert.deepEqual(dev.signIn.methods, ["apple", "google", "phone", "email"]);
     assert.equal(dev.signIn.sms.label, "server log (dev SMS)");
     assert.equal(dev.signIn.email.label, "server log (dev email)");
+
+    const devWithEmail = await authFromEnv(
+        {
+            AUTH_MODE: "dev",
+            ACS_EMAIL_ENDPOINT: "https://joeyy-dev-acs.unitedstates.communication.azure.com",
+            EMAIL_FROM: "DoNotReply@example.azurecomm.net",
+        },
+        () => {},
+    );
+    assert.equal(devWithEmail.signIn.email.label, "Azure Communication Services Email (joeyy-dev-acs.unitedstates.communication.azure.com)");
+    assert.equal(devWithEmail.signIn.sms.label, "server log (dev SMS)", "texts still go to the log");
+    const halfSet = await authFromEnv({ AUTH_MODE: "dev", ACS_EMAIL_ENDPOINT: "https://joeyy-dev-acs.unitedstates.communication.azure.com" }, () => {});
+    assert.equal(halfSet.signIn.email.label, "server log (dev email)");
 });
