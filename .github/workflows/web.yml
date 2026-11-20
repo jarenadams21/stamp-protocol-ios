@@ -1,0 +1,44 @@
+name: Web
+
+# The diner's web page (web/): every change must type-check and build in both modes.
+on:
+  push:
+    branches: [main]
+    paths: [web/**, .github/workflows/web.yml]
+  pull_request:
+    paths: [web/**, .github/workflows/web.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build:demo
+      - name: Prod build (placeholder API address)
+        run: npm run build
+        env:
+          VITE_API_BASE: https://api.example.test
+      - name: Prod bundle has no demo code
+        run: |
+          if grep -l "Preview states\|Norema" dist/assets/*.js; then
+            echo "Demo code found in the production bundle" && exit 1
+          fi

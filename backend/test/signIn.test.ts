@@ -392,6 +392,19 @@ describe("sign-in surface", () => {
         }
     });
 
+    test("doesn't touch public place routes: no token, no sign-in rate limit, no no-store header", async () => {
+        const ip = freshIp();
+        for (let i = 0; i <= SIGN_INS_PER_IP_PER_HOUR; i++) {
+            await post("/v1/auth/refresh", { refreshToken: "x".repeat(43) }, ip);
+        }
+        const places = await ctx.app.inject({ method: "GET", url: "/v1/places?query=cafe", remoteAddress: ip });
+        assert.equal(places.statusCode, 200, "an IP over the sign-in limit can still search places");
+        assert.notEqual(places.headers["cache-control"], "no-store");
+        // Partner routes still require a partner token, even from a signed-in customer.
+        const customer = await appleSignIn("customer", "apple-places");
+        assert.equal((await partnerBusiness(customer.body.accessToken)).statusCode, 401);
+    });
+
     test("limits sign-in attempts per IP address", async () => {
         const ip = freshIp();
         let last = 0;

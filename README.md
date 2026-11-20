@@ -2,6 +2,10 @@
 
 A native SwiftUI customer-loyalty prototype for iOS 18 and later.
 
+Also in this repository: [`backend/`](backend/README.md), the shared API, and
+[`web/`](web/README.md), the page a diner sees after tapping a JOEYY stand (stamp card, rewards,
+Wallet pass and sign-in, no app needed).
+
 ## Version 3
 
 The local-first customer experience includes:

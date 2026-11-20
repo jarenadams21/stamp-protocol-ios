@@ -309,12 +309,16 @@ All routes are versioned under `/v1` and use JSON over HTTPS with UTC ISO 8601 t
 | GET | `/v1/partner/notifications` | New cards started and rewards waiting |
 | POST | `/v1/partner/rewards/{rewardId}/redeem` | Mark a presented reward redeemed (see open decision 1) |
 
-### 8.2 Customer (customer token)
+### 8.2 Customer (customer token, except places)
+
+Places are public, like a menu in the window: anyone can search them and read a place's card
+without signing in, so the website and app can show them before sign-in. They return nothing about
+customers.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| GET | `/v1/places?query=` | Search by business name or exact client ID (not location) |
-| GET | `/v1/places/{placeId}` | A business and its live card configuration |
+| GET | `/v1/places?query=` | Search by business name or exact client ID (not location). **No token needed** |
+| GET | `/v1/places/{placeId}` | A business and its live card configuration. **No token needed** |
 | POST | `/v1/customer/cards` | Enroll in a business (idempotent) |
 | GET | `/v1/customer/cards` | Open cards with progress, archived state, and favorites |
 | POST | `/v1/customer/cards/{cardId}/claim` | Optionally close a full card early |

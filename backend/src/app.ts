@@ -4,6 +4,7 @@ import type { AuthConfig } from "./auth.ts";
 import { ApiError } from "./errors.ts";
 import { imageTooLarge, unsupportedImageType, type ImageStore } from "./images.ts";
 import { partnerRoutes } from "./routes/partner.ts";
+import { placesRoutes } from "./routes/places.ts";
 import { signInRoutes, type SignInOptions } from "./signIn.ts";
 
 export interface AppOptions {
@@ -69,6 +70,7 @@ export function buildApp({ pool, auth, images, signIn, trustProxy = false, logge
         });
     }
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
+    app.register(placesRoutes, { prefix: "/v1/places", pool, images });
     if (images.routes) app.register(images.routes);
 
     return app;

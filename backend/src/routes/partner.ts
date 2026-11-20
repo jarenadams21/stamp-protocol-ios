@@ -25,7 +25,7 @@ declare module "fastify" {
     }
 }
 
-interface BusinessRow {
+export interface BusinessRow {
     id: string;
     name: string;
     location: string;
@@ -34,7 +34,7 @@ interface BusinessRow {
     current_version_id: string | null;
 }
 
-interface VersionRow {
+export interface VersionRow {
     id: string;
     version: number;
     required_punches: number;
@@ -49,11 +49,11 @@ const BUSINESS_FOR_SUBJECT = `
     FROM businesses b JOIN business_owners o ON o.id = b.owner_id
     WHERE o.subject = $1`;
 
-const VERSION_COLUMNS = "id, version, required_punches, reward_description, theme, cover_key, published_at";
+export const VERSION_COLUMNS = "id, version, required_punches, reward_description, theme, cover_key, published_at";
 
 // Image URLs are short-lived, so apps should cache images by key and use the URL only to download.
 
-async function businessJSON(images: ImageStore, row: BusinessRow) {
+export async function businessJSON(images: ImageStore, row: BusinessRow) {
     return {
         id: row.id,
         // The business ID doubles as the client ID that customers can search by.
@@ -68,7 +68,7 @@ async function businessJSON(images: ImageStore, row: BusinessRow) {
 }
 
 /** The card configuration contract (spec section 3.1). */
-async function versionJSON(images: ImageStore, row: VersionRow) {
+export async function versionJSON(images: ImageStore, row: VersionRow) {
     return {
         versionId: row.id,
         version: row.version,

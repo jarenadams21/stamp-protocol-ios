@@ -134,6 +134,13 @@ export async function asPartner(ctx: TestContext, subject: string, method: "GET"
     return { status: response.statusCode, body: response.json() };
 }
 
+/** Calls the API as a signed-in customer. */
+export async function asCustomer(ctx: TestContext, subject: string, url: string) {
+    const token = await ctx.signer.sign("customer", subject);
+    const response = await ctx.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
+    return { status: response.statusCode, body: response.json() };
+}
+
 /** Uploads raw image bytes as a signed-in partner. */
 export async function uploadImage(ctx: TestContext, subject: string, kind: string, data: Buffer, contentType = "image/png") {
     const token = await ctx.signer.sign("partner", subject);
