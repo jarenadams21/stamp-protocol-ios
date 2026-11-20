@@ -1,0 +1,1784 @@
+/* ---------- Page frame ---------- */
+
+.page {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--gutter) calc(var(--space-6) + env(safe-area-inset-bottom));
+}
+
+/* The header is a pane of frosted glass: content scrolls underneath it, blurred, instead of the
+   bar taking a solid strip. A hairline appears only once something is under it. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  margin: calc(-1 * env(safe-area-inset-top)) calc(-1 * var(--gutter)) 0;
+  padding: env(safe-area-inset-top) var(--gutter) 0;
+  background: color-mix(in srgb, var(--paper) 62%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  box-shadow: 0 1px 0 transparent;
+  transition: box-shadow var(--press-out) var(--ease-out), background-color var(--press-out) var(--ease-out);
+  /* Holds still while pages slide underneath (page-transition.ts). */
+  view-transition-name: topbar;
+}
+
+:root[data-scrolled] .topbar {
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rule) 80%, transparent);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .topbar {
+    background: var(--paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Over the header glass, small text gets a touch more weight to stay crisp. */
+.topbar .brand-sub {
+  letter-spacing: 0.01em;
+}
+
+/* The wordmark is foil pressed into the cover: smaller than any headline, a muted gold that
+   echoes the orange mark, with a hairline of shadow under it. The page's headline leads, not this. */
+.brand {
+  color: color-mix(in srgb, var(--accent) 55%, var(--text));
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.45), 0 -1px 0 rgb(255 255 255 / 0.06);
+  padding: var(--space-2) 0;
+}
+
+.brand .brand-sub {
+  color: var(--muted);
+  text-shadow: none;
+}
+
+.topbar .logo-mark {
+  width: 22px;
+  height: 22px;
+}
+
+.hero {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  font-size: var(--step-0);
+}
+
+.place-name {
+  font-weight: 600;
+}
+
+/* The passport's serif for every page headline. */
+.headline {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--step-4);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.subline {
+  color: var(--muted);
+  font-size: var(--step-1);
+  max-width: 34ch;
+  text-wrap: pretty;
+}
+
+/* Section headings in the passport's serif, not a bold system face. */
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 400;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+/* ---------- Card page ---------- */
+
+.rewards {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-7);
+}
+
+.save {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-7);
+}
+
+.footer {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-7);
+  color: var(--muted);
+  font-size: var(--step--1);
+  text-wrap: pretty;
+}
+
+.footer-links {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* ---------- Message pages: the empty-state panel, a little lower on the page ---------- */
+
+.message {
+  margin-top: var(--space-7);
+}
+
+.message .button {
+  margin-top: var(--space-3);
+}
+
+.chip-slot {
+  display: contents;
+}
+
+/* ---------- Redeem countdown ---------- */
+
+.countdown {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 176px;
+  margin: var(--space-6) auto 0;
+}
+
+.countdown-ring {
+  width: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring-track,
+.ring-fill {
+  fill: none;
+  stroke-width: 5;
+}
+
+.ring-track {
+  stroke: var(--rule);
+}
+
+.ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+}
+
+.countdown-time {
+  position: absolute;
+  font-family: var(--font-stamp);
+  font-size: 2.25rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.redeem-reward {
+  margin-top: var(--space-4);
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 400;
+}
+
+.redeem-actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+/* ---------- Staff screen ---------- */
+
+.page-staff {
+  --stripe: color-mix(in srgb, var(--day) 72%, #fff);
+  max-width: none;
+  min-height: 100dvh;
+  padding: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--card-paper);
+  color: var(--card-ink);
+}
+
+/* Today's colour, moving. A screenshot can't fake the motion or the ticking clock. */
+.staff-band {
+  height: calc(72px + env(safe-area-inset-top));
+  background: repeating-linear-gradient(-45deg, var(--day) 0 18px, var(--stripe) 18px 36px);
+  background-size: 50.9px 50.9px;
+  animation: band 1.2s linear infinite;
+}
+
+.staff-band.is-stopped,
+.staff-band.is-still {
+  animation: none;
+}
+
+.staff-band.is-stopped {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+
+@keyframes band {
+  to { background-position: 50.9px 0; }
+}
+
+.staff-body {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter);
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.staff-place {
+  font-size: var(--step-1);
+  font-weight: 600;
+}
+
+.staff-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.staff-check {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--day);
+}
+
+.staff-check::after {
+  content: '';
+  position: absolute;
+  left: 7.5px;
+  top: 4px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.staff-reward {
+  margin-top: var(--space-2);
+  font-family: var(--m-font);
+  font-size: clamp(2.5rem, 12vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+.staff-facts {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  padding: var(--space-4) 0;
+  border-block: 1px solid color-mix(in srgb, var(--card-ink) 22%, transparent);
+}
+
+.staff-facts dt {
+  font-size: var(--step--1);
+  opacity: 0.8;
+}
+
+.staff-facts dd {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.staff-code {
+  font-family: var(--font-figures);
+  letter-spacing: 0.12em;
+}
+
+.staff-clock {
+  margin-top: var(--space-4);
+  font-family: var(--font-stamp);
+  font-size: 3rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.staff-clock.is-stopped {
+  opacity: 0.45;
+}
+
+.staff-day,
+.staff-remaining {
+  font-size: var(--step-0);
+  opacity: 0.85;
+}
+
+.staff-hint {
+  padding: var(--space-4) var(--gutter) calc(var(--space-5) + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: var(--step-0);
+  font-weight: 500;
+}
+
+.staff-back {
+  width: auto;
+  margin: var(--space-4) var(--gutter) calc(var(--space-5) + env(safe-area-inset-bottom));
+}
+
+/* ---------- Preview controls (demo backend only) ---------- */
+
+.demo-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: calc(env(safe-area-inset-top) + 6px) var(--gutter) 6px;
+  background: color-mix(in srgb, var(--text) 6%, var(--paper));
+  border-bottom: 1px dashed var(--rule);
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.demo-bar > span {
+  margin-right: auto;
+}
+
+.demo-bar-button {
+  position: relative;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--text);
+  font-size: var(--step--1);
+  font-weight: 600;
+  transition: scale var(--press);
+}
+
+.demo-bar-button:active {
+  scale: var(--press-scale);
+}
+
+body:has(.page-staff) .demo-bar {
+  display: none;
+}
+
+.demo-group {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.demo-group h3 {
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.demo-items {
+  display: grid;
+  gap: 1px;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--rule);
+}
+
+.demo-item {
+  min-height: 46px;
+  padding: 0 var(--space-4);
+  border: 0;
+  background: var(--paper);
+  text-align: left;
+  font-size: var(--step-0);
+}
+
+.demo-item.is-reset {
+  border-radius: var(--radius-control);
+  color: var(--danger);
+}
+
+.demo-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-size: var(--step-0);
+}
+
+.demo-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent-fill);
+}
+
+/* ---------- Logo ---------- */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.logo-tile { fill: color-mix(in srgb, var(--accent-fill) 82%, var(--paper)); }
+.logo-hole { fill: var(--paper); }
+.logo-ring { fill: none; stroke: #191b18; stroke-opacity: 0.45; stroke-width: 1.2; }
+
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+}
+
+/* ---------- Business header ---------- */
+
+.biz {
+  position: relative;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+
+.biz-cover {
+  height: 112px;
+  background: var(--card-paper);
+  color: var(--card-ink);
+}
+
+.cover-art,
+.cover-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* A faint white edge so a photo doesn't bleed into the dark ground. */
+.cover-photo {
+  outline: 1px solid var(--image-outline);
+  outline-offset: -1px;
+}
+
+.biz-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+}
+
+.biz-mark,
+.spot-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card-paper);
+  color: var(--card-ink);
+  /* The same serif initials as the badge on the passport page, so a place's mark matches everywhere. */
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+.biz-mark {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  margin-top: -30px;
+  font-size: 1.25rem;
+  box-shadow: 0 0 0 4px var(--surface), inset 0 0 0 1px color-mix(in srgb, var(--card-ink) 25%, transparent);
+}
+
+.biz-text {
+  min-width: 0;
+  padding-top: var(--space-2);
+}
+
+.biz-name {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.biz-meta {
+  color: var(--muted);
+  font-size: var(--step--1);
+  overflow-wrap: anywhere;
+}
+
+.biz-facts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+}
+
+.biz-hours {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+
+.biz-hours::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.biz-hours.is-open {
+  color: var(--text);
+}
+
+.biz-hours.is-open::before {
+  background: var(--ok-solid);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok-solid) 22%, transparent);
+}
+
+.biz-directions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent-fill) 14%, var(--surface));
+  color: var(--accent);
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-decoration: none;
+  transition: scale var(--press), background-color var(--press);
+}
+
+.biz-directions:active {
+  scale: var(--press-scale);
+  background: color-mix(in srgb, var(--accent-fill) 22%, var(--surface));
+}
+
+/* Small pills keep their look but take a 44px tap. */
+.biz-directions::after,
+.account-chip::after,
+.demo-bar-button::after,
+.signin-go::after {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
+}
+
+/* ---------- Verified seal ---------- */
+
+.verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 4px 10px 4px 6px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ok-solid) 13%, transparent);
+  color: color-mix(in srgb, var(--ok-solid) 70%, var(--text));
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.verified-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.verified-shield { fill: var(--ok-solid); }
+.verified-check { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Content blocks ---------- */
+
+.block {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-7);
+}
+
+/* ---------- How it works ---------- */
+
+.how {
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.how-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  transition: opacity var(--press);
+}
+
+.how-summary:active {
+  opacity: 0.7;
+}
+
+.how-summary::-webkit-details-marker {
+  display: none;
+}
+
+.how-summary::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: solid var(--muted);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 240ms var(--ease-out);
+}
+
+.how[open] .how-summary::after {
+  transform: rotate(-135deg) translateY(-2px);
+}
+
+.how-steps {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-5);
+  list-style: none;
+  counter-reset: step;
+}
+
+.how-steps li {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: var(--space-3);
+  counter-increment: step;
+}
+
+.how-steps li::before {
+  content: counter(step);
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--accent);
+  font-family: var(--font-figures);
+  font-size: var(--step--1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.how-title {
+  font-weight: 600;
+}
+
+.how-text {
+  color: var(--muted);
+  font-size: var(--step-0);
+}
+
+.spot {
+  --card-paper: var(--m-light-paper);
+  --card-ink: var(--m-light-ink);
+  scroll-snap-align: start;
+}
+
+.spot-button {
+  display: grid;
+  width: 100%;
+  padding: 0 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  text-align: left;
+  overflow: hidden;
+  transition: transform 140ms var(--ease-out), box-shadow 160ms ease;
+}
+
+.spot-button:active {
+  transform: scale(0.98);
+}
+
+/* The scroller clips anything outside it, so the ring sits just inside the tile. */
+.spot-button:focus-visible {
+  outline-offset: -3px;
+  border-radius: 14px;
+}
+
+.spot-cover {
+  position: relative;
+  display: block;
+  height: 92px;
+  margin-bottom: var(--space-5);
+  background: var(--card-paper);
+  color: var(--card-ink);
+}
+
+.spot-mark {
+  position: absolute;
+  left: var(--space-4);
+  bottom: -18px;
+  width: 40px;
+  height: 40px;
+  font-size: 0.875rem;
+  box-shadow: 0 0 0 3px var(--surface), inset 0 0 0 1px color-mix(in srgb, var(--card-ink) 25%, transparent);
+}
+
+.spot-name,
+.spot-meta,
+.spot-reward {
+  padding-inline: var(--space-4);
+}
+
+.spot-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.spot-meta {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.spot-reward {
+  margin-top: var(--space-2);
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+
+.place-sheet {
+  --card-paper: var(--m-light-paper);
+  --card-ink: var(--m-light-ink);
+}
+
+
+.place-cover {
+  position: relative;
+  height: 120px;
+  margin-bottom: var(--space-5);
+  border-radius: var(--radius-card);
+  background: var(--card-paper);
+  color: var(--card-ink);
+}
+
+.place-cover .cover-art {
+  border-radius: inherit;
+}
+
+.place-cover .biz-mark {
+  position: absolute;
+  left: var(--space-4);
+  bottom: -26px;
+  margin-top: 0;
+}
+
+.place-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: var(--space-3) 0;
+  border-block: 1px solid var(--rule);
+}
+
+.place-facts div {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: var(--space-3);
+  font-size: var(--step-0);
+}
+
+.place-facts dt {
+  color: var(--muted);
+}
+
+/* ---------- Accounts and sign-in (theme tokens only) ---------- */
+
+.topbar {
+  gap: var(--space-3);
+}
+
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* A narrow phone drops "passport" from the wordmark on every page, so it never changes as the
+   account chip arrives (loading pages have none yet). */
+@media (max-width: 420px) {
+  .topbar .brand-sub {
+    display: none;
+  }
+}
+
+.account-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--text);
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-decoration: none;
+  transition: box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.account-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+/* Not signed in: the cards live on this phone only. */
+.account-dot.is-local {
+  background: var(--muted);
+}
+
+/* "Already use JOEYY?" */
+.signin-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  /* Concentric with the pill button inside: its 20px radius plus the 12px padding. */
+  border-radius: calc(20px + var(--space-3));
+  background: color-mix(in srgb, var(--card-paper) 7%, var(--surface));
+  box-shadow: var(--edge-light), 0 0 0 1px color-mix(in srgb, var(--card-paper) 16%, var(--rule)), var(--shadow-depth);
+}
+
+/* Three card shapes fanned out: the cards waiting on the diner's other phone. */
+.signin-fan {
+  position: relative;
+  width: 40px;
+  height: 34px;
+}
+
+.signin-fan span {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  width: 26px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--card-paper);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+  transform-origin: 50% 120%;
+}
+
+.signin-fan span:nth-child(1) { opacity: 0.45; transform: rotate(-18deg); }
+.signin-fan span:nth-child(2) { opacity: 0.7; transform: rotate(-4deg); }
+.signin-fan span:nth-child(3) { transform: rotate(12deg); }
+
+/* ---------- The three ways in: Apple, Google, a mobile number ---------- */
+
+.signin-sheet {
+  justify-items: stretch;
+}
+
+.signin-sheet .sheet-text {
+  margin-top: calc(var(--space-2) * -1);
+  margin-bottom: var(--space-2);
+}
+
+.signin-fan.is-large {
+  justify-self: start;
+  width: 64px;
+  height: 52px;
+  margin-bottom: var(--space-1);
+}
+
+.signin-fan.is-large span {
+  left: 11px;
+  top: 8px;
+  width: 40px;
+  height: 27px;
+  border-radius: 6px;
+}
+
+/* Brand buttons follow Apple's and Google's rules, not the theme: Apple's white button for dark
+   grounds (system font, the logo in the text colour), and Google's light-theme button (white,
+   #747775 outline, Roboto Medium, the four-colour G). Both are pill-shaped, which each allows. */
+.idp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 24px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.idp-button:disabled {
+  opacity: 0.6;
+}
+
+.idp-button.is-apple {
+  color: #000;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+
+.idp-button.is-apple .idp-logo {
+  width: 15px;
+  height: 19px;
+  margin-top: -3px;
+}
+
+.idp-button.is-google {
+  color: #1f1f1f;
+  box-shadow: inset 0 0 0 1px #747775;
+  font-family: Roboto, Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+}
+
+.idp-logo {
+  flex: none;
+}
+
+.signin-or {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.signin-or::before,
+.signin-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+.idp-phone {
+  min-height: 48px;
+  border-radius: 24px;
+  color: var(--text);
+  font-size: var(--step-1);
+}
+
+.idp-phone .idp-logo {
+  color: var(--accent);
+}
+
+.signin-small {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+/* The demo's stand-in for Apple's or Google's consent screen, marked as a preview. */
+.consent {
+  justify-items: center;
+  text-align: center;
+}
+
+.consent .button {
+  justify-self: stretch;
+}
+
+.preview-tag {
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-family: var(--font-stamp);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.consent-marks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.consent-mark {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  background: var(--card-paper);
+  color: var(--card-ink);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+
+.consent-mark.is-apple {
+  background: #fff;
+  color: #000;
+}
+
+.consent-mark.is-google {
+  background: #fff;
+}
+
+.consent-mark.is-apple .idp-logo {
+  width: 24px;
+  height: 30px;
+  margin-top: -4px;
+}
+
+.consent-mark.is-google .idp-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.consent-link {
+  display: flex;
+  gap: 5px;
+}
+
+.consent-link span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.consent-account {
+  justify-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  text-align: left;
+}
+
+.consent-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.consent-account > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.consent-name {
+  font-weight: 600;
+}
+
+.consent-email {
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--step--1);
+  text-overflow: ellipsis;
+}
+
+.consent-foot {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.signin-copy {
+  display: grid;
+  justify-items: start;
+  gap: 1px;
+}
+
+.signin-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.signin-go {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 20px;
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: var(--step-0);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 160ms ease;
+}
+
+.keep-shield {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 34px;
+  color: var(--accent);
+}
+
+.keep-row.is-saved .keep-shield {
+  color: var(--ok);
+}
+
+.keep-sub {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+/* Green status chip, the same family as the verified-tap seal. */
+.seal-chip {
+  justify-self: start;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ok) 13%, transparent);
+  color: var(--ok);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.restored-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--muted);
+  font-size: var(--step-0);
+}
+
+.restored-row a {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.button-danger {
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+/* ---------- Keep this card: Wallet, number, app as three tiles ---------- */
+
+.dock {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.dock-tile {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 2px;
+  min-height: 108px;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--card-paper) 6%, var(--surface));
+  box-shadow: var(--edge-light), 0 0 0 1px color-mix(in srgb, var(--card-paper) 16%, var(--rule)), var(--shadow-depth);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dock-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dock-tile[aria-busy='true'] {
+  cursor: progress;
+}
+
+.dock-tile[aria-busy='true'] .dock-pass {
+  animation: pass-wait 900ms ease-in-out infinite alternate;
+}
+
+@keyframes pass-wait {
+  to { transform: rotate(-6deg) translateY(-3px); opacity: 0.6; }
+}
+
+.dock-icon {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  margin-bottom: var(--space-2);
+  color: var(--accent);
+}
+
+.dock-label {
+  font-size: var(--step-0);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.dock-sub {
+  color: var(--muted);
+  font-size: var(--step--1);
+  line-height: 1.25;
+}
+
+/* Something to do here: a small orange dot in the corner. */
+.dock-tile.is-attention::after {
+  content: '';
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-fill) 25%, transparent);
+}
+
+.dock-tile.is-done .dock-sub {
+  color: var(--ok);
+}
+
+/* The Wallet tile's tiny pass, in this card's own paper and ink, leaning like the passport. */
+.dock-pass {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: 36px;
+  height: 25px;
+  box-sizing: border-box;
+  padding: 0 5px 5px;
+  border-radius: 5px;
+  background: var(--page-paper);
+  box-shadow:
+    0 5px 0 -2px color-mix(in srgb, var(--page-paper) 50%, transparent),
+    0 3px 8px rgb(0 0 0 / 0.35);
+  transform: rotate(-6deg);
+}
+
+.dock-pass-dot {
+  width: 6px;
+  height: 6px;
+  box-sizing: border-box;
+  border: 1.2px solid var(--page-ink);
+  border-radius: 50%;
+}
+
+.dock-pass-dot:first-child,
+.dock-pass.is-done .dock-pass-dot {
+  background: var(--page-ink);
+}
+
+/* ---------- How this card works: three figures ---------- */
+
+.rule-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  list-style: none;
+  text-align: center;
+}
+
+/* Each rule is a rubber stamp in the card's colour: a ringed figure, slightly askew. */
+.rule-chip {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+.rule-figure {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border: 2.5px solid var(--card-paper);
+  border-radius: 50%;
+  outline: 1.5px dashed color-mix(in srgb, var(--card-paper) 55%, transparent);
+  outline-offset: -9px;
+  color: var(--card-paper);
+  font-family: var(--font-stamp);
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transform: rotate(var(--tilt, -4deg));
+}
+
+.rule-chip:nth-child(2) .rule-figure { --tilt: 3deg; }
+.rule-chip:nth-child(3) .rule-figure { --tilt: -2deg; }
+
+.rule-words {
+  max-width: 11ch;
+  color: var(--muted);
+  font-size: var(--step--1);
+  line-height: 1.3;
+}
+
+/* ---------- Your visits: date stamps in a row ---------- */
+
+.visit-strip {
+  overscroll-behavior-x: contain;
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--gutter));
+  padding: var(--space-2) var(--gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  list-style: none;
+  scroll-snap-type: x proximity;
+  /* Snap to the page margin, not the screen edge. */
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
+}
+
+.visit-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.visit-strip:focus-visible {
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+
+.visit-chip {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 88px;
+  padding: var(--space-3) var(--space-3);
+  border: 1.5px solid color-mix(in srgb, var(--page-paper) 55%, transparent);
+  border-radius: 12px;
+  scroll-snap-align: start;
+  white-space: nowrap;
+  transform: rotate(var(--tilt, 0deg));
+}
+
+.visit-chip:nth-child(3n + 1) { --tilt: -2deg; }
+.visit-chip:nth-child(3n + 2) { --tilt: 1.5deg; }
+.visit-chip:nth-child(3n) { --tilt: -0.5deg; }
+
+.visit-chip-day {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-stamp);
+  font-size: var(--step-0);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.visit-chip-time {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+/* The newest visit is inked in the card's own colours. */
+.visit-chip.is-latest {
+  border-color: transparent;
+  background: var(--page-paper);
+  color: var(--page-ink);
+}
+
+.visit-chip.is-latest .visit-chip-time {
+  color: color-mix(in srgb, var(--page-ink) 70%, transparent);
+}
+
+/* On the narrowest phones the sign-in row keeps to one line of copy. */
+@media (max-width: 359px) {
+  .signin-banner:not(.keep-row) .keep-sub {
+    display: none;
+  }
+}
+
+/* ---------- Profile (/me): the passport's data page ---------- */
+
+/* Paper, like the passport pages, with the data laid out as on a real bio page. */
+.bio-page {
+  margin-top: var(--space-6);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--m-light-paper);
+  color: var(--m-light-ink);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), var(--shadow-depth), 0 18px 40px -24px rgb(0 0 0 / 0.7);
+}
+
+.bio-issuer {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+}
+
+.bio-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.bio-photo {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 92px;
+  /* Concentric with the page: 16px corner minus 16px padding would be square; 8px reads as a photo. */
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--m-light-ink) 8%, transparent);
+}
+
+.bio-photo svg {
+  fill: none;
+  stroke: color-mix(in srgb, var(--m-light-ink) 55%, transparent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.bio-fields {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  gap: var(--space-3) var(--space-5);
+  align-content: start;
+}
+
+.bio-field.is-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.bio-field dt {
+  color: color-mix(in srgb, var(--m-light-ink) 60%, transparent);
+  font-size: 0.6875rem;
+}
+
+.bio-field dd {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-stamp);
+  font-size: var(--step-2);
+  font-weight: 500;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.bio-field.is-wide dd {
+  font-family: var(--font-ui);
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+/* The name is the diner's to set: a small ink link beside the holder line. */
+.bio-field.is-wide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+}
+
+.bio-field.is-wide dt {
+  flex-basis: 100%;
+}
+
+.bio-edit {
+  min-height: 44px;
+  margin: -12px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: color-mix(in srgb, var(--m-light-ink) 70%, transparent);
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Editing the name in place, on the paper: the field takes the page's ink, not the navy. */
+.bio-field.is-editing {
+  grid-column: 1 / -1;
+}
+
+.bio-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.bio-form .field-label {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.bio-form .field-input {
+  border-color: color-mix(in srgb, var(--m-light-ink) 28%, transparent);
+  background: color-mix(in srgb, var(--m-light-ink) 5%, var(--m-light-paper));
+  color: var(--m-light-ink);
+}
+
+.bio-form .field-input::placeholder {
+  color: color-mix(in srgb, var(--m-light-ink) 45%, transparent);
+}
+
+.bio-form .field-help {
+  color: color-mix(in srgb, var(--m-light-ink) 65%, transparent);
+}
+
+.bio-form .field-error {
+  color: color-mix(in srgb, var(--danger) 45%, var(--m-light-ink));
+}
+
+.bio-form-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+}
+
+.bio-form .button-quiet {
+  color: color-mix(in srgb, var(--m-light-ink) 70%, transparent);
+}
+
+/* Delete sits apart and quiet at the foot of the account: findable, never in the way. */
+.account-delete {
+  justify-self: start;
+  color: var(--danger);
+}
+
+.sheet-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--text);
+  font-size: var(--step-0);
+}
+
+.bio-mrz {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px dashed color-mix(in srgb, var(--m-light-ink) 25%, transparent);
+  overflow: hidden;
+  color: color-mix(in srgb, var(--m-light-ink) 55%, transparent);
+  font-family: var(--font-figures);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+/* A visa page: each place's entry stamp in its own ink, a tap away from its card. */
+.entry-stamps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-4) var(--space-2);
+  padding: var(--space-5) var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--m-light-paper);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), var(--shadow-depth);
+  list-style: none;
+}
+
+.entry-stamp {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: var(--m-light-ink);
+  text-align: center;
+  text-decoration: none;
+}
+
+.entry-stamp .ink-stamp {
+  width: 74px;
+  margin-bottom: var(--space-2);
+}
+
+.entry-initials {
+  font-family: var(--font-stamp);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.entry-name {
+  font-size: var(--step--1);
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.entry-count {
+  color: color-mix(in srgb, var(--m-light-ink) 60%, transparent);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-stamp {
+  transition: scale var(--press);
+}
+
+.entry-stamp:active {
+  scale: var(--press-scale);
+}
+
+/* ---------- Arrival: a page's parts come in one after another ---------- */
+
+/* Only on arrival (mount builds the page once), never on taps inside it. Each part rises a few
+   pixels and fades in, about 70ms after the one before. */
+.page-empty > *,
+.page-profile > * {
+  animation: part-in 520ms var(--ease-out) backwards;
+}
+
+.page-empty > :nth-child(2),
+.page-profile > :nth-child(2) { animation-delay: 70ms; }
+.page-empty > :nth-child(3),
+.page-profile > :nth-child(3) { animation-delay: 140ms; }
+.page-empty > :nth-child(4),
+.page-profile > :nth-child(4) { animation-delay: 210ms; }
+.page-empty > :nth-child(n + 5),
+.page-profile > :nth-child(n + 5) { animation-delay: 280ms; }
+
+/* The visa page's stamps land one by one, each pressed down from slightly above the paper. */
+.entry-stamp {
+  animation: stamp-land 420ms cubic-bezier(0.3, 0.7, 0.3, 1) backwards;
+  animation-delay: calc(320ms + var(--n, 0) * 60ms);
+}
+
+.entry-stamp:nth-child(2) { --n: 1; }
+.entry-stamp:nth-child(3) { --n: 2; }
+.entry-stamp:nth-child(4) { --n: 3; }
+.entry-stamp:nth-child(5) { --n: 4; }
+.entry-stamp:nth-child(6) { --n: 5; }
+.entry-stamp:nth-child(n + 7) { --n: 6; }
+
+@keyframes part-in {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+@keyframes stamp-land {
+  from { opacity: 0; scale: 1.18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-empty > *,
+  .page-profile > *,
+  .entry-stamp {
+    animation: none;
+  }
+}
+
+/* ---------- Hover (mouse and trackpad only) ---------- */
+
+@media (hover: hover) and (pointer: fine) {
+  .footer-links a:hover,
+  .restored-row a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .account-chip:hover {
+    background: color-mix(in srgb, var(--text) 6%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, var(--rule));
+  }
+
+  .biz-directions:hover {
+    background: color-mix(in srgb, var(--accent-fill) 24%, var(--surface));
+  }
+
+  .spot-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--card-paper) 35%, var(--rule)), 0 10px 24px -14px rgb(0 0 0 / 0.7);
+  }
+
+  .signin-go:hover {
+    background: color-mix(in srgb, var(--accent-fill) 88%, var(--text));
+  }
+
+  .dock-tile:hover {
+    border-color: color-mix(in srgb, var(--card-paper) 34%, var(--rule));
+    background: color-mix(in srgb, var(--card-paper) 10%, var(--surface));
+  }
+
+  .how-summary:hover {
+    color: var(--accent);
+  }
+
+  .entry-stamp:hover .entry-name {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .demo-bar-button:hover,
+  .demo-item:hover {
+    background: color-mix(in srgb, var(--text) 6%, var(--surface));
+  }
+}

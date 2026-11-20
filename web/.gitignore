@@ -1,0 +1,6 @@
+node_modules
+dist
+.wallet/*
+!.wallet/README.md
+.DS_Store
+.demo/

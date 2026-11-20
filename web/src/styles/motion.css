@@ -1,0 +1,206 @@
+/* Motion and glass. Everything here moves only transform and opacity (or an SVG stroke), so it
+   runs on the compositor. Reduce Motion keeps the fades and drops the movement (bottom of file);
+   Reduce Transparency swaps the glass for solid navy. */
+
+/* ---------- Page transitions (View Transitions API, see ui/page-transition.ts) ---------- */
+
+/* The old page slips out the way you're going, quickly; the new one drifts in after it. The
+   header has its own name, so it holds still while the page moves under it. */
+::view-transition-old(root) {
+  animation: page-out 160ms var(--ease-in) both;
+}
+
+::view-transition-new(root) {
+  animation: page-in 340ms var(--ease-out) 60ms both;
+}
+
+:root[data-nav='back']::view-transition-old(root) {
+  animation-name: page-out-back;
+}
+
+:root[data-nav='back']::view-transition-new(root) {
+  animation-name: page-in-back;
+}
+
+::view-transition-group(topbar),
+::view-transition-group(tabbar) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-out);
+}
+
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes page-out { to { opacity: 0; transform: translateX(-20px); } }
+@keyframes page-in { from { opacity: 0; transform: translateX(28px); } }
+@keyframes page-out-back { to { opacity: 0; transform: translateX(20px); } }
+@keyframes page-in-back { from { opacity: 0; transform: translateX(-28px); } }
+
+/* ---------- The logo mark ---------- */
+
+.logo-tile,
+.logo-hole {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.logo-hole {
+  transition: transform 420ms var(--ease-spring);
+}
+
+/* Once per visit: the tile lands, the hole punches through, and its rim draws round. */
+.logo-mark.is-intro .logo-tile {
+  animation: logo-land 520ms var(--ease-spring) both;
+}
+
+.logo-mark.is-intro .logo-hole {
+  animation: logo-punch 460ms var(--ease-spring) 240ms both;
+}
+
+.logo-mark.is-intro .logo-ring {
+  stroke-dasharray: 1;
+  animation: draw-on 520ms var(--ease-out) 420ms both;
+}
+
+@keyframes logo-land { from { opacity: 0; transform: scale(0.4) rotate(-14deg); } }
+@keyframes logo-punch { from { transform: scale(0); } }
+
+/* An SVG stroke drawing itself on (paths carry pathLength="1"). */
+@keyframes draw-on {
+  from { stroke-dashoffset: 1; opacity: 0; }
+  10% { opacity: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---------- Verified seal ---------- */
+
+/* The shield lands, then the tick draws across it: "checked". */
+.verified-shield {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: seal-land 420ms var(--ease-spring) 300ms both;
+}
+
+.verified-check {
+  stroke-dasharray: 1;
+  animation: draw-on 380ms var(--ease-out) 620ms both;
+}
+
+@keyframes seal-land { from { opacity: 0; transform: scale(0.3); } }
+
+/* ---------- The reward drawing ---------- */
+
+/* The outline draws on stroke by stroke, the fill rises to its level, then the surface sloshes
+   a few times and goes still. It waits until the drawing scrolls into view. */
+.vessel-line {
+  stroke-dasharray: 1;
+  animation: draw-on 700ms var(--ease-out) calc(var(--i) * 90ms) both;
+}
+
+.vessel-fill {
+  animation:
+    fill-rise 1300ms var(--ease-out) 500ms both,
+    slosh 1800ms ease-in-out 1500ms 3 alternate;
+}
+
+.reveal:not(.is-revealed) .vessel-line,
+.reveal:not(.is-revealed) .vessel-fill {
+  animation-play-state: paused;
+}
+
+@keyframes fill-rise { from { transform: translateY(66px); } }
+@keyframes slosh { to { translate: -16px 0; } }
+
+/* ---------- How JOEYY works ---------- */
+
+/* The panel opens to its height instead of jumping, where the browser can (Chrome 131+). */
+.how {
+  interpolate-size: allow-keywords;
+}
+
+.how::details-content {
+  height: 0;
+  overflow: clip;
+  transition: height 320ms var(--ease-out), content-visibility 320ms allow-discrete;
+}
+
+.how[open]::details-content {
+  height: auto;
+}
+
+.how-summary::after {
+  transition: transform 320ms var(--ease-spring);
+}
+
+/* The three steps come in one after another. */
+.how[open] .how-steps li {
+  animation: step-in 420ms var(--ease-out) both;
+}
+
+.how[open] .how-steps li:nth-child(2) { animation-delay: 70ms; }
+.how[open] .how-steps li:nth-child(3) { animation-delay: 140ms; }
+
+@keyframes step-in { from { opacity: 0; transform: translateY(10px); } }
+
+/* ---------- Visits ---------- */
+
+/* Each date chip is pressed down onto the strip in turn, newest first. Uses `scale` and
+   `translate`, so the chip keeps its own tilt (transform). */
+.visit-chip {
+  animation: chip-in 440ms var(--ease-spring) both;
+  animation-delay: calc(var(--n, 0) * 60ms + 120ms);
+}
+
+.visit-chip:nth-child(2) { --n: 1; }
+.visit-chip:nth-child(3) { --n: 2; }
+.visit-chip:nth-child(4) { --n: 3; }
+.visit-chip:nth-child(5) { --n: 4; }
+.visit-chip:nth-child(n + 6) { --n: 5; }
+
+.reveal:not(.is-revealed) .visit-chip {
+  animation-play-state: paused;
+}
+
+@keyframes chip-in { from { opacity: 0; scale: 1.25; translate: 0 -6px; } }
+
+/* ---------- Toast ---------- */
+
+.toast {
+  background: color-mix(in srgb, var(--text) 88%, transparent);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4), 0 12px 30px -8px rgb(0 0 0 / 0.5);
+}
+
+/* ---------- Reduce Motion: keep the fades, drop the movement ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Pages cross-fade instead of sliding. */
+  ::view-transition-old(root) {
+    animation: fade-out 150ms ease both !important;
+  }
+
+  ::view-transition-new(root) {
+    animation: fade-in 150ms ease both !important;
+  }
+
+  ::view-transition-group(*) {
+    animation-duration: 150ms !important;
+  }
+
+  .vessel-fill {
+    translate: none;
+  }
+}
+
+/* ---------- Reduce Transparency, or no backdrop blur: solid navy instead of glass ---------- */
+
+@media (prefers-reduced-transparency: reduce) {
+  .sheet { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .sheet::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .toast { background: var(--text); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sheet { background: var(--surface); }
+  .toast { background: var(--text); }
+}
