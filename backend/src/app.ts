@@ -4,6 +4,7 @@ import type { AuthConfig } from "./auth.ts";
 import { ApiError } from "./errors.ts";
 import { imageTooLarge, unsupportedImageType, type ImageStore } from "./images.ts";
 import { partnerRoutes } from "./routes/partner.ts";
+import { placesRoutes } from "./routes/places.ts";
 
 export interface AppOptions {
     pool: pg.Pool;
@@ -56,6 +57,7 @@ export function buildApp({ pool, auth, images, logger = false }: AppOptions) {
     });
 
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
+    app.register(placesRoutes, { prefix: "/v1/places", pool, auth, images });
     if (images.routes) app.register(images.routes);
 
     return app;

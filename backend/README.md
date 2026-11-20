@@ -26,9 +26,11 @@ The partner MVP diagram's three flows, plus images and notifications:
 | `POST /v1/partner/program/versions` | Publish: validates, inserts an immutable version (with its cover), moves the live pointer and zero-punch cards in one transaction; `409 unchangedProgram` |
 | `GET /v1/partner/dashboard?from&to` | Section 8.4 counts, including `rewardsWaiting` and `customersWithStackedRewards` |
 | `GET /v1/partner/notifications?after&limit` | Newest first, cursor paged |
+| `GET /v1/places?query=` | Customer token. Search places by name (case-insensitive, names starting with the query first) or exact client ID; at most 20, only businesses with a published card |
+| `GET /v1/places/{placeId}` | Customer token. A place: its business fields plus `program`, the live card (section 3.1); `404 placeNotFound` for unknown or unpublished |
 | `GET /healthz` | Checks the database connection; no token needed |
 
-Not yet implemented: customer routes, NFC punch intake, Apple Wallet, push notifications, and
+Not yet implemented: the other customer routes (cards, rewards, groups), NFC punch intake, Apple Wallet, push notifications, and
 redemption (open decision 1). The schema already has the tables for punches, readers, rewards, and
 notifications.
 
@@ -52,6 +54,10 @@ Call it with a development token (`AUTH_MODE=dev` signs tokens with a key in `.d
 ```sh
 TOKEN=$(npm run -s token -- partner my-test-owner)
 curl -H "Authorization: Bearer $TOKEN" localhost:8080/v1/partner/business
+
+# As a customer: find places and read one
+TOKEN=$(npm run -s token -- customer my-test-diner)
+curl -H "Authorization: Bearer $TOKEN" "localhost:8080/v1/places?query=cafe"
 ```
 
 The dev server accepts connections from any IP (firewall rule `allow-all`) but only Microsoft Entra
