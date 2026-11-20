@@ -1,54 +1,38 @@
-# Running the JOEYY backend on your Mac (temporary)
+# Run the API and a database on your Mac
 
-This gets the backend and a database running on your own Mac, so you can connect the business
-side of the app before the shared backend is online. You don't need Azure access. Everything here
-stays on your machine, and nothing you do affects anyone else's data.
+This gets the shared API ([`services/api`](../../services/api/README.md)) and a Postgres database
+running on your own Mac, so you can work on the app's account mode without Azure access. Everything
+stays on your machine.
 
-Setup takes about 15 minutes. When you're done you'll have:
+When you're done you'll have:
 
-- The backend at `http://localhost:8080`, with the same code and database tables as the Azure version.
-- A test token to sign in with, and your own business created through the backend.
-- Logo and cover photo uploads working, with the images kept in a folder on your Mac.
+- The API at `http://localhost:8080`, with the same code and database tables as the Azure dev server.
+- A development token and a test business created through the API.
+- Logo and cover uploads working, with the images kept in a folder on your Mac.
 
-This file is temporary. Once the backend is hosted, the app will point there instead.
+To use the shared Azure dev server instead, follow [Run it locally](../../services/api/README.md#run-it-locally)
+in the API README.
 
-## What's going on
-
-Until now, the business side of the app has saved everything on the phone (`PartnerStore` writes a
-JSON file). The goal is for it to read and write through a shared backend instead, so the business
-side and the customer side see the same data.
+## How the pieces fit
 
 ```
-JOEYY app (simulator)  ──HTTP──▶  Backend (Node.js)  ──▶  Postgres database
-  your Swift changes               backend/ in the repo     tables from backend/db/migrations
+JOEYY app (simulator)  ──HTTP──▶  API (Node.js)          ──▶  Postgres
+  apps/ios/                         services/api/              tables from services/api/db/migrations
 ```
 
-- **The backend** is a small Node.js server in `backend/`. The app never talks to the database
-  directly. It calls the backend's routes (listed below), and the backend checks who's asking and
-  reads or writes the database.
-- **The real database** is on Azure and belongs to Omar. You don't need it: you run your own copy
-  of the backend and your own Postgres, built by the same migration files, so the tables match exactly.
-- **There is no sample data in the backend.** Your database starts empty, and you create a
-  business through the routes below, the way the app will.
-- **Images** go to Azure Blob Storage on the real backend. On your Mac, `IMAGE_STORE=local` keeps
-  them in `backend/.dev/images/` instead, and the routes behave the same.
-- **Signing in** isn't built yet. For now the backend runs in dev mode and accepts test tokens it
-  creates itself. Each token says who you are, for example "the owner called `elshiekh-test`".
-- **Your job** is the Swift side: teach the app to call these routes, as a second mode next to
-  today's on-phone storage. See [Two modes](#two-modes-demo-and-account) below.
+- **The API** is a small Node.js server in `services/api/`. The app never talks to the database
+  directly; it calls the API's routes, and the API checks who's asking.
+- **Your database** is built by the same migration files as the Azure one, so the tables match.
+  It starts empty: there is no sample data in the API.
+- **Images** go to Azure Blob Storage on the dev server. Locally, `IMAGE_STORE=local` keeps them in
+  `services/api/.dev/images/`, and the routes behave the same.
+- **Sign-in** uses `AUTH_MODE=dev`: the API signs tokens with a local key in `services/api/.dev/`,
+  `npm run token` creates test tokens, and one-time sign-in codes are written to the API's log
+  instead of being sent.
 
-The routes, request shapes and error codes are listed under
-[What you can build against](#what-you-can-build-against). The full rules are in
-`docs/backend-spec.md`, and the overall plan is in the JOEYY Launch Plan doc.
+The full rules are in [docs/backend-spec.md](../backend-spec.md).
 
-## 1. Get the code
-
-```sh
-git fetch
-git checkout omarukonneh/backendconnection   # or main, once it's merged
-```
-
-## 2. Install Node and Postgres
+## 1. Install Node and Postgres
 
 You need Node 22.18 or later and Postgres 17.
 
@@ -67,12 +51,11 @@ node -v            # v22.18 or later
 psql joeyy -c "select version();"
 ```
 
-If you'd rather not use Homebrew, [Postgres.app](https://postgresapp.com) works too. Create a
-database named `joeyy` in it.
+[Postgres.app](https://postgresapp.com) works too; create a database named `joeyy` in it.
 
-## 3. Configure the backend
+## 2. Configure the API
 
-Create `backend/.env`. Git ignores this file, so it never gets committed.
+Create `services/api/.env`. Git ignores this file, so it never gets committed.
 
 ```sh
 PGHOST=localhost
@@ -86,21 +69,20 @@ IMAGE_STORE=local
 PORT=8080
 ```
 
-Keep `PGPASSWORD` set. Local Postgres doesn't check it, but if it's missing the backend tries to
-sign in to Azure instead and fails. `IMAGE_STORE=local` does the same job for images.
+Keep `PGPASSWORD` set. Local Postgres doesn't check it, but without it the API tries to sign in to
+Azure instead and fails. `IMAGE_STORE=local` does the same job for images.
 
-## 4. Create the database tables
+## 3. Create the database tables
 
 ```sh
-cd backend
+cd services/api
 npm install
 npm run migrate
 ```
 
-You should see `applied 0001_initial_schema`, `applied 0002_align_with_backend_spec` and
-`applied 0003_images`.
+You should see one `applied …` line per file in `db/migrations`.
 
-## 5. Start the backend
+## 4. Start the API
 
 ```sh
 npm run dev
@@ -112,19 +94,17 @@ Leave it running. In another terminal, check it's working:
 curl localhost:8080/healthz      # {"status":"ok"}
 ```
 
-## 6. Get a test token and create a business
+## 5. Get a test token and create a business
 
 ```sh
-npm run -s token -- partner elshiekh-test
+npm run -s token -- partner my-test-owner
 ```
 
-This prints a token that signs you in as an owner called `elshiekh-test`. It lasts 12 hours, so run
-it again when it expires. Any other name gives you a different owner with no business yet.
-
-A new owner has no business, so create one:
+This prints a token for an owner called `my-test-owner`. It lasts 12 hours. Any other name gives a
+different owner with no business yet. Create one:
 
 ```sh
-TOKEN=$(npm run -s token -- partner elshiekh-test)
+TOKEN=$(npm run -s token -- partner my-test-owner)
 curl -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{ "name": "Test Cafe", "location": "Seattle, WA", "timeZone": "America/Los_Angeles" }' \
   localhost:8080/v1/partner/business
@@ -133,28 +113,24 @@ curl -H "Authorization: Bearer $TOKEN" localhost:8080/v1/partner/business
 
 The second command should give Test Cafe back.
 
-## 7. Point the app at it
+## 6. Point the app at it
 
-The app doesn't read any backend settings yet; that's part of your first task (the shared API
-client). Until sign-in exists, use two launch arguments, set in Xcode under **Product > Scheme > Edit
-Scheme > Run > Arguments**. They only fill in account mode's address and token; they don't replace
-the mode choice on the Welcome screen.
+The app reaches the API at `http://localhost:8080` by default, which the iOS Simulator maps to your
+Mac. To use another address (for example your Mac's address from a phone), set the `apiBaseURL`
+user default, such as the launch argument `-apiBaseURL http://192.168.1.20:8080` under
+**Product > Scheme > Edit Scheme > Run > Arguments**.
 
-```
--api http://localhost:8080
--api-token <the token from step 6>
-```
+Sign in from the person button with an email code; in dev mode the code appears in the API's log.
 
-The iOS Simulator can reach your Mac at `localhost`. If iOS blocks the plain `http://` request
-(an App Transport Security error), allow local networking (`NSAllowsLocalNetworking`) for debug
-builds in `project.yml`.
+If iOS blocks a plain `http://` request (an App Transport Security error), allow local networking
+(`NSAllowsLocalNetworking`) for debug builds in `apps/ios/project.yml`.
 
-## What you can build against
+## Partner routes
 
-Every request needs `Authorization: Bearer <token>`. The business is always taken from the token,
-never from the request. Errors come back as `{ "error": "<code>", "message": "<text>" }`, and the
-codes match the app's `PartnerError` cases (for example `nameTooLong`, `invalidTheme`,
-`unchangedProgram`). The full rules are in `docs/backend-spec.md`.
+Every partner request needs `Authorization: Bearer <token>`. The business is always taken from the
+token, never from the request. Errors come back as `{ "error": "<code>", "message": "<text>" }`,
+and the codes match the app's `PartnerError` cases (for example `nameTooLong`, `invalidTheme`,
+`unchangedProgram`).
 
 | Route | What it does |
 | --- | --- |
@@ -166,7 +142,10 @@ codes match the app's `PartnerError` cases (for example `nameTooLong`, `invalidT
 | `GET /v1/partner/program/publish-impact` | `{ "keepRules", "switchToNew" }` for the publish confirmation |
 | `POST /v1/partner/program/versions` | Publish: `{ "requiredPunches", "rewardDescription", "theme" }` |
 | `GET /v1/partner/dashboard?from=&to=` | Overview counts. `to` is required, `from` is optional (leave it out for All) |
-| `GET /v1/partner/notifications` | Newest first. Empty for now; real ones arrive with the customer routes |
+| `GET /v1/partner/notifications` | Newest first |
+
+Sign-in routes are under `/v1/auth` and places search under `/v1/places`; see the
+[API README](../../services/api/README.md).
 
 A publish body looks like this. Colors are `#RRGGBB` text, while the app stores them as `UInt32`:
 
@@ -186,86 +165,29 @@ A publish body looks like this. Colors are `#RRGGBB` text, while the app stores 
 Images are uploaded first and attached second:
 
 1. Send the image itself as the request body (not JSON, not a form), with `Content-Type: image/png`
-   or `image/jpeg`. The app already makes logos PNG and covers JPEG, so send those bytes. The limit
-   is 5 MB.
-2. Put the `key` you get back in `logoKey` when saving the business, or in `theme.coverKey` when
+   or `image/jpeg`. The limit is 5 MB.
+2. Put the returned `key` in `logoKey` when saving the business, or in `theme.coverKey` when
    publishing. For the business, `logoKey: null` removes the logo and leaving `logoKey` out keeps it.
-3. To show an image, download `logoURL` or `theme.coverURL` from a response. These links stop
-   working after 15 minutes. `AsyncImage(url:)` is enough to start with.
+3. To show an image, download `logoURL` or `theme.coverURL` from a response. These links expire
+   after 15 minutes.
 
-**Where images live (spec section 3.2):** in account mode the real image is in Azure, and the app
-saves only `logoKey` and `coverKey`. Don't put image bytes in the app's saved data. If you add a
-cache later, put it in the Caches folder, file each image under its key (not its link, which changes
-on every response), and clear it on sign-out. Demo mode keeps its `logoPNG` on the phone as today.
-
-A business has to exist before it can upload. For a new owner, save the business first, upload the
-logo, then save again with `logoKey`.
-
-Upload right before saving. The backend deletes uploads that nothing uses after 24 hours, so a key
-kept in a draft for days can stop working. If a save returns `400 unknownImage`, upload the image
-again and save with the new key.
+A business has to exist before it can upload: save the business, upload the logo, then save again
+with `logoKey`. Upload right before saving; uploads nothing uses are deleted after 24 hours, and a
+save then returns `400 unknownImage`.
 
 Dashboard times are UTC instants such as `2026-11-01T07:00:00Z`. Work out each period's start and
 end in the business's time zone, then send them in UTC.
-
-**Not available yet:** real sign-in, and anything on the customer side. The dashboard shows zeros
-until customers and stamps exist.
-
-## Two modes: demo and account
-
-The app keeps its demo, next to the real backend, as two separate modes. The full rules are in
-section 11 of `docs/backend-spec.md`.
-
-```
-                 Welcome screen
-          ┌────────────┴────────────┐
-   "Explore a demo"             "Sign in"
-          │                         │
-     Demo mode                 Account mode
-   LocalPartnerDataSource     RemotePartnerDataSource
-   (today's JSON file,        (the API client:
-    Norema sample,             these routes, uploads,
-    demo stamps)               the token)
-```
-
-- **Screens don't know the mode.** They call one `PartnerDataSource` interface, and the active mode
-  supplies the implementation.
-- **Demo data never reaches the backend.** A demo logo stays a PNG on the phone and is never
-  uploaded. Backend data is never saved into the demo JSON file.
-- **Each mode keeps its own data,** and switching modes doesn't delete or merge anything.
-- **Demo mode shows a "Demo" badge.** Loading the Norema sample and other shortcuts appear only there.
-- **UI tests run in demo mode,** so they need no backend.
-
-## Your first three tasks
-
-1. **Build the shared API client.** One Swift type that account mode uses to call the backend:
-   base address and token, ISO 8601 dates, image uploads, and backend error codes turned into
-   `PartnerError` messages. Jaren will reuse it for the customer side.
-2. **Put a `PartnerDataSource` interface between the screens and their data, and make it async.**
-   Today's JSON storage becomes `LocalPartnerDataSource` (demo mode) and the API client becomes
-   `RemotePartnerDataSource` (account mode). Add the mode choice to the Welcome screen and the
-   "Demo" badge. Screens get loading and error states.
-3. **Connect the business screens to the routes above in account mode:** profile, publishing,
-   version history, the publish confirmation, logo and cover uploads, and the Overview dashboard.
-
-**Done when:**
-- In account mode, you can set up a business with a logo, publish a card with a cover photo, and
-  see both again after relaunching the app.
-- Demo mode still works with the backend switched off.
-- Switching modes leaves both sets of data as they were.
 
 ## If something goes wrong
 
 | Problem | Fix |
 | --- | --- |
-| `createdb: command not found` | The PATH line in step 2 didn't take effect. Open a new terminal, or run `source ~/.zshrc` |
+| `createdb: command not found` | The PATH line in step 1 didn't take effect. Open a new terminal, or run `source ~/.zshrc` |
 | `connection refused` on port 5432 | Postgres isn't running: `brew services start postgresql@17` |
-| An error mentioning Azure, Entra or `DefaultAzureCredential` | `PGPASSWORD` is missing from `backend/.env` |
+| An error mentioning Azure, Entra or `DefaultAzureCredential` | `PGPASSWORD` is missing from `services/api/.env` |
 | `role "…" does not exist` | `PGUSER` must be your Mac username (`whoami`) |
-| `401 unauthorized` | The token expired (12 hours) or has a typo. Run step 7 again |
-| `404 businessNotFound` | You're signed in as an owner with no business. Create one with `PUT /v1/partner/business` (step 6) |
-| An error mentioning `AZURE_STORAGE_ACCOUNT` | `IMAGE_STORE=local` is missing from `backend/.env` |
+| `401 unauthorized` | The token expired (12 hours) or has a typo. Run step 5 again |
+| `404 businessNotFound` | The owner has no business yet. Create one with `PUT /v1/partner/business` (step 5) |
+| An error mentioning `AZURE_STORAGE_ACCOUNT` | `IMAGE_STORE=local` is missing from `services/api/.env` |
 | `400 unknownImage` | The key isn't one this business uploaded, or a logo key was used as a cover (or the reverse). Upload again |
-| An image link returns `403` | The link expired, or the backend restarted. Fetch the business or card again for a fresh link |
-
-Questions about the backend: ask Omar.
+| An image link returns `403` | The link expired, or the API restarted. Fetch the business or card again for a fresh link |

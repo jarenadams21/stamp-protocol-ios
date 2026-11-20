@@ -17,8 +17,8 @@ The demo signs real passes when these four files are here:
 1. **Create a Pass Type ID.** In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list/passTypeId),
    add an identifier, choose **Pass Type IDs**, and use something like `pass.com.yourname.joeyy`.
 2. **Create its certificate.** Open that Pass Type ID, choose **Create Certificate**, and upload
-   `web/.wallet/pass.csr` from this folder.
-3. **Download** the certificate (`pass.cer`) and put it in this folder. Then run, from `web/`:
+   `apps/web/.wallet/pass.csr` from this folder.
+3. **Download** the certificate (`pass.cer`) and put it in this folder. Then run, from `apps/web/`:
 
    ```bash
    openssl x509 -inform der -in .wallet/pass.cer -out .wallet/signerCert.pem

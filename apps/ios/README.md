@@ -1,10 +1,10 @@
-# JOEYY
+# JOEYY iOS app
 
-A native SwiftUI customer-loyalty prototype for iOS 18 and later.
+A native SwiftUI customer-loyalty prototype for iOS 18 and later. One app target holds both the
+customer side and the [business side](#business-side).
 
-Also in this repository: [`backend/`](backend/README.md), the shared API, and
-[`web/`](web/README.md), the page a diner sees after tapping a JOEYY stand (stamp card, rewards,
-Wallet pass and sign-in, no app needed).
+The rest of the monorepo (the web page and the shared API) is described in the
+[root README](../../README.md).
 
 ## Version 3
 
@@ -24,16 +24,45 @@ The local-first customer experience includes:
 | 10. Customized redeemed/memory views | Merchant-themed stacks with preserved punches and Available/Used state. History uses current branding, not frozen artwork |
 
 Existing balances, coupons, favorites, groups, and branding are preserved.
-See [DESIGN.md](DESIGN.md) for shared colors, components, motion, and interaction rules.
+See [docs/design.md](../../docs/design.md) for shared colors, components, motion, and interaction rules.
 Apple Wallet and live service delivery are deferred; see [Next steps](#next-steps--integration-handoff).
 
 ## Run
 
-Open `JOEYY.xcodeproj`, select **JOEYY** and an iPhone simulator, then Run.
+Open `apps/ios/JOEYY.xcodeproj`, select **JOEYY** and an iPhone simulator, then Run.
 No packages, credentials, signing team, or backend are needed for the simulator.
 For a physical device, select your signing team in Xcode.
 
-The included project is generated from `project.yml` using XcodeGen.
+The included project is generated from `project.yml` using [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+After adding, moving, or removing files, run `xcodegen generate` in `apps/ios` and commit the updated
+`JOEYY.xcodeproj` (CI fails if it is out of date, and uploads the regenerated `project.pbxproj`).
+
+### Source layout
+
+Everything under `JOEYY/` is one app target; the folders only group files by the side that uses them.
+
+| Folder | Contents |
+| --- | --- |
+| `JOEYY/App/` | The app entry point (`JOEYYApp`, root view and tab selection) and entitlements |
+| `JOEYY/Customer/` | Customer screens: Home and collections, place details, Redeemed and Memories, You |
+| `JOEYY/Business/` | Business screens, models, `PartnerStore`, sample data (Norema), and location search |
+| `JOEYY/Shared/` | Used by both sides: loyalty models (`Models.swift`), setup, bug reports, the design system and merchant theming (`Design/`), and sign-in (`SignIn/`) |
+| `JOEYYTests/` | Unit tests |
+| `JOEYYUITests/` | UI tests |
+
+## Install on iPhone (sideload)
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds an unsigned Release IPA and
+publishes it as a GitHub prerelease. Manual runs of that workflow (and pull requests that change it)
+are a dry run that uploads the IPA as a workflow artifact instead.
+
+1. Download `JOEYY-<tag>.ipa` from the release.
+2. Open [Sideloadly](https://sideloadly.io) on your computer, connect your iPhone, drag in the IPA,
+   and sign in with your Apple ID.
+3. On iPhone, trust the developer profile in **Settings > General > VPN & Device Management**, and
+   turn on **Developer Mode** if prompted.
+
+With a free Apple ID, sideloaded apps expire after 7 days; reinstall to refresh.
 
 ## Sample businesses
 
@@ -218,7 +247,7 @@ customer app, so the card designer previews exactly what customers see.
 Business data is JSON in Application Support, separate from customer data. Business sign-in
 works (a separate account from a customer one, kept in the Keychain), but business data isn't
 sent to the server yet, and published business cards aren't linked to customer search (planned in
-[docs/backend-spec.md](docs/backend-spec.md)); location
+[docs/backend-spec.md](../../docs/backend-spec.md)); location
 search text is sent to Apple Maps. Apple Wallet is unavailable for the same signing reason above.
 Switching sides preserves both data sets and remembers the chosen experience across launches.
 `-ui-testing -reset-demo` also clears business test data; add `-business-sample` to load Norema.
@@ -334,12 +363,12 @@ without scrolling and preserving selection. These are not production-scale
 performance or engagement benchmarks.
 
 ```sh
+cd apps/ios
 xcodebuild test -project JOEYY.xcodeproj -scheme JOEYY \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'
 ```
 
-GitHub Actions (`.github/workflows/ios.yml`) runs only when the app changes (`JOEYY/`,
-`JOEYYTests/`, `JOEYYUITests/`, `project.yml`, `JOEYY.xcodeproj/`, or the workflow itself):
+GitHub Actions (`.github/workflows/ios.yml`) runs only when `apps/ios/` or the workflow itself changes:
 
 | When | What runs |
 | --- | --- |
@@ -349,12 +378,18 @@ GitHub Actions (`.github/workflows/ios.yml`) runs only when the app changes (`JO
 | Manual runs (**Run workflow**) | The above, plus the UI tests unless **Also run the UI tests** is unchecked |
 
 Results, including the `.xcresult` bundles and logs, are uploaded as an artifact. A failed project
-check also uploads the regenerated `project.pbxproj` as the `xcodeproj` artifact. Backend changes
-run `.github/workflows/backend.yml` instead. Keep `main` green; open a pull request for changes.
+check also uploads the regenerated `project.pbxproj` as the `xcodeproj` artifact. API and web changes
+run `.github/workflows/api.yml` and `.github/workflows/web.yml` instead. Keep `main` green; open a
+pull request for changes.
+
+### Launch arguments
 
 `-skip-welcome -reset-demo` supports repeatable walkthroughs.
 `-ui-testing` isolates defaults; `-reset-demo` then clears only test state.
 `-many-groups` creates the 64-group fixture only when both of those flags are set.
 `-many-rewards` similarly creates 12 additional completed Cloud City cards to
 exercise repeated-card browsing and independent reward use.
+`-business-sample` (with `-ui-testing -reset-demo`) loads the Norema business sample.
+`-apiBaseURL <url>` points sign-in at another API (default `http://localhost:8080`; see
+[docs/setup/dev-database.md](../../docs/setup/dev-database.md)).
 Automated checks do not replace a VoiceOver or physical-device review.

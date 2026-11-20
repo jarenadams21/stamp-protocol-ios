@@ -49,7 +49,7 @@ export async function verifyBearer(config: AuthConfig, header: string | undefine
 // Token signing -----------------------------------------------------------------------------
 // The API is its own token issuer: after Apple, Google, or a phone code proves who someone is, it
 // signs a short-lived access token for exactly one side. Live, the private key comes from
-// AUTH_SIGNING_KEY; AUTH_MODE=dev keeps one in backend/.dev/ (git-ignored).
+// AUTH_SIGNING_KEY; AUTH_MODE=dev keeps one in services/api/.dev/ (git-ignored).
 
 export const DEV_ISSUER = "https://joeyy.dev.invalid";
 export const TOKEN_AUDIENCES: Record<Audience, string> = { partner: "joeyy-partner", customer: "joeyy-customer" };

@@ -105,7 +105,7 @@ function settings(info: DemoInfo | null, close: () => void) {
     toggle('offline', 'No connection'),
     el('p', { class: 'sheet-text' }, info?.walletConfigured
       ? 'Apple Wallet signing is set up: Add to Apple Wallet gives a real pass.'
-      : 'Apple Wallet signing isn’t set up yet. web/.wallet/README.md has the steps.'),
+      : 'Apple Wallet signing isn’t set up yet. apps/web/.wallet/README.md has the steps.'),
     el('button', {
       type: 'button',
       class: 'demo-item is-reset',

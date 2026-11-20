@@ -35,7 +35,7 @@ Every route except `me` answers `signedOut` (401) without a session.
   keeps the number of stamps it began with.
 - **Diners only find a live place.** A business is listed on `/v1/places` once it has a published
   card and at least one working stand.
-- **Linking a stand** follows flow C in [../../docs/tag-registration.md](../../docs/tag-registration.md):
+- **Linking a stand** follows flow C in [docs/tag-registration.md](../../../docs/tag-registration.md):
   pairing opens a 2-minute window; the owner's phone, signed in to the business site, taps a stand
   allocated to their business; the tap arrives at `POST /v1/web/taps` like any other, and the server
   links that stand instead of stamping. The window closes when used. A stand allocated to another

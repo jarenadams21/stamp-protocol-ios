@@ -273,7 +273,7 @@ export function imagesFromEnv(env: NodeJS.ProcessEnv = process.env): ImageStore 
     const account = env.AZURE_STORAGE_ACCOUNT;
     const container = env.AZURE_STORAGE_CONTAINER ?? "images";
     if (!account || !/^[a-z0-9]{3,24}$/.test(account)) {
-        throw new Error("IMAGE_STORE=azure needs AZURE_STORAGE_ACCOUNT, the storage account's name (see backend/.env.example)");
+        throw new Error("IMAGE_STORE=azure needs AZURE_STORAGE_ACCOUNT, the storage account's name (see services/api/.env.example)");
     }
     if (!/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,62}$/.test(container)) {
         throw new Error("AZURE_STORAGE_CONTAINER is not a valid container name");

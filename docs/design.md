@@ -1,7 +1,8 @@
 # JOEYY design
 
-Shared customer-app reference. The implementation lives in `Design.swift`,
-`MerchantBranding.swift`, and `MerchantViews.swift`.
+Shared customer-app reference. The implementation lives in
+[`apps/ios/JOEYY/Shared/Design/`](../apps/ios/JOEYY/Shared/Design/) (`Design.swift`,
+`MerchantBranding.swift`, and `MerchantViews.swift`).
 
 ## Color and type
 

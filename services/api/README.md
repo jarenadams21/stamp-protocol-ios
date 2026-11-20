@@ -1,6 +1,6 @@
 # JOEYY backend
 
-The shared API for the customer and partner apps, built to [docs/backend-spec.md](../docs/backend-spec.md).
+The shared API for the customer and partner apps, built to [docs/backend-spec.md](../../docs/backend-spec.md).
 It is one Node.js application (Fastify, TypeScript run directly by Node 22.18+) backed by
 **Azure Database for PostgreSQL**, with images in a private **Azure Blob Storage** container.
 
@@ -43,7 +43,7 @@ You need Node 22.18 or later and the Azure CLI signed in to the JOEYY directory
 `joeyyadmin`.
 
 ```sh
-cd backend
+cd services/api
 cp .env.example .env     # already filled in for the dev server
 npm install
 npm run migrate          # applies any new migrations
@@ -74,7 +74,7 @@ shortly before it expires. It works like this:
   the slow managed-identity probe.
 - **In Azure** (once hosting is chosen), give the app a managed identity, add it as a Postgres
   Entra principal, and set `PGUSER` to its name. The code doesn't change.
-- **In CI** (`.github/workflows/backend.yml`), tests run against a Postgres 17 service container
+- **In CI** (`.github/workflows/api.yml`), tests run against a Postgres 17 service container
   with a password and `PGSSLMODE=disable`.
 
 TLS with certificate verification is on for every connection except `PGSSLMODE=disable`.

@@ -45,7 +45,7 @@ export function createPool(env: NodeJS.ProcessEnv = process.env, options: PoolOp
     const database = env.PGDATABASE;
     const user = env.PGUSER;
     if (!host || !database || !user) {
-        throw new Error("Set PGHOST, PGDATABASE, and PGUSER (see backend/.env.example)");
+        throw new Error("Set PGHOST, PGDATABASE, and PGUSER (see services/api/.env.example)");
     }
     const pool = new pg.Pool({
         host,

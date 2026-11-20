@@ -45,7 +45,7 @@ diners tap one to see its card.
 
 **What changed:**
 - **A search box on Discover** (`src/screens/discover.ts`), above the filter chips. It asks the
-  shared backend's Places API (`GET /v1/places?query=`, `backend/src/routes/places.ts`) after a
+  shared backend's Places API (`GET /v1/places?query=`, `services/api/src/routes/places.ts`) after a
   short pause in typing, so it finds every live place in the database, not just the ones listed.
   While searching, the chips hide and the results replace the list; clearing the box brings the
   list straight back. "1 place found" is read out to screen readers; no match shows "No places

@@ -6,7 +6,7 @@ import { joeyyIcon, monogram, strip } from './pass-art';
 
 // Builds a signed Apple Wallet pass (.pkpass) for one stamp card, in the passport look:
 // the business's paper and ink, a strip of stamps, the reward, and an "Open my JOEYY card"
-// link on the back. Signing needs an Apple Pass Type ID certificate; see web/.wallet/README.md.
+// link on the back. Signing needs an Apple Pass Type ID certificate; see apps/web/.wallet/README.md.
 
 const WALLET_DIR = join(process.cwd(), '.wallet');
 const FILES = {

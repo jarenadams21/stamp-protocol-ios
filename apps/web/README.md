@@ -139,7 +139,7 @@ Cloudflare Pages do this with a one-line rewrite.
 The demo backend builds each pass from the card as it is on the server, at
 `/api/wallet/apple/<serial>.pkpass` (see `server/apple-pass.ts`). A card keeps one serial for
 good, so **Update Wallet card** replaces the pass instead of adding a second one. Signing needs
-your Apple Pass Type ID certificate in `web/.wallet/`; [the README there](.wallet/README.md) has
+your Apple Pass Type ID certificate in `apps/web/.wallet/`; [the README there](.wallet/README.md) has
 the steps. Without it, the button explains what's missing. In production, this moves to the backend.
 
 **Passes update themselves.** Each pass registers with the demo backend's Wallet web service

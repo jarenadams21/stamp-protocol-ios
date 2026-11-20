@@ -16,7 +16,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joeyy.customer
-        CODE_SIGN_ENTITLEMENTS: JOEYY/JOEYY.entitlements
+        CODE_SIGN_ENTITLEMENTS: JOEYY/App/JOEYY.entitlements
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: JOEYY
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

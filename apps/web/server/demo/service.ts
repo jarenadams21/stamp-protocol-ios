@@ -399,7 +399,7 @@ export const places = (): PlaceSummary[] => Object.values(BUSINESSES)
   .map(({ business, program }) => ({ business, program }));
 
 /**
- * The shared backend's place search (backend/src/routes/places.ts in stamp-protocol-ios), with the
+ * The shared backend's place search (services/api/src/routes/places.ts in stamp-protocol-ios), with the
  * same rules: trimmed, any case, the exact ID first, then names starting with the query, then names
  * containing it, A to Z, at most 20, live places only. Answers in the backend's shape.
  */

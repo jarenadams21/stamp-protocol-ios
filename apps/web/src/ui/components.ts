@@ -229,7 +229,7 @@ async function addToWallet(api: StampApi, state: CardState, which: WalletPlatfor
     if (which === 'apple' && isDemo) {
       notice(
         'Wallet signing isn’t set up yet',
-        'Apple only accepts passes signed with a Pass Type ID certificate. Add yours to web/.wallet (the README there has the steps), and this button will add the card to Wallet.',
+        'Apple only accepts passes signed with a Pass Type ID certificate. Add yours to apps/web/.wallet (the README there has the steps), and this button will add the card to Wallet.',
       );
     } else {
       notice(

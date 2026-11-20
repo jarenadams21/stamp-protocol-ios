@@ -1,18 +1,18 @@
-name: Backend
+name: API
 
 on:
   push:
     branches: [main]
-    paths: [backend/**, .github/workflows/backend.yml]
+    paths: [services/api/**, .github/workflows/api.yml]
   pull_request:
-    paths: [backend/**, .github/workflows/backend.yml]
+    paths: [services/api/**, .github/workflows/api.yml]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: backend-${{ github.ref }}
+  group: api-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: backend
+        working-directory: services/api
     services:
       postgres:
         # Same major version as the Azure dev server (joeyy-dev-pg).
@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: services/api/package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - name: Migrations apply to an empty database

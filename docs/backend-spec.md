@@ -2,7 +2,7 @@
 
 Status: **partly implemented.** The database is Azure Database for PostgreSQL (`joeyy-dev-pg`,
 database `joeyyRewards`), images are in a private Azure Blob Storage container, and the partner
-routes in section 8.1 (except redeem) are built in [backend/](../backend/README.md). Both apps still
+routes in section 8.1 (except redeem) are built in [services/api/](../services/api/README.md). Both apps still
 run on local sample data.
 This document defines the **one shared backend** that both the customer app and the business
 (partner) app will use once they move off sample data. It follows the agreed Partner MVP
@@ -400,7 +400,7 @@ customers.
 | Image | `id` PK, `businessId` FK, `kind` (logo or cover), `storageKey` UNIQUE, `contentType`, `byteSize`, `width`, `height`, `createdAt` |
 | Group, GroupMember | Customer groups and their cards |
 
-As built (`backend/db/migrations`): owners are a `business_owners` table keyed by `subject`, and the
+As built (`services/api/db/migrations`): owners are a `business_owners` table keyed by `subject`, and the
 business `id` doubles as the client ID. `PunchEvent.eventId` is unique per business, so one
 business's reader can't affect another's deduplication. A business's `logoKey` and a version's
 `coverKey` are foreign keys to an Image of the same business.
