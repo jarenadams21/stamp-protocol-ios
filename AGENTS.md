@@ -21,10 +21,16 @@ The owner (Yesake, GitHub `Yesaket`) is not deeply technical. Explain things in 
 - `backend/verifier/`: the "verifier" sidecar container.
   - Python `sdm-backend`, pinned commit 37585f0c, MIT licence.
   - Private, at `127.0.0.1:5005`, endpoint `GET /api/tagtt?picc_data=..&cmac=..`.
-- `backend/db/migrations/`: numbered SQL files, 0001–0005. Add new files; never edit old ones.
+- `backend/db/migrations/`: numbered SQL files, 0001–0005. Add new files; never edit old ones. Shared by both backends.
+- `backend-dotnet/`: ASP.NET Core (.NET 10) port of the **native NFC/Wallet half only**, branch `feature/dotnet-backend`. This is what `infra/deploy.sh` deploys as the `api` container (image `joeyy-api-dotnet`).
+  - Same routes, responses, env vars and SQL as Node; 31 xUnit tests plus a 47-step Node-vs-.NET parity check all pass.
+  - Partner/business routes, images and OIDC are not ported (still Node only, not deployed).
+  - Build context is the repo root (`-f backend-dotnet/Dockerfile`); see `backend-dotnet/README.md`.
+  - Local .NET 10 SDK is in `~/.dotnet` (set `DOTNET_ROOT=$HOME/.dotnet PATH=$HOME/.dotnet:$PATH`). Test Postgres: Docker `joeyy-dotnet-pg` on 127.0.0.1:55432.
+  - Rollback to Node: `infra/README.md` → "Going back to the Node backend" (last Node image `joeyy-api:72959913a272`).
 - `infra/`: Azure Bicep and scripts.
   - `foundation.bicep`: one-time Owner setup.
-  - `app.bicep`: Container App.
+  - `app.bicep`: Container App (`apiImageName` picks the Node or .NET image; `dev.bicepparam` sets .NET).
   - `dev.bicepparam`, `owner-setup.sh`, `deploy.sh`, `README.md`.
 - `.github/workflows/`: Backend tests, plus `deploy-backend.yml` (auto-deploy).
 - `docs/`: plain-English guides for the owner.
@@ -41,7 +47,7 @@ The owner (Yesake, GitHub `Yesaket`) is not deeply technical. Explain things in 
 - The backend is **live on Azure (dev, not prod)**: https://joeyy-api.happycoast-32e2d60b.westus.azurecontainerapps.io (`/api/v1/healthz`).
   - Runs `NODE_ENV=development`, `AUTH_MODE=dev`, `NATIVE_PROTOTYPE_MODE=1` (anonymous guest cards, no accounts), and `NATIVE_NFC_KEY_MODE=factory-test` (the chip's default test key).
 - **TestFlight build 4** points at the Azure URL. A real phone scan works: verified, counter 21, stamps saved in the Azure database.
-- **Not yet confirmed:** that the Wallet pass updates itself on the next scan (7 → 8 stamps).
+- **Confirmed (Nov 2026):** the Apple Wallet pass updates itself after a scan. The full loop (scan, verify, stamp, Wallet refresh) works on the Azure dev backend.
 - **There is no prod environment yet.** Prod would need:
   - a separate resource group and database,
   - real per-cafe chip keys,
@@ -91,7 +97,7 @@ Resource group `joeyy-dev-rg` (westus). The Entra group `joeyy-devs` is Owner on
 
 ## Open to-dos
 
-1. Confirm the Wallet card updates automatically after a scan.
+1. ~~Confirm the Wallet card updates automatically after a scan.~~ Done.
 2. The repo admin (Jaren) must add these GitHub Actions variables, then merge to `main` to switch on auto-deploy:
    - `AZURE_CLIENT_ID=7351325d-f164-4335-aa96-d6260128bad9`
    - `AZURE_TENANT_ID=939f4731-...`

@@ -30,14 +30,17 @@ if [[ ${1:-} == --upload-secrets ]]; then
   echo "Secrets uploaded to Key Vault $KEY_VAULT_NAME."
 fi
 
-if [[ -n $(git status --porcelain -- backend infra) ]]; then
-  echo "Commit your backend/infra changes first, so the deployed version matches a commit." >&2
+if [[ -n $(git status --porcelain -- backend backend-dotnet infra .dockerignore) ]]; then
+  echo "Commit your backend/backend-dotnet/infra changes first, so the deployed version matches a commit." >&2
   exit 1
 fi
 export IMAGE_TAG=${IMAGE_TAG:-$(git rev-parse --short=12 HEAD)}
 
-echo "Building images $IMAGE_TAG in Azure Container Registry ${REGISTRY_NAME}…"
-az acr build -r "$REGISTRY_NAME" -t "joeyy-api:$IMAGE_TAG" --platform linux/amd64 --no-logs --only-show-errors -o none backend
+echo "Building images ${IMAGE_TAG} in Azure Container Registry ${REGISTRY_NAME}…"
+# The api is the ASP.NET backend. Its build context is the repository root, because the SQL migrations
+# it ships with live in backend/db/migrations.
+az acr build -r "$REGISTRY_NAME" -t "joeyy-api-dotnet:$IMAGE_TAG" --platform linux/amd64 --no-logs --only-show-errors -o none \
+  -f backend-dotnet/Dockerfile .
 az acr build -r "$REGISTRY_NAME" -t "joeyy-verifier:$IMAGE_TAG" --platform linux/amd64 --no-logs --only-show-errors -o none backend/verifier
 
 echo "Deploying…"
