@@ -105,6 +105,50 @@ final class MerchantFlowTests: XCTestCase {
         XCTAssertTrue(finishing.label.contains("still finishing older versions"))
     }
 
+    func testSignInShowsOnlyEnabledMethodsAndEmailCodeFlowWithoutPassword() {
+        let app = launchBusiness()
+        let signIn = app.buttons["business.signIn"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 10))
+        scrollTo(signIn, in: app)
+        signIn.tap()
+        XCTAssertTrue(app.staticTexts["signIn.heading"].waitForExistence(timeout: 10))
+        // UI tests use a stand-in backend with Google and email on, and Apple and phone off.
+        XCTAssertTrue(app.buttons["signIn.google"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["signIn.email"].exists)
+        XCTAssertFalse(app.buttons["signIn.apple"].exists)
+        XCTAssertFalse(app.textFields["signIn.phone"].exists)
+        XCTAssertEqual(app.secureTextFields.count, 0, "There is no password sign-in")
+
+        XCTAssertFalse(app.buttons["signIn.sendEmailCode"].isEnabled)
+        app.textFields["signIn.email"].tap()
+        app.textFields["signIn.email"].typeText("owner@example.com")
+        app.buttons["signIn.sendEmailCode"].tap()
+        let prompt = app.staticTexts["signIn.codePrompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 10))
+        XCTAssertTrue(prompt.label.contains("owner@example.com"))
+        XCTAssertFalse(app.buttons["signIn.verify"].isEnabled)
+        app.textFields["signIn.code"].tap()
+        app.textFields["signIn.code"].typeText("123456")
+        app.buttons["signIn.verify"].tap()
+        XCTAssertTrue(app.staticTexts["signIn.error"].waitForExistence(timeout: 10), "A wrong code shows an error")
+        app.buttons["signIn.change"].tap()
+        XCTAssertTrue(app.textFields["signIn.email"].waitForExistence(timeout: 10))
+        // Google opens a real web sign-in sheet, so it's not tapped here.
+        XCTAssertTrue(app.buttons["signIn.google"].isEnabled)
+        app.buttons["signIn.cancel"].tap()
+        XCTAssertTrue(app.buttons["business.setup"].waitForExistence(timeout: 10))
+        let sample = app.buttons["business.sample"]
+        scrollTo(sample, in: app)
+        sample.tap()
+        app.tabBars.buttons["You"].tap()
+        let account = app.buttons["account.button"]
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+        XCTAssertEqual(account.label, "Sign in")
+        account.tap()
+        XCTAssertTrue(app.staticTexts["signIn.heading"].waitForExistence(timeout: 10))
+        app.buttons["signIn.cancel"].tap()
+    }
+
     func testFirstTimeSetupCreatesBusiness() {
         let app = launchBusiness()
         app.buttons["business.setup"].tap()

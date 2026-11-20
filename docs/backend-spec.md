@@ -74,9 +74,10 @@ Flows in the diagram and where they are specified:
 | 6 | NFC reader | Punch at checkout | Punch handler | 4, 5 |
 
 Components:
-- **Auth provider**: an OIDC provider issues access tokens (Entra External ID was prototyped).
-  The API verifies signature, issuer, audience, and expiry using the provider's published keys.
-  There is no separate auth service.
+- **Sign-in**: Google or a one-time email code first, then Sign in with Apple and a text code, for
+  both apps and the website. The API verifies the provider's proof or the code and issues its own short-lived access tokens, one
+  audience per side (section 8.5). It verifies signature, issuer, audience, and expiry on every
+  request. There is no separate auth service and no email-and-password sign-in.
 - **API routes**: every request is authenticated and the caller is resolved
   (`ownerSubject → businessId` for business owners, `subject → customerId` for customers, and the reader credential `→ businessId` for NFC readers). Every read
   and write is authorized against that identity, and input is validated. Failures return `401`,
@@ -345,6 +346,44 @@ customers.
 - Apps choose periods in the business's time zone and send UTC instants.
 - Counts are read-only SQL aggregates scoped to the business, indexed by `businessId` and timestamp.
 
+### 8.5 Sign-in (no token)
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/v1/auth/methods` | `{ methods }`: which sign-in methods are on |
+| POST | `/v1/auth/google` | `{ role, idToken, nonce }`: Google |
+| POST | `/v1/auth/email/start` | `{ email }`: email a 6-digit code |
+| POST | `/v1/auth/email/verify` | `{ role, email, code }` |
+| POST | `/v1/auth/apple` | `{ role, identityToken, nonce }`: Sign in with Apple |
+| POST | `/v1/auth/phone/start` | `{ phoneNumber }`: text a 6-digit code |
+| POST | `/v1/auth/phone/verify` | `{ role, phoneNumber, code }` |
+| POST | `/v1/auth/refresh` | `{ refreshToken }`: rotate the refresh token, get a new access token |
+| POST | `/v1/auth/sign-out` | `{ refreshToken }`: end the session |
+| GET | `/.well-known/jwks.json` | The public key for access tokens |
+
+- **Methods.** Google and an email code are the first version. Apple and a text code are built
+  and turned on later (`SIGN_IN_METHODS`) once the Apple setup and toll-free verification are
+  done. A method that's off answers `503 signInUnavailable`, and apps show only the methods
+  `/v1/auth/methods` lists. There are no passwords anywhere.
+- **Why the API issues tokens.** Entra External ID, the earlier prototype, can't use a phone code
+  as the first sign-in step. Both sides share one app bundle, so Apple and Google tokens can't tell
+  a customer from an owner. The API checks the provider's token (issuer, client ID, nonce, and an
+  age of at most 10 minutes) or the one-time code, then signs its own token.
+- **One side per token.** `role` is `customer` or `partner`. Access tokens carry audience
+  `joeyy-customer` or `joeyy-partner`, and every route checks it, so a customer's sign-in can't be
+  used as a business owner's, or the other way around. The same person on both sides has two
+  accounts. Accounts aren't linked across sign-in methods.
+- **Tokens.** Access tokens are RS256 JWTs and last 15 minutes. Refresh tokens last 60 days from
+  last use, rotate on every refresh, and are stored only as hashes. Reusing an old one revokes the
+  session.
+- **Subjects** are `google:<id>`, `email:<keyed hash>`, `apple:<id>`, or `phone:<keyed hash>`.
+  Email addresses are trimmed and lowercased first. No email address or phone number is stored
+  (section 10).
+- **One-time codes** are sent through Azure Communication Services (Email, and SMS for texts).
+  They expire in 10 minutes, allow 5 guesses, and are limited per address or number and per IP
+  address. Only allowed countries can get texts.
+- **Account deletion** (later) must also revoke the Apple sign-in, as Apple requires.
+
 ## 9. Data model
 
 | Table | Key fields |
@@ -373,6 +412,8 @@ Constraints: one reward per completed card; `punches` between 0 and the card's v
 ## 10. Security and non-functional requirements
 
 - Tokens are verified on every request, and authorization is scoped to the resolved business or customer.
+- Sign-in is Google, Apple, or a one-time email or text code only; refresh tokens and codes are stored as hashes,
+  and sign-in routes are rate limited (section 8.5).
 - Readers use separate, revocable credentials; NFC payloads are signed; punch events are idempotent.
 - The Wallet signing certificate and APNs keys live in a secrets store, never in the apps or the repository.
 - Images: PNG or JPEG only (the apps convert HEIC photos on the device before uploading), at most

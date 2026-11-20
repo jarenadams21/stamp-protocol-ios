@@ -1,10 +1,34 @@
 name: iOS
 
+# Fast path (every qualifying push and pull request): the Xcode project drift check, the build,
+# and unit tests. UI tests are slow, so they run only on pull requests into main, nightly, and
+# on manual runs (unless ui_tests is turned off).
 on:
   push:
     branches: [main]
+    paths:
+      - JOEYY/**
+      - JOEYYTests/**
+      - JOEYYUITests/**
+      - project.yml
+      - JOEYY.xcodeproj/**
+      - .github/workflows/ios.yml
   pull_request:
+    paths:
+      - JOEYY/**
+      - JOEYYTests/**
+      - JOEYYUITests/**
+      - project.yml
+      - JOEYY.xcodeproj/**
+      - .github/workflows/ios.yml
+  schedule:
+    - cron: "0 9 * * *"
   workflow_dispatch:
+    inputs:
+      ui_tests:
+        description: Also run the UI tests
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -72,6 +96,10 @@ jobs:
           grep -E "error:|Test Case .* failed|Executed|\*\* TEST" unit.log | tail -60
           exit $status
       - name: UI tests
+        if: >-
+          github.event_name == 'schedule' ||
+          (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+          (github.event_name == 'workflow_dispatch' && inputs.ui_tests)
         run: |
           set +e
           # Simulator UI tests can hit runner hiccups; a test passes only if it passes on a rerun.

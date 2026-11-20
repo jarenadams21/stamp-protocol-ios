@@ -22,7 +22,9 @@ struct BusinessSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    PageHeader("You", identifier: "heading.businessYou")
+                    PageHeader("You", identifier: "heading.businessYou") {
+                        AccountButton(role: .partner)
+                    }
                         .padding(.vertical, 12)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0))
@@ -118,7 +120,7 @@ struct BusinessSettingsView: View {
                 } header: {
                     Text("Sample data").foregroundStyle(.tint)
                 } footer: {
-                    Text("Business preview \(versionLabel). Business data stays on this device. Sign-in, live customer activity, and Wallet passes aren't connected yet. Norema Cafe activity is fictional.")
+                    Text("Business preview \(versionLabel). Business data stays on this device. Live customer activity and Wallet passes aren't connected yet. Norema Cafe activity is fictional.")
                         .foregroundStyle(Color.muted)
                 }
             }

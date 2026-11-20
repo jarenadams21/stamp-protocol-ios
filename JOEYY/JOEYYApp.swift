@@ -5,6 +5,7 @@ struct JOEYYApp: App {
     @State private var store: LoyaltyStore
     @State private var branding: MerchantBrandingStore
     @State private var business: PartnerStore
+    @State private var accounts: AccountStore
     @State private var screens = ScreenTracker()
     private let defaults: UserDefaults
     @AppStorage("appearance") private var appearance = "System"
@@ -64,6 +65,12 @@ struct JOEYYApp: App {
             business.loadNoremaSample()
         }
         _business = State(initialValue: business)
+        // UI tests never touch the Keychain or the network: nothing is signed in, and nothing is kept.
+        let testing = arguments.contains("-ui-testing")
+        _accounts = State(initialValue: AccountStore(
+            api: testing ? UITestAuthAPI() : HTTPAuthAPI(baseURL: AppConfiguration.apiBaseURL),
+            store: testing ? MemorySecureStore() : KeychainStore()
+        ))
     }
 
     var body: some Scene {
@@ -72,6 +79,7 @@ struct JOEYYApp: App {
                 .environment(store)
                 .environment(branding)
                 .environment(business)
+                .environment(accounts)
                 .environment(screens)
                 .defaultAppStorage(defaults)
                 .environment(\.appAccent, AppAccent(rawValue: accent) ?? .orange)

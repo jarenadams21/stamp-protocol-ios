@@ -29,6 +29,7 @@ The partner MVP diagram's three flows, plus images and notifications:
 | `GET /v1/places?query=` | No sign-in needed. Search places by name (case-insensitive, names starting with the query first) or exact client ID; at most 20, only businesses with a published card |
 | `GET /v1/places/{placeId}` | No sign-in needed. A place: its business fields plus `program`, the live card (section 3.1); `404 placeNotFound` for unknown or unpublished |
 | `GET /healthz` | Checks the database connection; no token needed |
+| `/v1/auth/…` | Sign-in with Google, Apple, or a one-time code by email or text (see [Sign-in](#sign-in)) |
 
 Not yet implemented: the other customer routes (cards, rewards, groups), NFC punch intake, Apple Wallet, push notifications, and
 redemption (open decision 1). The schema already has the tables for punches, readers, rewards, and
@@ -89,6 +90,7 @@ next number instead.
 | `0001_initial_schema` | Copied unchanged from the standalone partner prototype (`joeyy-partner-ios/backend`), where it was first applied |
 | `0002_align_with_backend_spec` | OIDC subjects, one business per owner with a single location, the section 3.1 theme JSON, `closed`/archived/favorite cards, punches from readers, notifications, and a trigger that keeps punches within the card's version |
 | `0003_images` | The `images` table (one row per upload), foreign keys so a logo or cover must be an image the same business uploaded, and the `image_deletions` queue with the trigger that fills it |
+| `0004_sign_in` | Hashed refresh tokens grouped into sessions, and hashed phone codes with their send limits |
 
 To check what's applied:
 
@@ -182,9 +184,139 @@ One test talks to the real storage account and is skipped unless you name it:
 AZURE_STORAGE_TEST_ACCOUNT=<the storage account's name> npm test
 ```
 
+## Sign-in
+
+There is one sign-in system for the apps and the website: **Sign in with Apple**, **Google**, or a
+**one-time code by email or text message**. There are no passwords anywhere. The API checks the
+provider's proof or the code itself and then issues its own tokens (spec section 8.5), so there is
+no separate auth service or vendor. For the first version only Google and email are on; Apple and
+phone are built and turn on with `SIGN_IN_METHODS` once they're set up.
+
+| Route | |
+| --- | --- |
+| `GET /v1/auth/methods` | `{ methods }`: the methods that are on, so apps show only those |
+| `POST /v1/auth/google` | `{ role, idToken, nonce }`. Google's token must carry `nonce` |
+| `POST /v1/auth/email/start` | `{ email }` → `202 { expiresIn, resendAfter }`, and a 6-digit code by email |
+| `POST /v1/auth/email/verify` | `{ role, email, code }` |
+| `POST /v1/auth/apple` | `{ role, identityToken, nonce }`. Apple's token must carry SHA-256(`nonce`) |
+| `POST /v1/auth/phone/start` | `{ phoneNumber }` → `202 { expiresIn, resendAfter }`, and a 6-digit code by text |
+| `POST /v1/auth/phone/verify` | `{ role, phoneNumber, code }` |
+| `POST /v1/auth/refresh` | `{ refreshToken }` → a new session; the old refresh token stops working |
+| `POST /v1/auth/sign-out` | `{ refreshToken }` → `204`; ends that session on the server |
+| `GET /.well-known/jwks.json` | The public key that signs access tokens |
+
+Sign-in returns `{ accessToken, tokenType: "Bearer", expiresIn, refreshToken }`.
+
+- **Two sides, two accounts.** `role` is `customer` or `partner`. The access token's audience is
+  `joeyy-customer` or `joeyy-partner`, and every route checks it, so a customer token gets `401` on
+  partner routes and the other way around. The same Google account, email address, Apple ID, or
+  phone number used on both sides is two separate accounts. Accounts aren't linked across methods.
+- **Tokens.** Access tokens are RS256 JWTs that last 15 minutes. Refresh tokens last 60 days from
+  their last use and rotate on every refresh. If an old one comes back, the whole session is revoked.
+  Only their SHA-256 hashes are stored.
+- **Subjects** are `google:<Google user ID>`, `email:<keyed hash>`, `apple:<Apple user ID>`, or
+  `phone:<keyed hash>`. Email addresses are trimmed and lowercased first. Neither email addresses
+  nor phone numbers are stored or put in tokens.
+- **Codes** (email and text work the same way) expire in 10 minutes and allow 5 guesses. An address
+  or number can get one code every 30 seconds and 5 an hour. Each IP address gets 10 code requests
+  and 60 sign-in calls an hour. Only countries in `PHONE_COUNTRY_CODES` (the US and Canada by
+  default) can get texts, to limit SMS fraud.
+- **Errors**: `401 signInFailed` for a bad Apple or Google token, `400 invalidCode`, `400 invalidEmail`,
+  `400 invalidPhoneNumber`, `400 unsupportedPhoneNumber`, `429 tooManyRequests` (with
+  `Retry-After`), `503 emailUnavailable` or `503 smsUnavailable` when a code can't be sent, and
+  `503 signInUnavailable` for a method that's off.
+
+### Settings
+
+`AUTH_MODE=dev` (the `.env.example` default) signs with a key in `.dev/`, turns on every method,
+and writes email and text codes to the server log instead of sending them (unless the Azure
+settings are present). It still checks real Apple and Google tokens. `npm run token` mints tokens
+with the same key. Dev mode refuses to start when `NODE_ENV=production`.
+
+`AUTH_MODE=live` (the default when unset) needs:
+
+| Setting | |
+| --- | --- |
+| `AUTH_ISSUER` | This API's public `https://` URL |
+| `AUTH_SIGNING_KEY`, `SIGN_IN_HASH_PEPPER` | Secrets from `npm run auth:key`. Keep them in the secrets store. Changing the pepper turns every email and phone account into a new one |
+| `SIGN_IN_METHODS` | Which methods are on, for example `google,email`. Unset, every method whose settings are present is on. The API won't start with a method on but not set up |
+| `GOOGLE_CLIENT_IDS` | The Google OAuth iOS client ID and, for the website, the web client ID |
+| `ACS_EMAIL_ENDPOINT`, `EMAIL_FROM` | An Azure Communication Services resource with a connected email domain, and a sender address on it (see below) |
+| `APPLE_AUDIENCES` | The app's bundle ID (`com.joeyy.customer`) and, for the website, its Services ID |
+| `ACS_ENDPOINT`, `SMS_FROM`, `PHONE_COUNTRY_CODES` | The Communication Services resource and its toll-free number for texts |
+| `TRUST_PROXY` | `true` behind a load balancer, so rate limits see the client's IP |
+
+The API signs in to Communication Services with `DefaultAzureCredential`, as it does for the
+database, so there is no access key or connection string.
+
+### Google
+
+- **Project**: Google Cloud project `joeyy-515223`, owned by `joeyy.dev@gmail.com`.
+- **iOS client** "JOEYY iOS" for bundle ID `com.joeyy.customer`:
+  `461007702405-0fe1j629n2a79j3n0ss2mkoso67l9gqq.apps.googleusercontent.com`. Client IDs aren't
+  secrets. The app has it in `AppConfiguration.googleIOSClientID`, and the backend needs it in
+  `GOOGLE_CLIENT_IDS`. The website will need a separate web client ID added there too.
+- **How the app signs in**: authorization code with PKCE in `ASWebAuthenticationSession`, redirecting
+  to the reversed client ID (`com.googleusercontent.apps.461007702405-…:/oauth2redirect`). The
+  session catches that redirect itself, so the app registers no URL scheme. iOS clients have no
+  client secret.
+- **Consent screen**: External, in **Testing** mode. Only the test users can sign in:
+  `joeyy.dev@gmail.com` and `elshiekh.a7@gmail.com`. Add pilot testers under **Audience** → **Test
+  users** (up to 100), or publish the app before the pilot. Only the `openid` scope is requested,
+    so publishing doesn't need Google's sensitive-scope verification.
+
+### Email codes in Azure
+
+**The dev resources exist** in `joeyy-dev-rg` (the `Microsoft.Communication` provider is registered
+on the subscription):
+
+| | |
+| --- | --- |
+| Email Communication Services | `joeyy-dev-email`, with an Azure managed domain |
+| Communication Services | `joeyy-dev-acs`, data location United States, connected to that domain |
+| `ACS_EMAIL_ENDPOINT` | `https://joeyy-dev-acs.unitedstates.communication.azure.com` |
+| `EMAIL_FROM` | `DoNotReply@9aa68052-30df-47a1-98ee-71efb451688c.azurecomm.net` |
+| Who can send | The `joeyy-devs` group is Owner of `joeyy-dev-rg`, so `az login` as a member is enough locally |
+
+Both values are in `.env.example`, so `AUTH_MODE=dev` really emails codes through
+`DefaultAzureCredential` once you're signed in. Remove either one to write codes to the log instead.
+To try the flow locally:
+
+```sh
+curl -X POST localhost:8080/v1/auth/email/start -H "Content-Type: application/json" -d '{ "email": "you@example.com" }'
+curl -X POST localhost:8080/v1/auth/email/verify -H "Content-Type: application/json" \
+  -d '{ "role": "customer", "email": "you@example.com", "code": "<the 6 digits>" }'
+```
+
+**Rate limits.** The managed domain is for development only: about 5 emails a minute and 10 an hour
+**per subscription**, shared by everyone testing. Past that, Azure throttles and the API answers
+`503 emailUnavailable`. The API's own limits (one code per address every 30 seconds, 5 an hour)
+apply first. Codes from an `azurecomm.net` sender can also land in spam.
+
+**Before the pilot:** add your own domain to `joeyy-dev-email` (or a production resource) under
+**Provision domains**, verify it with the DNS records Azure shows (TXT, SPF, DKIM, and DKIM2),
+connect it under the Communication Services resource's **Email** → **Domains**, and set `EMAIL_FROM`
+to a sender on it. A custom domain starts at 30 emails a minute and 100 an hour; higher limits can
+be requested through a support ticket.
+
+**In Azure hosting**, give the API's managed identity a role on `joeyy-dev-acs` (or the production
+resource): *Contributor*, or a narrower custom role with
+`Microsoft.Communication/CommunicationServices/Read` and `.../Write`, which is what Microsoft
+documents for Entra sign-in. Then set `ACS_EMAIL_ENDPOINT`, `EMAIL_FROM`, and
+`SIGN_IN_METHODS=google,email`.
+
+To create the resources again elsewhere: create an *Email Communication Services* resource, add an
+**Azure managed domain** under **Provision domains** (its sender `DoNotReply@<id>.azurecomm.net` is
+`EMAIL_FROM`), create a *Communication Services* resource in the same data location (its
+**Endpoint** is `ACS_EMAIL_ENDPOINT`), and connect the domain under **Email** → **Domains**.
+
+For texts later: buy a toll-free number on the Communication Services resource (**Phone numbers**),
+submit toll-free verification (it can take several weeks), then set `ACS_ENDPOINT`, `SMS_FROM`, and
+add `phone` to `SIGN_IN_METHODS`. For Apple, enable Sign in with Apple for `com.joeyy.customer` in
+the Apple Developer account, set `APPLE_AUDIENCES`, and add `apple`.
+
 ## Production identity
 
-Set `AUTH_MODE=oidc` with `OIDC_ISSUER`, `OIDC_JWKS_URI`, `PARTNER_AUDIENCE`, and
-`CUSTOMER_AUDIENCE` from the identity provider (Entra External ID was prototyped). The API checks
-the signature, issuer, audience, and expiry on every request, and resolves the business from the
-token's `sub`, never from the request body.
+Tokens are issued by this API (see [Sign-in](#sign-in)). Every request is checked for signature,
+issuer, audience, and expiry, and the business or customer comes from the token's `sub`, never from
+the request body.

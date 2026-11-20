@@ -39,7 +39,9 @@ struct BusinessRootView: View {
 struct BusinessWelcomeView: View {
     let onSetup: () -> Void
     @Environment(PartnerStore.self) private var store
+    @Environment(AccountStore.self) private var accounts
     @State private var settingUp = false
+    @State private var signingIn = false
 
     var body: some View {
         NavigationStack {
@@ -74,11 +76,19 @@ struct BusinessWelcomeView: View {
                         ) {
                             store.loadNoremaSample()
                         }
+                        if accounts.account(for: .partner) == nil {
+                            BusinessDestination(
+                                title: "Sign in", subtitle: "Google or a code by email",
+                                symbol: "person.crop.circle", identifier: "business.signIn"
+                            ) {
+                                signingIn = true
+                            }
+                        }
                     }
                     Notice(
                         symbol: "iphone",
                         title: "Stays on this device",
-                        message: "Set the stamps a reward takes, design the card customers collect, and see how often they come back. Sign-in and live customer activity aren't connected yet."
+                        message: "Set the stamps a reward takes, design the card customers collect, and see how often they come back. Live customer activity isn't connected yet."
                     )
                 }
                 .padding(24)
@@ -88,6 +98,9 @@ struct BusinessWelcomeView: View {
             .background { AppBackground() }
             .toolbar(.hidden, for: .navigationBar)
             .trackScreen("Business welcome")
+            .sheet(isPresented: $signingIn) {
+                SignInView(role: .partner) { signingIn = false }
+            }
             .sheet(isPresented: $settingUp) {
                 NavigationStack {
                     BusinessEditor(mode: .setup)
