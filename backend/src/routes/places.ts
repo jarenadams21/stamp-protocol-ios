@@ -1,13 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
-import { verifyBearer, type AuthConfig } from "../auth.ts";
 import { invalid, placeNotFound } from "../errors.ts";
 import type { ImageStore } from "../images.ts";
 import { characterCount, NAME_LIMIT } from "../validation.ts";
 import { businessJSON, versionJSON, type BusinessRow, type VersionRow } from "./partner.ts";
 
-// Customer-facing places (spec section 8.2): find a business by name or client ID, then read it with
-// its live card. Only businesses with a published card are places; one still being set up isn't
+// Places (spec section 8.2): find a business by name or client ID, then read it with its live card.
+// Open to anyone, no sign-in: a place's name, location and card are public, like a menu in the
+// window, and the website's Discover page shows them before anyone signs in. Nothing here is
+// about a customer. Only businesses with a published card are places; one still being set up isn't
 // shown, and reads the same as an ID that doesn't exist.
 
 const SEARCH_LIMIT = 20;
@@ -60,12 +61,8 @@ function parseQuery(value: unknown): string {
     return query;
 }
 
-export async function placesRoutes(app: FastifyInstance, options: { pool: pg.Pool; auth: AuthConfig; images: ImageStore }) {
-    const { pool, auth, images } = options;
-
-    app.addHook("onRequest", async (request) => {
-        request.subject = await verifyBearer(auth, request.headers.authorization, "customer");
-    });
+export async function placesRoutes(app: FastifyInstance, options: { pool: pg.Pool; images: ImageStore }) {
+    const { pool, images } = options;
 
     app.get<{ Querystring: { query?: string } }>("/", async (request) => {
         const query = parseQuery(request.query.query);

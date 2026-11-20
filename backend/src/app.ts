@@ -57,7 +57,7 @@ export function buildApp({ pool, auth, images, logger = false }: AppOptions) {
     });
 
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
-    app.register(placesRoutes, { prefix: "/v1/places", pool, auth, images });
+    app.register(placesRoutes, { prefix: "/v1/places", pool, images });
     if (images.routes) app.register(images.routes);
 
     return app;

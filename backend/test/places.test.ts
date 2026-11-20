@@ -22,11 +22,14 @@ after(async () => {
 const search = (query: string) => asCustomer(ctx, "diner-1", `/v1/places?query=${encodeURIComponent(query)}`);
 
 describe("places", () => {
-    test("need a customer token", async () => {
+    test("are open to anyone: no sign-in needed, and a token makes no difference", async () => {
         const anonymous = await ctx.app.inject({ method: "GET", url: "/v1/places?query=norema" });
-        assert.equal(anonymous.statusCode, 401);
-        const partner = await asPartner(ctx, "owner-norema", "GET", "/v1/places?query=norema");
-        assert.equal(partner.status, 401);
+        assert.equal(anonymous.statusCode, 200);
+        const signedIn = await search("norema");
+        assert.deepEqual(anonymous.json(), signedIn.body);
+        const place = await ctx.app.inject({ method: "GET", url: `/v1/places/${norema}` });
+        assert.equal(place.statusCode, 200);
+        assert.equal(place.json().name, "Norema Cafe");
     });
 
     test("search finds names case-insensitively, prefixes first, and skips unpublished businesses", async () => {
