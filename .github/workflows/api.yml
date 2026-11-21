@@ -1,0 +1,57 @@
+name: API
+
+on:
+  push:
+    branches: [main]
+    paths: [services/api/**, .github/workflows/api.yml]
+  pull_request:
+    paths: [services/api/**, .github/workflows/api.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+    services:
+      postgres:
+        # Same major version as the Azure dev server (joeyy-dev-pg).
+        image: postgres:17
+        env:
+          POSTGRES_USER: joeyy
+          POSTGRES_PASSWORD: joeyy
+          POSTGRES_DB: joeyy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U joeyy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: joeyy
+      PGUSER: joeyy
+      PGPASSWORD: joeyy
+      PGSSLMODE: disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/api/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Migrations apply to an empty database
+        run: npm run migrate
+      - run: npm test
