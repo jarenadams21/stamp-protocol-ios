@@ -6,7 +6,7 @@ The backend runs in **Azure Container Apps**. Your Mac doesn't need to be on, an
 GitHub (main) ──merge──► GitHub Actions ──► Azure Container Registry (packaged versions)
                                                     │
 iPhone app / Apple Wallet ──HTTPS──►  Container App "joeyy-api"
-                                      ├─ api       Node backend (public)
+                                      ├─ api       ASP.NET backend (public)
                                       └─ verifier  NFC decryption (private, 127.0.0.1 only)
                                            │            │               │
                                       Key Vault     PostgreSQL     Image storage
@@ -15,7 +15,8 @@ iPhone app / Apple Wallet ──HTTPS──►  Container App "joeyy-api"
 
 | File | What it is | Who runs it |
 |---|---|---|
-| `backend/Dockerfile` | Packages the Node backend | Azure (during deploy) |
+| `backend-dotnet/Dockerfile` | Packages the ASP.NET backend (what runs) | Azure (during deploy) |
+| `backend/Dockerfile` | Packages the older Node backend (kept for rollback) | Only when going back to Node |
 | `backend/verifier/` | Packages the pinned SDM verifier (`nfc-developer/sdm-backend`, MIT) | Azure (during deploy) |
 | `infra/foundation.bicep` + `owner-setup.sh` | One-time shared setup, including access rights | Subscription **Owner**, once |
 | `infra/app.bicep` + `dev.bicepparam` | The running app and its settings | Anyone in `joeyy-devs`, or GitHub Actions |
@@ -67,11 +68,23 @@ node Tools/archive-live-tap.mjs https://joeyy-api.….azurecontainerapps.io --pr
 
 Merge to `main`. GitHub Actions tests the change and then runs `infra/deploy.sh`. You can also run `infra/deploy.sh` yourself.
 
-Database migrations remain a manual, reviewed step, using the same command as before:
+Database migrations remain a manual, reviewed step (from `backend/`, or the .NET equivalent in `backend-dotnet/README.md`):
 
 ```sh
 MIGRATION_ROLE=joeyyadmin npm run migrate
 ```
+
+## Going back to the Node backend
+
+The api switched from Node to ASP.NET on 2026-11-20, on the same address and database. The last Node image is
+`joeyy-api:72959913a272`. To put it back within a few minutes (no rebuild):
+
+```sh
+az containerapp update -g joeyy-dev-rg -n joeyy-api --container-name api \
+  --image joeyydevacrq6nfbh.azurecr.io/joeyy-api:72959913a272
+```
+
+To make that permanent, set `apiImageName = 'joeyy-api'` in `dev.bicepparam` and build `backend` again in `deploy.sh`.
 
 ## Notes
 

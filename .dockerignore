@@ -1,0 +1,8 @@
+# Only used by builds whose context is the repository root (backend-dotnet/Dockerfile).
+# backend/ and backend/verifier/ builds use their own folder as context and their own .dockerignore.
+*
+!backend-dotnet/global.json
+!backend-dotnet/Joeyy.Api/**
+!backend/db/migrations/*.sql
+backend-dotnet/**/bin
+backend-dotnet/**/obj

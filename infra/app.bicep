@@ -10,6 +10,10 @@ param location string = resourceGroup().location
 param imageTag string
 
 param appName string = 'joeyy-api'
+
+@description('Registry repository of the api container: joeyy-api (Node, backend/) or joeyy-api-dotnet (ASP.NET, backend-dotnet/).')
+param apiImageName string = 'joeyy-api'
+
 param environmentName string = 'joeyy-dev-env'
 param registryName string
 param keyVaultName string
@@ -94,7 +98,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'api'
-          image: '${registry.properties.loginServer}/joeyy-api:${imageTag}'
+          image: '${registry.properties.loginServer}/${apiImageName}:${imageTag}'
           resources: { cpu: json('0.5'), memory: '1Gi' }
           volumeMounts: [ { volumeName: 'wallet-signing', mountPath: '/secrets' } ]
           env: [

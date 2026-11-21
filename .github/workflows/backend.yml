@@ -3,9 +3,9 @@ name: Backend
 on:
   push:
     branches: [main]
-    paths: [backend/**, Tools/**, .github/workflows/backend.yml]
+    paths: [backend/**, backend-dotnet/**, Tools/**, .github/workflows/backend.yml]
   pull_request:
-    paths: [backend/**, Tools/**, .github/workflows/backend.yml]
+    paths: [backend/**, backend-dotnet/**, Tools/**, .github/workflows/backend.yml]
   workflow_dispatch:
 
 permissions:
@@ -56,3 +56,41 @@ jobs:
         run: npm run migrate
       - run: npm test
       - run: node --test ../Tools/*.test.mjs
+
+  # The ASP.NET port (backend-dotnet/), tested against the same PostgreSQL version and migrations.
+  dotnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend-dotnet
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: joeyy
+          POSTGRES_PASSWORD: joeyy
+          POSTGRES_DB: joeyy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U joeyy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: joeyy
+      PGUSER: joeyy
+      PGPASSWORD: joeyy
+      PGSSLMODE: disable
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend-dotnet/global.json
+      - run: sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+      - run: dotnet build -warnaserror
+      - run: dotnet test --no-build

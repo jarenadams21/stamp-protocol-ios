@@ -6,6 +6,9 @@ param registryName = readEnvironmentVariable('REGISTRY_NAME')
 param keyVaultName = readEnvironmentVariable('KEY_VAULT_NAME')
 param publicBaseURL = readEnvironmentVariable('PUBLIC_BASE_URL', '')
 
+// The api container runs the ASP.NET backend (backend-dotnet/). To go back to Node, see infra/README.md.
+param apiImageName = 'joeyy-api-dotnet'
+
 param passTypeId = 'pass.com.cafewallet.prototype'
 param teamId = 'S23DT2V34P'
 param prototypeMode = '1'
