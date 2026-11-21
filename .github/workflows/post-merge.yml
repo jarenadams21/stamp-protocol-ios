@@ -1,0 +1,205 @@
+name: Post-merge validation
+
+# Runs the full test suite on every commit that lands on main (a merged pull request), after merge:
+# the UI tests split across four parallel macOS jobs, unit tests, and the API and web checks for the
+# parts the merge changed. Quarantined UI tests (apps/ios/JOEYYUITests/quarantine.txt) are skipped.
+#   - All green: the commit gets a "Post-merge validation" success status and the `verified` tag.
+#   - A test failed twice (real failure): the rollback job reverts the merge on main, comments on the
+#     pull request, and opens or updates the "`main` was rolled back" issue.
+#   - Build, runner, simulator, or audit-timeout errors: an error status and a comment; no revert.
+# Runs are never cancelled, so every merge is checked. The revert is pushed with the workflow token,
+# which doesn't start another run. Nightly, the same suite runs with the quarantined tests and never
+# reverts anything. Manual runs can target another branch (for example a throwaway branch to test
+# the rollback) and only roll back when asked.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Branch whose latest commit to validate
+        default: main
+      rollback:
+        description: Revert that commit if a test fails twice (as after a merge)
+        type: boolean
+        default: false
+      include_quarantine:
+        description: Include quarantined tests
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      branch: ${{ steps.plan.outputs.branch }}
+      base: ${{ steps.plan.outputs.base }}
+      mode: ${{ steps.plan.outputs.mode }}
+      rollback: ${{ steps.plan.outputs.rollback }}
+      quarantine: ${{ steps.plan.outputs.quarantine }}
+      ios: ${{ steps.plan.outputs.ios }}
+      api: ${{ steps.plan.outputs.api }}
+      web: ${{ steps.plan.outputs.web }}
+      expected: ${{ steps.plan.outputs.expected }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || inputs.target_branch || github.ref_name }}
+          fetch-depth: 0
+      - name: Every UI test is in exactly one shard
+        run: node .github/scripts/ui-tests.mjs check
+      - name: Decide what to run
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BRANCH: ${{ github.event_name == 'push' && github.ref_name || inputs.target_branch || github.ref_name }}
+          ROLLBACK_INPUT: ${{ inputs.rollback }}
+          QUARANTINE_INPUT: ${{ inputs.include_quarantine }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          case "$EVENT" in
+            push) MODE=merge; ROLLBACK=true; QUARANTINE=false ;;
+            schedule) MODE=nightly; ROLLBACK=false; QUARANTINE=true ;;
+            *) MODE=manual; ROLLBACK=${ROLLBACK_INPUT:-false}; QUARANTINE=${QUARANTINE_INPUT:-false} ;;
+          esac
+          # The commit before this push (for a merge commit, its first parent).
+          BASE=""
+          if [ "$MODE" = merge ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then BASE=$BEFORE; fi
+          [ -n "$BASE" ] || BASE=$(git rev-parse -q --verify "$SHA^1" || true)
+          IOS=true; API=true; WEB=true
+          if [ "$MODE" = merge ] && [ -n "$BASE" ]; then
+            CHANGED=$(git diff --name-only "$BASE" "$SHA")
+            echo "$CHANGED" | grep -qE '^(apps/ios/|\.github/)' || IOS=false
+            echo "$CHANGED" | grep -qE '^(services/api/|\.github/)' || API=false
+            echo "$CHANGED" | grep -qE '^(apps/web/|\.github/)' || WEB=false
+          fi
+          EXPECTED=""
+          [ "$IOS" = true ] && EXPECTED="unit-tests,ui-shard-1,ui-shard-2,ui-shard-3,ui-shard-4"
+          [ "$API" = true ] && EXPECTED="$EXPECTED,api-tests"
+          [ "$WEB" = true ] && EXPECTED="$EXPECTED,web-build"
+          {
+            echo "sha=$SHA"; echo "branch=$BRANCH"; echo "base=$BASE"; echo "mode=$MODE"
+            echo "rollback=$ROLLBACK"; echo "quarantine=$QUARANTINE"
+            echo "ios=$IOS"; echo "api=$API"; echo "web=$WEB"; echo "expected=${EXPECTED#,}"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  ios:
+    name: iOS shard ${{ matrix.shard }}
+    needs: plan
+    if: needs.plan.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Build for testing (simulator boots in parallel)
+        id: build
+        run: bash ../../.github/scripts/ios-build.sh
+      - name: Unit tests
+        if: matrix.shard == 1
+        env:
+          UDID: ${{ steps.build.outputs.udid }}
+        run: bash ../../.github/scripts/ios-test.sh unit-tests unit
+      - name: UI tests, shard ${{ matrix.shard }}
+        if: always() && steps.build.outcome == 'success'
+        env:
+          UDID: ${{ steps.build.outputs.udid }}
+          QUARANTINE: ${{ needs.plan.outputs.quarantine == 'true' && '--include-quarantine' || '' }}
+        run: bash ../../.github/scripts/ios-test.sh ui-shard-${{ matrix.shard }} shard ${{ matrix.shard }} $QUARANTINE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-ios-${{ matrix.shard }}
+          path: |
+            apps/ios/results/*.json
+            apps/ios/results/*.log
+            apps/ios/build.log
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: xcresult-shard-${{ matrix.shard }}
+          path: apps/ios/results/*.xcresult
+          retention-days: 7
+          if-no-files-found: ignore
+
+  api:
+    name: API
+    needs: plan
+    if: needs.plan.outputs.api == 'true'
+    uses: ./.github/workflows/api.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      report: true
+
+  web:
+    name: Web
+    needs: plan
+    if: needs.plan.outputs.web == 'true'
+    uses: ./.github/workflows/web.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      report: true
+
+  rollback:
+    name: Verdict (verify or roll back)
+    needs: [plan, ios, api, web]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.branch }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: ${{ runner.temp }}/artifacts
+      - name: Collect suite results
+        run: |
+          mkdir -p "$RUNNER_TEMP/results"
+          find "$RUNNER_TEMP/artifacts" -name '*.json' -exec cp {} "$RUNNER_TEMP/results/" \; 2>/dev/null || true
+          ls "$RUNNER_TEMP/results"
+      - name: Verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          BRANCH: ${{ needs.plan.outputs.branch }}
+          BASE: ${{ needs.plan.outputs.base }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          ROLLBACK: ${{ needs.plan.outputs.rollback }}
+          EXPECTED: ${{ needs.plan.outputs.expected }}
+          RESULTS_DIR: ${{ runner.temp }}/results
+        run: node .github/scripts/post-merge.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verdict
+          path: verdict.json

@@ -1,18 +1,26 @@
 name: API
 
+# Pull requests that change the API. After merge, post-merge.yml calls this with the merged commit.
 on:
-  push:
-    branches: [main]
-    paths: [services/api/**, .github/workflows/api.yml]
   pull_request:
     paths: [services/api/**, .github/workflows/api.yml]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ""
+      report:
+        description: Upload a result for the post-merge verdict
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: api-${{ github.ref }}
+  # Only pull request runs share a group; post-merge calls must never cancel each other.
+  group: api-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -45,6 +53,8 @@ jobs:
       PGSSLMODE: disable
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -55,3 +65,22 @@ jobs:
       - name: Migrations apply to an empty database
         run: npm run migrate
       - run: npm test
+        id: tests
+      # A failing `npm test` is a real failure (rollback); anything before it is a setup or build error.
+      - name: Report the result
+        if: always() && inputs.report
+        env:
+          OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/results"
+          node -e '
+            const o = process.env.OUTCOME;
+            const status = o === "success" ? "passed" : o === "failure" ? "failed" : "error";
+            const broken = status === "failed" ? [{ test: "services/api: npm test", message: "see the API job log" }] : [];
+            console.log(JSON.stringify({ suite: "api-tests", status, broken, flaky: [], infra: [], missing: [] }));
+          ' > "$RUNNER_TEMP/results/api-tests.json"
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.report
+        with:
+          name: results-api
+          path: ${{ runner.temp }}/results/api-tests.json

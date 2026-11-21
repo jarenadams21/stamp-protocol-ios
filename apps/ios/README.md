@@ -368,24 +368,26 @@ xcodebuild test -project JOEYY.xcodeproj -scheme JOEYY \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2'
 ```
 
-GitHub Actions (`.github/workflows/ios.yml`) runs only when `apps/ios/` or the workflow itself changes:
+GitHub Actions runs these in two stages (see [Continuous integration](../../README.md#continuous-integration)):
 
 | When | What runs |
 | --- | --- |
-| Every qualifying push to `main` and every qualifying pull request | The check that `JOEYY.xcodeproj` matches `xcodegen generate`, the build, and unit tests |
-| Qualifying pull requests into `main` | The above, plus the UI tests |
-| Nightly at 09:00 UTC, on `main` | The above, plus the UI tests (regardless of changes) |
-| Manual runs (**Run workflow**) | The above, plus the UI tests unless **Also run the UI tests** is unchecked |
+| Pull requests that change `apps/ios/` (`.github/workflows/ios.yml`, about 8 minutes) | Shard coverage check, the check that `JOEYY.xcodeproj` matches `xcodegen generate`, the build, unit tests, and in parallel the UI smoke tests in `JOEYYUITests/smoke.txt` |
+| After merge to `main` (`.github/workflows/post-merge.yml`, about 15 minutes) | Unit tests and every UI test, split across four parallel jobs by `JOEYYUITests/shards.txt`; a test that fails twice reverts the merge |
+| Nightly at 09:00 UTC, on `main` | The post-merge suite plus the quarantined tests; never reverts |
 
-Results, including the `.xcresult` bundles and logs, are uploaded as an artifact. A failed project
-check also uploads the regenerated `project.pbxproj` as the `xcodeproj` artifact. API and web changes
-run `.github/workflows/api.yml` and `.github/workflows/web.yml` instead. Keep `main` green; open a
-pull request for changes.
+Every UI test must appear in exactly one shard in `JOEYYUITests/shards.txt` (the gate fails otherwise);
+put a new test in the shortest shard. Tests that already fail are listed in
+`JOEYYUITests/quarantine.txt` (tracked in [#9](https://github.com/jarenadams21/stamp-protocol-ios/issues/9))
+and skipped everywhere except nightly. Logs and JSON results are uploaded for every job, and
+`.xcresult` bundles for failed ones. A failed project check also uploads the regenerated
+`project.pbxproj` as the `xcodeproj` artifact.
 
 ### Launch arguments
 
 `-skip-welcome -reset-demo` supports repeatable walkthroughs.
-`-ui-testing` isolates defaults; `-reset-demo` then clears only test state.
+`-ui-testing` isolates defaults and turns off UIKit animations so tests don't wait on transitions;
+`-reset-demo` then clears only test state.
 `-many-groups` creates the 64-group fixture only when both of those flags are set.
 `-many-rewards` similarly creates 12 additional completed Cloud City cards to
 exercise repeated-card browsing and independent reward use.
