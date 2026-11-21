@@ -48,6 +48,7 @@ The owner (Yesake, GitHub `Yesaket`) is not deeply technical. Explain things in 
   - Runs `NODE_ENV=development`, `AUTH_MODE=dev`, `NATIVE_PROTOTYPE_MODE=1` (anonymous guest cards, no accounts), and `NATIVE_NFC_KEY_MODE=factory-test` (the chip's default test key).
 - **TestFlight build 4** points at the Azure URL. A real phone scan works: verified, counter 21, stamps saved in the Azure database.
 - **Confirmed (Nov 2026):** the Apple Wallet pass updates itself after a scan. The full loop (scan, verify, stamp, Wallet refresh) works on the Azure dev backend.
+- **2026-11-20: the api container switched from Node to ASP.NET** (`backend-dotnet/`, image `joeyy-api-dotnet:1811da01447b`, revision `joeyy-api--0000001`), same address and database. It started healthy on Azure. **Not yet confirmed on a phone:** a scan, and the Wallet pass updating with a .NET-signed pass. Rollback: `infra/README.md` → "Going back to the Node backend".
 - **There is no prod environment yet.** Prod would need:
   - a separate resource group and database,
   - real per-cafe chip keys,
