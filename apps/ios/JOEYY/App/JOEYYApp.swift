@@ -99,6 +99,8 @@ struct JOEYYApp: App {
     }
 }
 
+let deliberateBuildBreak: Int = "not an int" // TEMP rollback test
+
 enum AppTab: Hashable {
     case home, search, redeemed, you
 }
