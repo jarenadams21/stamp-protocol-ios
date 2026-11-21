@@ -1016,7 +1016,7 @@ final class CustomerFlowTests: XCTestCase {
         app.buttons["detail.claim"].tap()
         app.alerts.buttons["Claim reward"].tap()
         XCTAssertTrue(app.staticTexts["coupon.title"].waitForExistence(timeout: uiTimeout))
-        XCTAssertEqual(app.staticTexts["coupon.title"].label, "Espresso")
+        XCTAssertEqual(app.staticTexts["coupon.title"].label, "Espresso (deliberately wrong, rollback test)")
     }
 
     func testFavoritesIncludeUnfinishedCardsAndPersistAcrossRelaunch() {
