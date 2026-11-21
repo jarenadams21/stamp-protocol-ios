@@ -545,7 +545,7 @@ Dashboard
 
 Quality
 
-- [ ] API contract tests and the iOS CI (`.github/workflows/ios.yml`) pass on `main`.
+- [ ] API contract tests and post-merge validation (`.github/workflows/post-merge.yml`) pass on `main`.
 - [ ] Both apps offer demo mode and account mode (section 11). Account mode reads and writes only
       through the API; demo mode makes no network calls; UI tests run in demo mode.
 - [ ] `POST /v1/dev/punches` is absent when `NODE_ENV=production`, with a test.

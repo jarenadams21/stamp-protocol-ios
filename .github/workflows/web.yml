@@ -1,19 +1,27 @@
 name: Web
 
 # The diner's web page (apps/web/): every change must type-check and build in both modes.
+# Runs on pull requests; after merge, post-merge.yml calls it with the merged commit.
 on:
-  push:
-    branches: [main]
-    paths: [apps/web/**, .github/workflows/web.yml]
   pull_request:
     paths: [apps/web/**, .github/workflows/web.yml]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ""
+      report:
+        description: Upload a result for the post-merge verdict
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: web-${{ github.ref }}
+  # Only pull request runs share a group; post-merge calls must never cancel each other.
+  group: web-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +33,8 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -42,3 +52,17 @@ jobs:
           if grep -l "Preview states\|Norema" dist/assets/*.js; then
             echo "Demo code found in the production bundle" && exit 1
           fi
+      # The web app has no tests, so a failure here is a build error: it notifies but never rolls back.
+      - name: Report the result
+        if: always() && inputs.report
+        env:
+          STATUS: ${{ job.status == 'success' && 'passed' || 'error' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/results"
+          echo "{\"suite\":\"web-build\",\"status\":\"$STATUS\",\"broken\":[],\"flaky\":[],\"infra\":[],\"missing\":[]}" \
+            > "$RUNNER_TEMP/results/web-build.json"
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.report
+        with:
+          name: results-web
+          path: ${{ runner.temp }}/results/web-build.json

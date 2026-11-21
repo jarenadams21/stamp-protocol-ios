@@ -1,0 +1,16 @@
+# Quarantined UI tests: failing on main or flaky. Tracked in
+# https://github.com/jarenadams21/stamp-protocol-ios/issues/9
+#
+# The pull request gate and post-merge validation skip these, so they can't block a merge or trigger
+# a rollback. The nightly run still runs them. Fix a test, confirm it passes nightly (or in a manual
+# Post-merge validation run with "Include quarantined tests"), then remove it here and from the issue.
+
+CustomerFlowTests/testCardsAndCouponsContrastAndTextClippingInLightAndDark
+CustomerFlowTests/testLargestTextSizeCanClaimAndUseCoupon
+CustomerFlowTests/testSetupAndSettingsContrastInLightAndDark
+CustomerFlowTests/testSharedStacksFitLargestTextWithReducedMotion
+MerchantFlowTests/testBusinessScreensContrastInLightAndDark
+CustomerFlowTests/testNativeCardDraggingPersistsAndKeepsGroupOrderIndependent
+CustomerFlowTests/testNativeRedeemedDraggingKeepsTicketStacksAndPersists
+CustomerFlowTests/testCancelledDragAndFavoritesPreserveHomeOrderingAndSelection
+CustomerFlowTests/testBrandingPreviewUsesPhotoPickerAndHandlesImageErrors

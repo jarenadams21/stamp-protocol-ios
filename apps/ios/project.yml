@@ -37,7 +37,10 @@ targets:
   JOEYYUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [JOEYYUITests]
+    sources:
+      - path: JOEYYUITests
+        # shards.txt, smoke.txt, and quarantine.txt are CI test plans, not bundle resources.
+        excludes: ["*.txt"]
     dependencies:
       - target: JOEYY
     settings:

@@ -67,6 +67,10 @@ struct JOEYYApp: App {
         _business = State(initialValue: business)
         // UI tests never touch the Keychain or the network: nothing is signed in, and nothing is kept.
         let testing = arguments.contains("-ui-testing")
+        if testing {
+            // Transitions finish instantly, so UI tests don't wait on them.
+            UIView.setAnimationsEnabled(false)
+        }
         _accounts = State(initialValue: AccountStore(
             api: testing ? UITestAuthAPI() : HTTPAuthAPI(baseURL: AppConfiguration.apiBaseURL),
             store: testing ? MemorySecureStore() : KeychainStore()

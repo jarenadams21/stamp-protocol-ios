@@ -1,0 +1,13 @@
+# The pull request gate runs only these core flows (about 3 minutes). The full suite runs after merge.
+# Keep this list short; a smoke test can't be quarantined.
+
+# Setup landing: choose Customer
+CustomerFlowTests/testFreshInstallChoosesCustomerAndRemembersCompletion
+# Open a card and add stamps until it's full
+CustomerFlowTests/testCollectingFillsCardWithoutAutomaticCoupon
+# A stamp on a full card rolls over after claiming the reward
+CustomerFlowTests/testStampOnFullCardWaitsInQueueUntilClaim
+# Business side with sample data: publish a new version
+MerchantFlowTests/testSampleWalkthroughPublishesNewVersion
+# Sign-in shows only the enabled methods
+MerchantFlowTests/testSignInShowsOnlyEnabledMethodsAndEmailCodeFlowWithoutPassword

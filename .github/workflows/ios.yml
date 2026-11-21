@@ -1,26 +1,16 @@
 name: iOS
 
-# Fast path (every qualifying push and pull request): the Xcode project drift check, the build,
-# and unit tests. UI tests are slow, so they run only on pull requests into main, nightly, and
-# on manual runs (unless ui_tests is turned off).
+# Pull request gate (about 8 minutes), in two parallel jobs:
+#   - the shard coverage check, the Xcode project check, the build, and unit tests
+#   - a build and the UI smoke tests (apps/ios/JOEYYUITests/smoke.txt)
+# The full UI suite runs after merge, in post-merge.yml, which reverts a merge that breaks it.
 on:
-  push:
-    branches: [main]
-    paths:
-      - apps/ios/**
-      - .github/workflows/ios.yml
   pull_request:
     paths:
       - apps/ios/**
       - .github/workflows/ios.yml
-  schedule:
-    - cron: "0 9 * * *"
+      - .github/scripts/**
   workflow_dispatch:
-    inputs:
-      ui_tests:
-        description: Also run the UI tests
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -29,22 +19,42 @@ concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  XCODEGEN_VERSION: "2.46.0"
+
 jobs:
-  test:
+  check:
+    name: Project check, build, unit tests
     runs-on: macos-26
-    timeout-minutes: 75
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/ios
     steps:
       - uses: actions/checkout@v4
+      - name: Every UI test is in exactly one shard; CI script tests
+        run: |
+          node ../../.github/scripts/ui-tests.mjs check
+          node --test ../../.github/scripts/ci-scripts.test.mjs
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      - uses: actions/cache@v4
+        id: xcodegen
+        with:
+          path: ~/xcodegen
+          key: xcodegen-${{ env.XCODEGEN_VERSION }}-${{ runner.os }}
+      - name: Install XcodeGen ${{ env.XCODEGEN_VERSION }}
+        if: steps.xcodegen.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o /tmp/xcodegen.zip \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/$XCODEGEN_VERSION/xcodegen.zip"
+          unzip -q /tmp/xcodegen.zip -d ~/xcodegen
       - name: Check the committed Xcode project matches project.yml
         run: |
-          brew install xcodegen
-          xcodegen generate
+          XCODEGEN=$(find ~/xcodegen -type f -name xcodegen -perm -u+x | head -1)
+          "$XCODEGEN" --version
+          "$XCODEGEN" generate
           if ! git diff --quiet -- JOEYY.xcodeproj; then
             git --no-pager diff --stat -- JOEYY.xcodeproj
             echo "::error::JOEYY.xcodeproj is out of date. Run 'xcodegen generate' and commit the result, or download the xcodeproj artifact from this run."
@@ -55,61 +65,60 @@ jobs:
         with:
           name: xcodeproj
           path: apps/ios/JOEYY.xcodeproj/project.pbxproj
-      - name: Choose an iPhone simulator
-        id: simulator
-        run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          for runtime in sorted(devices, reverse=True):
-              if "iOS" not in runtime:
-                  continue
-              for device in devices[runtime]:
-                  if device["name"].startswith("iPhone"):
-                      print(device["udid"])
-                      sys.exit(0)
-          sys.exit("No available iPhone simulator")
-          ')
-          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$UDID" || true
-      - name: Build for testing
-        run: |
-          set +e
-          xcodebuild build-for-testing -project JOEYY.xcodeproj -scheme JOEYY \
-            -destination "id=${{ steps.simulator.outputs.udid }}" \
-            -derivedDataPath DerivedData > build.log 2>&1
-          status=$?
-          grep -E "error:|warning: .*(Swift 6|concurren|Sendable)|\*\* " build.log | head -80
-          exit $status
+      - name: Build for testing (simulator boots in parallel)
+        id: build
+        run: bash ../../.github/scripts/ios-build.sh
       - name: Unit tests
-        run: |
-          set +e
-          xcodebuild test-without-building -project JOEYY.xcodeproj -scheme JOEYY \
-            -destination "id=${{ steps.simulator.outputs.udid }}" -derivedDataPath DerivedData \
-            -only-testing:JOEYYTests -resultBundlePath UnitTests.xcresult > unit.log 2>&1
-          status=$?
-          grep -E "error:|Test Case .* failed|Executed|\*\* TEST" unit.log | tail -60
-          exit $status
-      - name: UI tests
-        if: >-
-          github.event_name == 'schedule' ||
-          (github.event_name == 'pull_request' && github.base_ref == 'main') ||
-          (github.event_name == 'workflow_dispatch' && inputs.ui_tests)
-        run: |
-          set +e
-          # Simulator UI tests can hit runner hiccups; a test passes only if it passes on a rerun.
-          xcodebuild test-without-building -project JOEYY.xcodeproj -scheme JOEYY \
-            -destination "id=${{ steps.simulator.outputs.udid }}" -derivedDataPath DerivedData \
-            -only-testing:JOEYYUITests \
-            -resultBundlePath UITests.xcresult > ui.log 2>&1
-          status=$?
-          grep -E "error:|Test Case .* failed|Executed|\*\* TEST" ui.log | tail -120
-          exit $status
+        env:
+          UDID: ${{ steps.build.outputs.udid }}
+        run: bash ../../.github/scripts/ios-test.sh unit-tests unit
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results
+          name: unit-test-logs
           path: |
-            apps/ios/UnitTests.xcresult
-            apps/ios/UITests.xcresult
-            apps/ios/*.log
+            apps/ios/build.log
+            apps/ios/results/*.log
+            apps/ios/results/*.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: xcresult-unit-tests
+          path: apps/ios/results/*.xcresult
+          if-no-files-found: ignore
+
+  smoke:
+    name: UI smoke tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Build for testing (simulator boots in parallel)
+        id: build
+        run: bash ../../.github/scripts/ios-build.sh
+      - name: UI smoke tests
+        env:
+          UDID: ${{ steps.build.outputs.udid }}
+        run: bash ../../.github/scripts/ios-test.sh ui-smoke smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-smoke-logs
+          path: |
+            apps/ios/build.log
+            apps/ios/results/*.log
+            apps/ios/results/*.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: xcresult-ui-smoke
+          path: apps/ios/results/*.xcresult
+          if-no-files-found: ignore
