@@ -18,15 +18,18 @@ sys.exit("No available iPhone simulator")
 [ -n "$UDID" ] || exit 1
 echo "udid=$UDID" >> "${GITHUB_OUTPUT:-/dev/null}"
 
-# First boot of a fresh simulator takes a minute or two; overlap it with the build.
+# First boot of a fresh simulator takes a minute or two; overlap it with the build. Launching an app
+# once it's up also warms the simulator, so the first test launch is faster.
 xcrun simctl boot "$UDID" 2>/dev/null || true
-xcrun simctl bootstatus "$UDID" -b > bootstatus.log 2>&1 &
+( xcrun simctl bootstatus "$UDID" -b && xcrun simctl launch "$UDID" com.apple.Preferences \
+    && sleep 20 && xcrun simctl terminate "$UDID" com.apple.Preferences ) > bootstatus.log 2>&1 &
 BOOT_PID=$!
 
 SECONDS=0
+# Whole-module compilation is faster for clean CI builds; Debug stays unoptimized.
 xcodebuild build-for-testing -project JOEYY.xcodeproj -scheme JOEYY \
   -destination "id=$UDID" -derivedDataPath DerivedData \
-  COMPILER_INDEX_STORE_ENABLE=NO > build.log 2>&1
+  COMPILER_INDEX_STORE_ENABLE=NO SWIFT_COMPILATION_MODE=wholemodule > build.log 2>&1
 status=$?
 grep -E "error:|warning: .*(Swift 6|concurren|Sendable)|\*\* " build.log | head -80
 echo "Build took ${SECONDS}s"

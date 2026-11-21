@@ -26,11 +26,13 @@ fi
 status=0
 if [ ${#ONLY[@]} -gt 0 ]; then
   SECONDS=0
+  # Timestamped, so slow phases (simulator preparation, app launch) show up in the log.
   xcodebuild test-without-building -project JOEYY.xcodeproj -scheme JOEYY \
     -destination "id=$UDID" -derivedDataPath DerivedData "${ONLY[@]}" \
     -retry-tests-on-failure -test-iterations 2 \
-    -resultBundlePath "results/$NAME.xcresult" > "results/$NAME.log" 2>&1
-  status=$?
+    -resultBundlePath "results/$NAME.xcresult" 2>&1 \
+    | perl -MPOSIX -pe '$|=1; print strftime("[%H:%M:%S] ", gmtime)' > "results/$NAME.log"
+  status=${PIPESTATUS[0]}
   grep -E "error:|Test Case .* failed|Executed|\*\* TEST" "results/$NAME.log" | tail -80
   echo "$NAME took ${SECONDS}s"
 fi
