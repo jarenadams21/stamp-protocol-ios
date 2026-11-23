@@ -84,6 +84,7 @@
 		9EA550C7505FD4A0C0D0458E /* RedeemedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedeemedView.swift; sourceTree = "<group>"; };
 		AC06010445D75DD42A5BEE35 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		AD58F87FA8287210C6F780C6 /* BusinessSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessSettingsView.swift; sourceTree = "<group>"; };
+		AFFFCA488F5A0A4F153CFB4B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C9A2AC76A1D1B5083A62908D /* BusinessOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessOverviewView.swift; sourceTree = "<group>"; };
 		D607CBBFECE7368253527109 /* JOEYY.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JOEYY.entitlements; sourceTree = "<group>"; };
 		DD5BD3BDD970491A6AD189E4 /* MerchantImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantImageTests.swift; sourceTree = "<group>"; };
@@ -211,6 +212,7 @@
 		FAA5FA8E54563AEE55700BDD /* App */ = {
 			isa = PBXGroup;
 			children = (
+				AFFFCA488F5A0A4F153CFB4B /* Info.plist */,
 				D607CBBFECE7368253527109 /* JOEYY.entitlements */,
 				3E71FB6F8C4369E860F7BBB8 /* JOEYYApp.swift */,
 			);
@@ -536,11 +538,13 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = JOEYY/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				JOEYY_API_BASE_URL = "https://joeyy-api-node.happycoast-32e2d60b.westus.azurecontainerapps.io";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -560,11 +564,13 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = JOEYY/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = JOEYY;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				JOEYY_API_BASE_URL = "http://localhost:8080";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
