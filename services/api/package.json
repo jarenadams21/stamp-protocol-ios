@@ -13,7 +13,8 @@
     "images:cleanup": "node --env-file-if-exists=.env scripts/cleanup-images.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --env-file-if-exists=.env --test --test-concurrency=1 'test/**/*.test.ts'",
-    "auth:key": "node scripts/auth-key.ts"
+    "auth:key": "node scripts/auth-key.ts",
+    "seed:places": "node --env-file-if-exists=.env scripts/seed-sample-places.ts"
   },
   "dependencies": {
     "@azure/communication-email": "1.1.0",

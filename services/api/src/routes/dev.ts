@@ -70,6 +70,19 @@ export async function devRoutes(app: FastifyInstance, options: { pool: pg.Pool; 
      * The counter is a timestamp so links made one after another keep going up. Nothing is stored:
      * the counter is only used when the link is opened.
      */
+    /** A tap link for a place's first working stand, so any place can be tested by its ID. */
+    app.post<{ Params: { businessId: string } }>("/places/:businessId/tap", async (request) => {
+        const found = await pool.query<{ tag_uid: string; last_counter: string }>(
+            `SELECT tag_uid, last_counter FROM readers
+             WHERE kind = 'stand' AND status = 'active' AND business_id::text = $1 ORDER BY created_at LIMIT 1`,
+            [request.params.businessId],
+        );
+        const row = found.rows[0];
+        if (!row) throw standNotFound();
+        const counter = Math.max(Number(row.last_counter) + 1, Date.now());
+        return { next: `/t?picc=${encodeURIComponent(`${row.tag_uid}.${counter}`)}&cmac=dev` };
+    });
+
     app.post<{ Params: { tagUid: string } }>("/taps/:tagUid", async (request) => {
         const { tagUid } = request.params;
         const found = await pool.query<{ last_counter: string }>("SELECT last_counter FROM readers WHERE kind = 'stand' AND tag_uid = $1", [tagUid]);

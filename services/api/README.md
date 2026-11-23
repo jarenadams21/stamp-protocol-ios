@@ -158,6 +158,14 @@ az acr build --registry <registry> --image joeyy-api:$(git rev-parse --short HEA
 and business owner with their email, sign-in method, first and last sign-in, signed-in devices, and
 business. Run it with the `psql` command under [Migrations](#migrations): `psql "…" -f ../../docs/setup/see-signed-up-users.sql`.
 
+### Sample places for development
+
+`npm run seed:places` adds the website demo's eight sample places (from
+`apps/web/server/demo/data.ts`) through the API's own routes, each with a published card and a
+working stand, so Discover and taps have something to show. `AUTH_MODE=dev` only; running it again
+skips places that exist. `POST /v1/dev/places/{businessId}/tap` then makes a fresh tap link for any
+place's first stand.
+
 ## Migrations
 
 `db/migrations/NNNN_name.sql` files are applied in order by `npm run migrate`. Each one runs in a
