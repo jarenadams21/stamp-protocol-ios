@@ -18,6 +18,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.joeyy.customer
         CODE_SIGN_ENTITLEMENTS: JOEYY/App/JOEYY.entitlements
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: JOEYY/App/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: JOEYY
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
@@ -25,6 +26,14 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
+      # Where the app reaches the API (AppConfiguration.apiBaseURL). Release builds, the IPA for
+      # sideloading, use the hosted dev API; release.yml can override it with the repository
+      # variable JOEYY_API_BASE_URL. The apiBaseURL user default overrides both.
+      configs:
+        Debug:
+          JOEYY_API_BASE_URL: http://localhost:8080
+        Release:
+          JOEYY_API_BASE_URL: https://joeyy-api-node.happycoast-32e2d60b.westus.azurecontainerapps.io
   JOEYYTests:
     type: bundle.unit-test
     platform: iOS

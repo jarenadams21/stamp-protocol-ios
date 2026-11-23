@@ -209,4 +209,17 @@ final class AccountStoreTests: XCTestCase {
             "com.googleusercontent.apps.461007702405-0fe1j629n2a79j3n0ss2mkoso67l9gqq:/oauth2redirect"
         )
     }
+
+    func testAPIAddressPrefersOverrideThenBuildSettingThenLocalhost() {
+        let hosted = "https://api.example.com"
+        XCTAssertEqual(AppConfiguration.resolveAPIBaseURL(override: "http://192.168.1.20:8080", built: hosted).absoluteString, "http://192.168.1.20:8080")
+        XCTAssertEqual(AppConfiguration.resolveAPIBaseURL(override: nil, built: hosted).absoluteString, hosted)
+        XCTAssertEqual(AppConfiguration.resolveAPIBaseURL(override: "  ", built: " \(hosted) ").absoluteString, hosted)
+        XCTAssertEqual(AppConfiguration.resolveAPIBaseURL(override: "not a url", built: hosted).absoluteString, hosted)
+        // An unset build setting leaves an empty value in Info.plist.
+        XCTAssertEqual(AppConfiguration.resolveAPIBaseURL(override: nil, built: "").absoluteString, "http://localhost:8080")
+        XCTAssertEqual(AppConfiguration.resolveAPIBaseURL(override: "ftp://example.com", built: nil).absoluteString, "http://localhost:8080")
+        // Unit tests run a Debug build, which points at localhost.
+        XCTAssertEqual(AppConfiguration.builtInAPIBaseURL.absoluteString, "http://localhost:8080")
+    }
 }

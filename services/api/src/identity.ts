@@ -43,11 +43,17 @@ export function googleVerifier(audiences: string[], keys?: JWTVerifyGetKey): IdT
     };
 }
 
+/** Who the provider says signed in. `email` is set only when the provider has verified it. */
+export interface VerifiedIdentity {
+    sub: string;
+    email?: string;
+}
+
 /**
- * Returns the provider's stable user ID, or undefined when the token is invalid, expired, older
- * than ten minutes, for another client, or doesn't carry the nonce.
+ * Returns the provider's stable user ID and verified email address, or undefined when the token is
+ * invalid, expired, older than ten minutes, for another client, or doesn't carry the nonce.
  */
-export async function verifyIdToken(verifier: IdTokenVerifier, token: string, nonce: string): Promise<string | undefined> {
+export async function verifyIdToken(verifier: IdTokenVerifier, token: string, nonce: string): Promise<VerifiedIdentity | undefined> {
     if (verifier.audiences.length === 0) return undefined;
     try {
         const { payload } = await jwtVerify(token, verifier.keys, {
@@ -60,8 +66,17 @@ export async function verifyIdToken(verifier: IdTokenVerifier, token: string, no
         });
         if (payload.nonce !== verifier.nonceClaim(nonce)) return undefined;
         if (typeof payload.sub !== "string" || payload.sub.length === 0 || payload.sub.length > 200) return undefined;
-        return payload.sub;
+        return { sub: payload.sub, email: verifiedEmail(payload.email, payload.email_verified) };
     } catch {
         return undefined;
     }
+}
+
+/** The address, lowercased, only if the provider marks it verified (Apple sends `"true"` as text). */
+function verifiedEmail(email: unknown, verified: unknown): string | undefined {
+    if (verified !== true && verified !== "true") return undefined;
+    if (typeof email !== "string") return undefined;
+    const normalized = email.trim().toLowerCase();
+    if (normalized.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(normalized)) return undefined;
+    return normalized;
 }
