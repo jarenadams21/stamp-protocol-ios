@@ -139,6 +139,10 @@ signature and whatever this browser stores. So the page lets the stamp land, the
 2. **Sign in with Google.**
 3. **Email plus a 6-digit code.** Text codes are off for now because each one costs money.
 
+The shared API can't finish Apple or Google for the website yet (it has no
+`/v1/web/auth/{provider}` routes, only the app's ID-token sign-in), so outside the demo the sheet
+offers email only. `VITE_SIGN_IN_PROVIDERS=apple,google` turns the buttons back on once it can.
+
 The **Wallet pass link** (`/w/{token}`) still opens the card for diners who added the pass but
 never signed in. Passes move to a new iPhone through iCloud.
 

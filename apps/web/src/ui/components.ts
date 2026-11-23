@@ -426,11 +426,20 @@ async function signInWithProvider(api: StampApi, onSignedIn: SignedIn, provider:
   }
 }
 
+/** Apple and Google, where the backend can finish them (env.d.ts). Email codes always work. */
+const PROVIDERS = (import.meta.env.VITE_SIGN_IN_PROVIDERS ?? (isDemo ? 'apple,google' : ''))
+  .split(',')
+  .filter((name): name is SignInProvider => name === 'apple' || name === 'google');
+
 /**
- * The three ways in: Apple, Google, or a one-time code by email. Text codes are off for now
- * because each one costs money. No passwords anywhere.
+ * The ways in: Apple, Google, or a one-time code by email. Text codes are off for now because
+ * each one costs money. No passwords anywhere. With email the only way, it opens straight away.
  */
 function signInSheet(api: StampApi, onSignedIn: SignedIn, mode: 'signin' | 'save' = 'signin') {
+  if (!PROVIDERS.length) {
+    emailSheet(api, onSignedIn, mode);
+    return;
+  }
   openSheet((close) => {
     const choose = (provider: SignInProvider) => (button: HTMLButtonElement) => {
       // The demo's consent sheet replaces this one; the real flow leaves the page.
@@ -445,8 +454,7 @@ function signInSheet(api: StampApi, onSignedIn: SignedIn, mode: 'signin' | 'save
       el('p', { class: 'sheet-text' }, mode === 'signin'
         ? 'Sign in the way you did before. Today’s stamp comes with you.'
         : 'Sign in once and your cards follow you to any phone.'),
-      providerButton('apple', choose('apple')),
-      providerButton('google', choose('google')),
+      ...PROVIDERS.map((provider) => providerButton(provider, choose(provider))),
       el('p', { class: 'signin-or', 'aria-hidden': 'true' }, el('span', {}, 'or')),
       el('button', {
         class: 'button button-secondary idp-email',
@@ -475,7 +483,7 @@ export function signInBanner(api: StampApi, onSignedIn: SignedIn, title = 'Alrea
       'div',
       { class: 'signin-copy' },
       el('p', { class: 'signin-title', id: 'signin-title' }, title),
-      el('p', { class: 'keep-sub' }, 'Apple, Google or email'),
+      el('p', { class: 'keep-sub' }, PROVIDERS.length ? 'Apple, Google or email' : 'With your email'),
     ),
     el('button', { class: 'signin-go', type: 'button', onclick: () => signInSheet(api, onSignedIn, 'signin') }, 'Sign in'),
   );

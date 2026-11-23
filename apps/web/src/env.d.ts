@@ -5,4 +5,9 @@ interface ImportMetaEnv {
   readonly VITE_MODE: 'demo' | 'api' | 'prod';
   /** The real backend. Required in prod; ignored in demo. */
   readonly VITE_API_BASE?: string;
+  /**
+   * Which of Apple and Google the sign-in sheet offers, comma-separated ("apple,google"). Unset:
+   * both in demo, none elsewhere, since the API has no /v1/web/auth/{provider} routes yet.
+   */
+  readonly VITE_SIGN_IN_PROVIDERS?: string;
 }
