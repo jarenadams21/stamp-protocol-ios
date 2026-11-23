@@ -3,9 +3,12 @@ import type pg from "pg";
 import type { AuthConfig } from "./auth.ts";
 import { ApiError } from "./errors.ts";
 import { imageTooLarge, unsupportedImageType, type ImageStore } from "./images.ts";
+import { devRoutes } from "./routes/dev.ts";
 import { partnerRoutes } from "./routes/partner.ts";
 import { placesRoutes } from "./routes/places.ts";
+import { webRoutes } from "./routes/web.ts";
 import { signInRoutes, type SignInOptions } from "./signIn.ts";
+import { tagVerifier, type TagVerifier } from "./tags.ts";
 
 export interface AppOptions {
     pool: pg.Pool;
@@ -16,10 +19,32 @@ export interface AppOptions {
     /** Fastify's trustProxy, so rate limits see the client's IP behind a load balancer. */
     trustProxy?: FastifyServerOptions["trustProxy"];
     logger?: FastifyServerOptions["logger"];
+    /** Verifies stand tap links (TAG_MODE). Left out, no tap verifies: production can't fall back to dev links. */
+    tags?: TagVerifier;
+    /** Website origins allowed to call /v1/web and /v1/places with credentials (WEB_ORIGINS). */
+    webOrigins?: string[];
+    /** The web cookie's Secure flag. Off only with AUTH_MODE=dev, on plain http://localhost. */
+    secureCookie?: boolean;
+    /** Registers /v1/dev (AUTH_MODE=dev only). */
+    devRoutes?: boolean;
 }
 
+/** Routes the website calls from its own origin, so CORS applies to them and nothing else. */
+const CORS_PREFIXES = ["/v1/web", "/v1/places"];
+
 /** The single backend application (spec section 2). Handlers are modules registered under /v1. */
-export function buildApp({ pool, auth, images, signIn, trustProxy = false, logger = false }: AppOptions) {
+export function buildApp({
+    pool,
+    auth,
+    images,
+    signIn,
+    trustProxy = false,
+    logger = false,
+    tags = tagVerifier("sun"),
+    webOrigins = [],
+    secureCookie = true,
+    devRoutes: dev = false,
+}: AppOptions) {
     const app = Fastify({
         logger,
         trustProxy,
@@ -31,6 +56,25 @@ export function buildApp({ pool, auth, images, signIn, trustProxy = false, logge
 
     app.addHook("onSend", async (request, reply) => {
         reply.header("x-request-id", request.id);
+    });
+
+    // CORS for the website (docs/web-connect.md, decision 3): only the listed origins, with
+    // credentials, and only on the routes it calls. Other origins get no CORS headers, so browsers
+    // refuse to show them the response. Preflights are answered here, before routing.
+    app.addHook("onRequest", async (request, reply) => {
+        const path = request.url.split("?")[0]!;
+        if (!CORS_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) return;
+        reply.header("vary", "Origin");
+        const origin = request.headers.origin;
+        if (!origin || !webOrigins.includes(origin)) return;
+        reply.header("access-control-allow-origin", origin);
+        reply.header("access-control-allow-credentials", "true");
+        if (request.method === "OPTIONS") {
+            reply.header("access-control-allow-methods", "GET, POST, PUT, DELETE");
+            reply.header("access-control-allow-headers", "content-type");
+            reply.header("access-control-max-age", "600");
+            return reply.code(204).send();
+        }
     });
 
     app.setErrorHandler((error, request, reply) => {
@@ -71,6 +115,8 @@ export function buildApp({ pool, auth, images, signIn, trustProxy = false, logge
     }
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
     app.register(placesRoutes, { prefix: "/v1/places", pool, images });
+    app.register(webRoutes, { prefix: "/v1/web", pool, images, tags, signIn, secureCookie, origins: webOrigins });
+    if (dev) app.register(devRoutes, { prefix: "/v1/dev", pool, auth });
     if (images.routes) app.register(images.routes);
 
     return app;

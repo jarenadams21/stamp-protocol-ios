@@ -13,6 +13,7 @@ import {
     type ImageStore,
 } from "../images.ts";
 import { parseBusiness, parseInstant, parseProgram, sameProgram, unknownImage, type Theme } from "../validation.ts";
+import { standsRoutes } from "./stands.ts";
 
 declare module "fastify" {
     interface FastifyRequest {
@@ -42,6 +43,7 @@ export interface VersionRow {
     theme: Theme;
     cover_key: string | null;
     published_at: Date;
+    min_minutes_between_stamps: number | null;
 }
 
 const BUSINESS_FOR_SUBJECT = `
@@ -49,7 +51,7 @@ const BUSINESS_FOR_SUBJECT = `
     FROM businesses b JOIN business_owners o ON o.id = b.owner_id
     WHERE o.subject = $1`;
 
-export const VERSION_COLUMNS = "id, version, required_punches, reward_description, theme, cover_key, published_at";
+export const VERSION_COLUMNS = "id, version, required_punches, reward_description, theme, cover_key, published_at, min_minutes_between_stamps";
 
 // Image URLs are short-lived, so apps should cache images by key and use the URL only to download.
 
@@ -80,6 +82,7 @@ export async function versionJSON(images: ImageStore, row: VersionRow) {
             coverURL: row.cover_key ? await images.url(row.cover_key) : null,
         },
         publishedAt: row.published_at.toISOString(),
+        minMinutesBetweenStamps: row.min_minutes_between_stamps,
     };
 }
 
@@ -106,7 +109,7 @@ async function requireImage(db: pg.PoolClient, businessId: string, kind: ImageKi
     if (found.rowCount !== 1) throw unknownImage();
 }
 
-async function requireBusiness(db: pg.Pool | pg.PoolClient, subject: string, lock = false): Promise<BusinessRow> {
+export async function requireBusiness(db: pg.Pool | pg.PoolClient, subject: string, lock = false): Promise<BusinessRow> {
     const result = await db.query<BusinessRow>(BUSINESS_FOR_SUBJECT + (lock ? " FOR UPDATE OF b" : ""), [subject]);
     const row = result.rows[0];
     if (!row) throw businessNotFound();
@@ -226,6 +229,7 @@ export async function partnerRoutes(app: FastifyInstance, options: { pool: pg.Po
         const business = await requireBusiness(pool, request.subject);
         const result = await pool.query<VersionRow & { in_progress: number; completed: number }>(
             `SELECT v.id, v.version, v.required_punches, v.reward_description, v.theme, v.cover_key, v.published_at,
+                    v.min_minutes_between_stamps,
                     COUNT(c.id) FILTER (WHERE c.status = 'active')::int AS in_progress,
                     COUNT(c.id) FILTER (WHERE c.status IN ('completed', 'closed'))::int AS completed
              FROM program_versions v
@@ -277,6 +281,7 @@ export async function partnerRoutes(app: FastifyInstance, options: { pool: pg.Po
                     rewardDescription: live.reward_description,
                     theme: live.theme,
                     coverKey: live.cover_key,
+                    minMinutesBetweenStamps: live.min_minutes_between_stamps,
                 };
                 if (sameProgram(input, liveInput)) {
                     throw new ApiError(409, "unchangedProgram", "This matches the published card. Make a change before publishing.");
@@ -284,10 +289,11 @@ export async function partnerRoutes(app: FastifyInstance, options: { pool: pg.Po
             }
             if (input.coverKey) await requireImage(client, business.id, "cover", input.coverKey);
             const inserted = await client.query<VersionRow>(
-                `INSERT INTO program_versions (business_id, version, required_punches, reward_description, theme, cover_key)
-                 SELECT $1, COALESCE(MAX(version), 0) + 1, $2, $3, $4, $5 FROM program_versions WHERE business_id = $1
+                `INSERT INTO program_versions
+                     (business_id, version, required_punches, reward_description, theme, cover_key, min_minutes_between_stamps)
+                 SELECT $1, COALESCE(MAX(version), 0) + 1, $2, $3, $4, $5, $6 FROM program_versions WHERE business_id = $1
                  RETURNING ${VERSION_COLUMNS}`,
-                [business.id, input.requiredPunches, input.rewardDescription, input.theme, input.coverKey],
+                [business.id, input.requiredPunches, input.rewardDescription, input.theme, input.coverKey, input.minMinutesBetweenStamps],
             );
             const row = inserted.rows[0]!;
             await client.query("UPDATE businesses SET current_version_id = $1 WHERE id = $2", [row.id, business.id]);
@@ -366,4 +372,7 @@ export async function partnerRoutes(app: FastifyInstance, options: { pool: pg.Po
             nextCursor: result.rows.length > limit && last ? encodeCursor(last.micros, last.id) : null,
         };
     });
+
+    // Stands and activity (docs/web-connect.md): a child plugin, so the owner token hook above applies.
+    await app.register(standsRoutes, { pool });
 }
