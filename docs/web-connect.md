@@ -15,11 +15,10 @@ and easy to change.*
 
 ## Decisions
 
-1. **The tap model (Team).** The website is built for a passive NFC tag in a counter stand, read
-   by the diner's phone. The spec's §5 describes a powered reader that reads the diner's pass. This
-   plan supports the stand model **inside the existing tables**: a stand is a row in `readers` with
-   `kind = 'stand'`, so punches, dashboards and notifications work unchanged. The reader model can
-   still be added later.
+1. **The tap model: decided, a stand tag (2026-11-22).** The stand holds an **NXP NTAG 424 DNA**
+   tag that the diner's phone reads; there is no powered reader at the till. This replaces the
+   reader model in the spec's §5. A stand is a row in `readers` with `kind = 'stand'`, so punches,
+   dashboards and notifications work unchanged.
 2. **Diner sessions on the web use a cookie, not bearer tokens.** A diner's first tap must work with
    no account, and a page shouldn't hold a refresh token in JavaScript. The API sets an HttpOnly
    cookie `joeyy_web` (random 32 bytes, stored only as a SHA-256 hash in `web_sessions`) that points
