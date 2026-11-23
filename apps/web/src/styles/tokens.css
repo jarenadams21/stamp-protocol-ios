@@ -1,5 +1,6 @@
 /* JOEYY passport theme: a dark navy ground (the passport cover) with each business's
-   pages in their own light paper and ink. Orange stays the JOEYY accent, as in the iOS app. */
+   pages in their own light paper and ink. The JOEYY accent is ivory, so the restaurants' cards
+   are the only colour on screen. (The iOS app still uses orange; the team should match.) */
 
 :root {
   color-scheme: dark;
@@ -9,8 +10,8 @@
   --text: #f2eee4;
   --muted: #a9aebc;
   --rule: #2b3349;
-  --accent: #ffb07c;
-  --accent-fill: #f47b35;
+  --accent: #eee3cb;
+  --accent-fill: #efe6d2;
   --on-accent: #191b18;
   --accent-wash: #1a2240;
   --danger: #ff9a8f;

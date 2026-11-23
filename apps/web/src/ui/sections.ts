@@ -8,7 +8,7 @@ const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute:
 let introPlayed = false;
 
 /**
- * The JOEYY mark: an orange tile with one punched hole. The header's mark plays its intro once
+ * The JOEYY mark: an ivory tile with one punched hole. The header's mark plays its intro once
  * per visit (the tile lands, the hole punches through, its rim draws round), not on every page.
  */
 export function logoMark(size = 26, intro = false) {

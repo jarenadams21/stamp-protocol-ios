@@ -283,7 +283,6 @@ a.wallet-back {
 
 /* The opened card lifts on a spring with a whisper of overshoot, like a pass out of Wallet. */
 .wallet-card.is-open {
-  outline-color: var(--accent);
   --ease: var(--spring-lift);
 }
 
@@ -883,13 +882,13 @@ a.wallet-back {
   background: var(--ink);
 }
 
-/* A ring of JOEYY orange runs round the page as it fills. */
+/* A ring in the place's own ink runs round the page as it fills. */
 .passport-ring {
   position: absolute;
   inset: 0;
   z-index: 3;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 3px var(--accent), inset 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: inset 0 0 0 3px var(--page-ink), inset 0 0 18px color-mix(in srgb, var(--page-ink) 30%, transparent);
   opacity: 0;
   pointer-events: none;
 }

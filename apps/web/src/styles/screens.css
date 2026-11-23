@@ -47,7 +47,7 @@
 }
 
 /* The wordmark is foil pressed into the cover: smaller than any headline, a muted gold that
-   echoes the orange mark, with a hairline of shadow under it. The page's headline leads, not this. */
+   echoes the ivory mark, with a hairline of shadow under it. The page's headline leads, not this. */
 .brand {
   color: color-mix(in srgb, var(--accent) 55%, var(--text));
   font-family: var(--font-display);
@@ -1296,7 +1296,7 @@ body:has(.page-staff) .demo-bar {
   line-height: 1.25;
 }
 
-/* Something to do here: a small orange dot in the corner. */
+/* Something to do here: a small dot in the corner, in the accent. */
 .dock-tile.is-attention::after {
   content: '';
   position: absolute;
