@@ -78,7 +78,7 @@ export async function devRoutes(app: FastifyInstance, options: { pool: pg.Pool; 
             [request.params.businessId],
         );
         const row = found.rows[0];
-        if (!row) throw standNotFound();
+        if (!row) throw new ApiError(404, "placeNotFound", "No place with this ID has a working stand. GET /v1/places lists the IDs.");
         const counter = Math.max(Number(row.last_counter) + 1, Date.now());
         return { next: `/t?picc=${encodeURIComponent(`${row.tag_uid}.${counter}`)}&cmac=dev` };
     });
