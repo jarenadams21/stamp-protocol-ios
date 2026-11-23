@@ -115,7 +115,7 @@ export function buildApp({
     }
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
     app.register(placesRoutes, { prefix: "/v1/places", pool, images });
-    app.register(webRoutes, { prefix: "/v1/web", pool, images, tags, signIn, secureCookie, origins: webOrigins });
+    app.register(webRoutes, { prefix: "/v1/web", pool, images, tags, signIn, secureCookie, origins: webOrigins, claimUnknownStands: dev });
     if (dev) app.register(devRoutes, { prefix: "/v1/dev", pool, auth });
     if (images.routes) app.register(images.routes);
 

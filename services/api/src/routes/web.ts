@@ -20,7 +20,7 @@ import {
 } from "../signIn.ts";
 import type { TagVerifier } from "../tags.ts";
 import type { Theme } from "../validation.ts";
-import { nextStandLabel } from "./stands.ts";
+import { nextStandLabel, standCredentialHash } from "./stands.ts";
 
 // The website's diner routes (apps/web/docs/identity-and-api.md, docs/web-connect.md decision 2).
 // Response shapes are the TypeScript types in apps/web/src/api/types.ts.
@@ -44,6 +44,12 @@ export interface WebOptions {
     secureCookie: boolean;
     /** Origins allowed to call with credentials (WEB_ORIGINS). Also checked on writes, against cross-site forms. */
     origins: string[];
+    /**
+     * Development only (AUTH_MODE=dev): a correctly signed tap from a tag no business has, while
+     * exactly one business is linking a stand, claims that tag for it. Stands for real businesses
+     * are allocated when they're packed instead, so a stranger can't claim one.
+     */
+    claimUnknownStands?: boolean;
 }
 
 const COOKIE = "joeyy_web";
@@ -450,6 +456,23 @@ function parseDisplayName(value: unknown): string | null {
 
 // Routes -------------------------------------------------------------------------------------
 
+/** AUTH_MODE=dev: links an unknown, correctly signed tag to the one business that's linking a stand. */
+async function claimStand(client: pg.PoolClient, tagUid: string, counter: number, now: Date): Promise<string | undefined> {
+    const linking = await client.query<{ id: string }>(
+        "SELECT id FROM businesses WHERE pairing_expires_at > $1 AND current_version_id IS NOT NULL FOR UPDATE",
+        [now],
+    );
+    if (linking.rowCount !== 1) return undefined;
+    const businessId = linking.rows[0]!.id;
+    await client.query(
+        `INSERT INTO readers (business_id, kind, tag_uid, status, credential_hash, label, last_counter, activated_at, last_tap_at)
+         VALUES ($1, 'stand', $2, 'active', $3, $4, $5, $6, $6)`,
+        [businessId, tagUid, standCredentialHash(tagUid), await nextStandLabel(client, businessId), counter, now],
+    );
+    await client.query("UPDATE businesses SET pairing_expires_at = NULL WHERE id = $1", [businessId]);
+    return businessId;
+}
+
 export async function webRoutes(app: FastifyInstance, options: WebOptions) {
     const { pool, images, tags, signIn } = options;
     const perIp = new RateLimiter(SIGN_INS_PER_IP_PER_HOUR, 3_600_000);
@@ -513,7 +536,13 @@ export async function webRoutes(app: FastifyInstance, options: WebOptions) {
                     tap.tagUid,
                 ]);
                 const businessId = known.rows[0]?.business_id;
-                if (!businessId) return { outcome: "invalidTag" };
+                if (!businessId) {
+                    if (options.claimUnknownStands) {
+                        const claimed = await claimStand(client, tap.tagUid, tap.counter, now);
+                        if (claimed) return { outcome: "standLinked", business: await businessJSON(client, claimed) };
+                    }
+                    return { outcome: "invalidTag" };
+                }
                 const state = existing ? await cardState(client, images, existing.customer_id, businessId) : undefined;
                 return state ? { outcome: "replayed", state } : { outcome: "replayed" };
             }
