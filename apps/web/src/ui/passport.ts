@@ -24,7 +24,8 @@ function stampDates(state: CardState) {
   return Array.from({ length: count }, (_, index) => visits[count - 1 - index]);
 }
 
-function inkStamp(index: number, seed: number, iso?: string) {
+/** One visit's rubber-stamp impression: its shape, ink and angle come from the visit number and the place. */
+export function inkStamp(index: number, seed: number, iso?: string) {
   const shape = SHAPES[(index + seed) % SHAPES.length];
   const ink = INKS[(index + seed) % INKS.length];
   const rotate = rotationOf(index, seed);
@@ -49,8 +50,13 @@ interface PassportOptions {
 
 export interface PassportView {
   root: HTMLElement;
-  /** Stamps visit `index` onto the page with a rubber-stamp press, tagged "New" (or `tag`). */
-  stampIn(index: number, tag?: string): Promise<void>;
+  /**
+   * Stamps visit `index` onto the page with a rubber-stamp press, tagged "New" (or `tag`). With
+   * `arrived`, the stamp moment (stamp-moment.ts) already showed the blow: it just settles in.
+   */
+  stampIn(index: number, tag?: string, options?: { arrived?: boolean }): Promise<void>;
+  /** The slot for visit `index`, for the stamp moment to fly into. */
+  slot(index: number): HTMLElement | null;
   /** The card just filled up: the reward-earned moment. */
   celebrate(): Promise<void>;
 }
@@ -178,13 +184,26 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
     return done;
   }
 
-  async function stampIn(index: number, tag = 'New') {
-    const slot = grid.querySelector<HTMLElement>(`.ink-slot[data-index="${index}"]`);
+  const slotAt = (index: number) => grid.querySelector<HTMLElement>(`.ink-slot[data-index="${index}"]`);
+
+  async function stampIn(index: number, tag = 'New', options: { arrived?: boolean } = {}) {
+    const slot = slotAt(index);
     if (!slot) return;
     const mark = inkStamp(index, seed, dates[index]);
     slot.replaceChildren(mark);
     slot.classList.add('is-newest');
     slot.dataset.tag = tag;
+    if (options.arrived) {
+      // The stamp flew in from the moment: count it, and let the page give a little under it.
+      tickCounts(index + 1, true);
+      if (!prefersReducedMotion()) {
+        root.animate(
+          [{ transform: 'translateY(0)' }, { transform: 'translateY(4px) scale(0.992)', offset: 0.25 }, { transform: 'translateY(0)' }],
+          { duration: 420, easing: token('--ease-out'), composite: 'add' },
+        );
+      }
+      return;
+    }
     if (prefersReducedMotion() || !program.theme.allowsMotion) {
       tickCounts(index + 1);
       haptic(14);
@@ -278,7 +297,7 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
     ring.remove();
   }
 
-  return { root, stampIn, celebrate };
+  return { root, stampIn, celebrate, slot: slotAt };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { ApiError, type Identity, type StampApi, type TapResult } from '../api';
 import { header } from '../ui/components';
 import { announce, el, prefersReducedMotion } from '../ui/dom';
+import { stampMoment } from '../ui/stamp-moment';
 import { clearMerchantTheme } from '../ui/theme';
 import { cardPage, footer, messagePage, mount, plural, printTicket, skeletonPassport } from './shared';
 import { staffScreen } from './staff';
@@ -67,6 +68,8 @@ export async function tapScreen(api: StampApi, query: URLSearchParams) {
   switch (result.outcome) {
     case 'stamped': {
       const { state } = result;
+      // The blow comes first, over everything; the card page builds underneath it.
+      const moment = stampMoment(state, state.card.punches - 1);
       const left = state.card.requiredPunches - state.card.punches;
       const { passport } = cardPage(api, state, {
         identity: result.identity,
@@ -79,12 +82,14 @@ export async function tapScreen(api: StampApi, query: URLSearchParams) {
           : `${plural(left, 'more stamp', 'more stamps')} to your ${state.rewardsAvailable.length ? 'next ' : ''}reward.`,
       });
       await cardArrived();
-      await passport.stampIn(state.card.punches - 1);
+      await moment?.land(passport.slot(state.card.punches - 1));
+      await passport.stampIn(state.card.punches - 1, 'New', { arrived: Boolean(moment) });
       announce(`Stamp added. ${state.card.punches} of ${state.card.requiredPunches}.`);
       return;
     }
     case 'completed': {
       const { state } = result;
+      const moment = stampMoment(state, state.card.punches - 1, { complete: true });
       const { passport, tickets } = cardPage(api, state, {
         identity: result.identity,
         verified: { at: new Date() },
@@ -96,7 +101,8 @@ export async function tapScreen(api: StampApi, query: URLSearchParams) {
       const fresh = tickets.at(-1);
       if (fresh) fresh.style.visibility = 'hidden';
       await cardArrived();
-      await passport.stampIn(state.card.punches - 1);
+      await moment?.land(passport.slot(state.card.punches - 1));
+      await passport.stampIn(state.card.punches - 1, 'New', { arrived: Boolean(moment) });
       const celebrating = passport.celebrate();
       window.setTimeout(() => printTicket(fresh), prefersReducedMotion() ? 0 : 360);
       await celebrating;

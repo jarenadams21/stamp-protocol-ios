@@ -11,6 +11,7 @@ shared from its Share menu).
 | Version | Date | What changed | Why |
 | --- | --- | --- | --- |
 | [v4.2](#v42-search-places) | 2026-11-20 | A search box on Discover finds places by name through the shared backend's Places API; tap a result to see its card | Yemi's task: search the restaurants in our database and open one to see its card |
+| [v4.2](#v42-the-stamp-moment) | 2026-11-22 | A tap opens on a full-screen stamp moment: the cover dims, a big stamp in the visit's ink falls and slams down (shockwave rings, ink spatter, shake, double buzz, "Stamp 4 of 8"), then flies into its slot as the card page shows | Feedback: the stamp still wasn't the main focus; it has to land before the rest of the page |
 | [v4.1](#v41-stamps-with-punch-paper-with-texture) | 2026-11-15 | Stamps land harder (shadow, squash, wet ink drying, ink flecks, the count pops) and look inked (patchy rubber-stamp ink, heavier rims); the card is real paper (fibres, a security print and rosette in the place's ink, darker edges); empty slots printed as targets, the reward slot heavier | Demo feedback: more pop on the stamps, more texture on the card |
 | [v4.0](#v40-the-business-site) | 2026-11-15 | The business site at `/business`: email sign-in, a four-step setup with the real card filling in as you type, stand linking, Today, Card and Stands. A card made there is live on the diner side | Owners had no way to sign up and make their own card |
 | [v3.16](#v316-landing-page-profile-and-the-cover) | 2026-11-15 | Landing page with a Try a tap sample card; profile with your name, sign out and delete account; the page is now a printed passport cover (security lines, rosette, grain); quieter foil wordmark; no ring over the newest stamp | Feedback: no page for newcomers, a thin profile, a bare background, a loud wordmark, an awkward ring on new stamps |
@@ -58,6 +59,23 @@ diners tap one to see its card.
   The demo backend answers `?query=` with the backend's exact rules and shape.
 
 ![Search at 390px](docs/iterations/v4.2-search-390.jpg) ![Search at 320px](docs/iterations/v4.2-search-320.jpg)
+
+## v4.2: the stamp moment
+
+**Why:** "the stamping is still not flashy enough… it needs to be the main focus before the rest of the page loads."
+
+**What changed** (`src/ui/stamp-moment.ts`, called from the tap page for `stamped` and `completed`):
+- Before the card page shows, the cover dims and blurs, lit faintly in the place's paper colour.
+- A big stamp, the same shape, ink and angle the card will show for this visit, falls from above the
+  screen, blurred and turning, while its shadow gathers on a disc of the place's paper.
+- On impact: two shockwave rings and a spatter in the stamp's ink, a short shake, a flash of the
+  place's colour, a double buzz, and the count pops in ("Stamp 4 of 8"; a full card says "Card
+  complete" with a bigger, four-ink burst).
+- After a beat it shrinks and flies into its slot on the card while the dimming lifts; the card
+  counts it and gives a little under it (`stampIn(..., { arrived: true })`).
+- Reduced motion, or a business that turned motion off, skips the moment and gets the plain stamp.
+
+![The stamp moment, just after impact](docs/iterations/v4.2-stamp-moment.jpg)
 
 ## v4.1: stamps with punch, paper with texture
 

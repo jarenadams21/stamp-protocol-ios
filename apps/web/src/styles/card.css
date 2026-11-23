@@ -985,3 +985,104 @@ a.wallet-back {
   }
 }
 
+
+/* ---------- The stamp moment (stamp-moment.ts) ---------- */
+
+/* Over everything, before the card: the cover dims, lit faintly in the place's own paper colour,
+   and one big stamp takes the screen. */
+.stamp-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) var(--gutter) max(24px, env(safe-area-inset-bottom));
+  background-color: color-mix(in srgb, var(--paper) 88%, transparent);
+  background-image: radial-gradient(60% 45% at 50% 46%, color-mix(in srgb, var(--page-paper) 22%, transparent), transparent 70%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  pointer-events: none;
+}
+
+.moment-stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-5);
+  text-align: center;
+}
+
+.moment-place {
+  color: color-mix(in srgb, var(--page-paper) 70%, var(--text));
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+}
+
+/* A paper disc for the stamp to land on, so the ink reads as ink on any cover colour. */
+.moment-stamp {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(64vw, 260px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--page-paper);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--page-paper) 18%, transparent), 0 30px 60px -20px rgb(0 0 0 / 0.7);
+  transform-origin: center;
+}
+
+.moment-stamp .ink-stamp {
+  position: relative;
+  z-index: 1;
+  border-width: 9px;
+  outline-width: 3px;
+  outline-offset: 5px;
+  -webkit-mask-size: 260px 260px;
+  mask-size: 260px 260px;
+}
+
+.moment-stamp .ink-stamp.is-round { width: 78%; }
+.moment-stamp .ink-stamp.is-rect { width: 84%; height: 56%; border-radius: 14px; }
+.moment-stamp .ink-stamp.is-oval { width: 88%; height: 62%; }
+.moment-stamp .ink-date { font-size: clamp(2rem, 11vw, 2.75rem); }
+.moment-stamp .ink-no { font-size: clamp(0.875rem, 4vw, 1.125rem); }
+
+.moment-shadow {
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.45), transparent);
+  filter: blur(8px);
+}
+
+.moment-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 4px solid var(--ink);
+  pointer-events: none;
+}
+
+.moment-fleck {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50% 40% 55% 45%;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.moment-count {
+  color: var(--text);
+  font-family: var(--font-stamp);
+  font-size: clamp(1.75rem, 9vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.stamp-moment.is-complete .moment-count {
+  color: var(--accent);
+}
