@@ -1,5 +1,5 @@
 # The test site (api mode) as a container: the built page behind nginx, which passes /v1 to the API
-# running next to it in the same container app (deploy/README.md). Build from apps/web:
+# running next to it in the same container app (joeyy-web-test). Build from apps/web:
 #   az acr build --registry <registry> --image joeyy-web-test:<tag> --file deploy/Dockerfile .
 FROM node:22-slim AS build
 WORKDIR /web
