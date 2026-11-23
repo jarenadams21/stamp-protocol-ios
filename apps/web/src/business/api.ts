@@ -1,3 +1,4 @@
+import { apiBase } from '../api';
 import type { ProgramVersion } from '../api/types';
 import {
   PartnerError,
@@ -208,10 +209,5 @@ export class PartnerApi {
 
 const range = (from: Date, to: Date) => new URLSearchParams({ from: from.toISOString(), to: to.toISOString() }).toString();
 
-export function createPartnerApi(): PartnerApi {
-  // The demo backend answers /v1/auth and /v1/partner on the same origin as the page.
-  if (import.meta.env.VITE_MODE === 'demo') return new PartnerApi('');
-  const base = import.meta.env.VITE_API_BASE;
-  if (!base) throw new Error('VITE_API_BASE is not set');
-  return new PartnerApi(base.replace(/\/$/, ''));
-}
+/** Same address as the diner side: this origin in demo and api mode, VITE_API_BASE in prod. */
+export const createPartnerApi = (): PartnerApi => new PartnerApi(apiBase());
