@@ -1,35 +1,34 @@
 import type { CardState } from '../api';
 import { el, haptic, prefersReducedMotion } from './dom';
-import { drawStampFromAbove, impression, impressionURL, IMPRESSION_SCALE, paper } from './ink';
+import { impression, impressionURL, IMPRESSION_SCALE, paper } from './ink';
 import { stampSpec } from './passport';
 import { token } from './spring';
 import { seedOf } from './stamp-style';
 
 // The stamp page: the first thing a diner sees after a verified tap, before the card. A sheet of
-// the place's own paper fills the screen, seen from above. A wooden rubber stamp comes down
-// toward it (big and near, then smaller as it reaches the paper, its shadow tightening), presses
-// (the paper gives, the phone buzzes), and lifts away; the impression is left in wet, dark ink
-// that spreads from the centre and dries. "Stamp 4 of 8" pops in. After a beat, or a tap, the
-// impression flies down into its slot on the card. One camera, looking down, the whole time.
-// Reduced motion, or a business that turned motion off, skips straight to the card.
+// the place's own paper fills the screen, seen from above. The ink falls onto it (bigger and soft
+// just above the paper, sharpening as it lands) and hits with a thump: the sheet gives and shakes,
+// the paper darkens around it, the phone buzzes. The impression sits in wet, dark ink that dries
+// lighter, and "Stamp 4 of 8" pops in. After a beat, or a tap, it flies down into its slot on the
+// card. Reduced motion, or a business that turned motion off, skips straight to the card.
 
 export interface StampMoment {
   /** Waits for the moment to finish (or a tap), flies the stamp into `slot`, and removes the page. */
   land(slot: HTMLElement | null): Promise<void>;
 }
 
-const DESCEND = 520;
-const PRESS = 140;
-const LIFT = 360;
-const REVEAL = 230;
-const DRY = 1000;
+/** The ink falls onto the paper: from a little above (bigger, soft) down to it. */
+const FALL = 360;
+/** The thump: the sheet gives, shakes and darkens under the hit. */
+const THUMP = 260;
+/** The wet ink settles into the paper and dries lighter. */
+const DRY = 1100;
 /** The page moves on to the card by itself after this long; a tap moves on sooner. */
-const AUTO_LAND = 2500;
-/** Even a tap waits for the stamp to have lifted, so the diner always sees their impression. */
-const EARLIEST_LAND = DESCEND + PRESS + LIFT;
+const AUTO_LAND = 2400;
+/** Even a tap waits for the ink to have landed, so the diner always sees their stamp. */
+const EARLIEST_LAND = FALL + THUMP + 200;
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
-const easeIn = (t: number) => t * t * t;
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const sleep = (ms: number) => new Promise((done) => window.setTimeout(done, ms));
@@ -41,7 +40,7 @@ export function stampMoment(state: CardState, index: number, options: { complete
   const angle = (spec.rotate * Math.PI) / 180;
   const total = state.card.requiredPunches;
 
-  // Sizes: a square sheet, with room around it for the stamp while it's lifted and near the eye.
+  // Sizes: a square sheet, with room around it for the sheet's shadow and the shake.
   const sheet = Math.min(window.innerWidth * 0.82, 340);
   const stage = { w: Math.min(window.innerWidth, 440), h: sheet * 1.5 };
   const stampSize = sheet * 0.55;
@@ -59,7 +58,7 @@ export function stampMoment(state: CardState, index: number, options: { complete
   const paperImage = paper(lightPaper, lightInk).node;
   const ink = impression(spec, stampSize);
   const inkSide = stampSize / IMPRESSION_SCALE;
-  // A scratch canvas for the impression's reveal and wet sheen, reused every frame.
+  // A scratch canvas for the impression's wet sheen, reused every frame.
   const wet = document.createElement('canvas');
   wet.width = ink.width;
   wet.height = ink.height;
@@ -82,20 +81,10 @@ export function stampMoment(state: CardState, index: number, options: { complete
   let showInk = true;
   let running = true;
 
-  function drawImpression(reveal: number, dry: number) {
+  function drawImpression(dry: number) {
     w.globalCompositeOperation = 'source-over';
     w.clearRect(0, 0, wet.width, wet.height);
     w.drawImage(ink, 0, 0);
-    if (reveal < 1) {
-      // The ink appears darkest at the centre first and spreads out to the rim.
-      w.globalCompositeOperation = 'destination-in';
-      const spread = w.createRadialGradient(wet.width / 2, wet.height / 2, 0, wet.width / 2, wet.height / 2, wet.width * 0.75 * reveal + 1);
-      spread.addColorStop(0, '#000');
-      spread.addColorStop(0.85, '#000');
-      spread.addColorStop(1, 'rgba(0,0,0,0)');
-      w.fillStyle = spread;
-      w.fillRect(0, 0, wet.width, wet.height);
-    }
     if (dry < 1) {
       // A wet sheen sweeps across while the ink is fresh, only where there's ink.
       w.globalCompositeOperation = 'source-atop';
@@ -119,17 +108,17 @@ export function stampMoment(state: CardState, index: number, options: { complete
   function frame(now: number) {
     if (!running) return;
     const t = now - started;
-    const descend = clamp(t / DESCEND);
-    const press = clamp((t - DESCEND) / PRESS);
-    const lift = clamp((t - DESCEND - PRESS) / LIFT);
-    const reveal = clamp((t - DESCEND - PRESS) / REVEAL);
-    const dry = clamp((t - DESCEND - PRESS - 60) / DRY);
-    const contact = press > 0 && lift < 1 ? Math.sin(Math.min(1, press + lift * 0.6) * Math.PI) : 0;
+    const fall = clamp(t / FALL);
+    const thump = clamp((t - FALL) / THUMP);
+    const dry = clamp((t - FALL) / DRY);
+    const hit = fall >= 1 ? Math.exp(-thump * 5) : 0;
+    const shake = fall >= 1 && thump < 1 ? Math.sin(thump * 46) * hit * 7 : 0;
 
     g.clearRect(0, 0, stage.w, stage.h);
-    // The sheet, with a soft shadow, giving a little under the press.
-    const give = 1 - 0.012 * contact;
     g.save();
+    g.translate(shake, shake * 0.5);
+    // The sheet, with a soft shadow, giving a little under the hit.
+    const give = 1 - 0.022 * hit;
     g.translate(cx, cy);
     g.scale(give, give);
     g.translate(-cx, -cy);
@@ -144,43 +133,38 @@ export function stampMoment(state: CardState, index: number, options: { complete
     g.save();
     g.clip();
     g.drawImage(paperImage, sheetX, sheetY, sheet, sheet);
-    // The dent: the paper darkens under the stamp while it's pressed.
-    if (contact) {
-      const dent = g.createRadialGradient(cx, cy, stampSize * 0.2, cx, cy, stampSize * 0.85);
-      dent.addColorStop(0, `rgba(0,0,0,${0.16 * contact})`);
+    // The dent: the paper darkens around the ink for a moment, as if pressed hard.
+    if (hit > 0.01) {
+      const dent = g.createRadialGradient(cx, cy, stampSize * 0.25, cx, cy, stampSize * 0.95);
+      dent.addColorStop(0, `rgba(0,0,0,${0.22 * hit})`);
       dent.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = dent;
       g.fillRect(sheetX, sheetY, sheet, sheet);
     }
-    if (showInk && reveal > 0) drawImpression(reveal, dry);
-    g.restore();
-    g.restore();
-
-    // The stamp: from near the eye (big, offset, soft shadow far away) down to the paper, then back up.
-    if (lift < 1) {
-      const height = lift > 0 ? easeIn(lift) : 1 - easeIn(descend);
-      const squash = 1 - 0.05 * contact;
-      const size = stampSize * (1 + height * 0.5) * squash;
-      const shadowOffset = 8 + height * 34;
-      g.save();
-      g.globalAlpha = (0.55 - height * 0.35) * (1 - lift);
-      g.filter = `blur(${4 + height * 14}px)`;
-      g.fillStyle = '#000';
-      g.beginPath();
-      g.roundRect(cx - stampSize * 0.6 + shadowOffset * 0.4, cy - stampSize * 0.6 + shadowOffset, stampSize * 1.2, stampSize * 1.2, stampSize * 0.1);
-      g.fill();
-      g.restore();
-      g.save();
-      g.globalAlpha = lift > 0 ? 1 - easeOut(lift) : Math.min(1, descend * 3);
-      drawStampFromAbove(g, cx - height * 12, cy - height * 26, size, angle + height * 0.3, spec.ink);
-      g.restore();
+    if (showInk) {
+      if (fall < 1) {
+        // Falling: bigger, soft and pale above the paper, sharpening as it reaches it.
+        const height = 1 - easeOut(fall);
+        g.save();
+        g.translate(cx, cy);
+        g.rotate(angle - height * 0.25);
+        const scale = 1 + height * 0.45;
+        g.globalAlpha = 0.25 + 0.75 * fall;
+        g.filter = `blur(${height * 6}px)`;
+        g.drawImage(ink, (-inkSide / 2) * scale, (-inkSide / 2) * scale, inkSide * scale, inkSide * scale);
+        g.restore();
+      } else {
+        drawImpression(dry);
+      }
     }
+    g.restore();
+    g.restore();
 
-    if (!buzzed && press > 0.2) {
+    if (!buzzed && fall >= 1) {
       buzzed = true;
-      haptic(options.complete ? [16, 40, 26, 40, 30] : [14, 30, 22]);
+      haptic(options.complete ? [20, 40, 26, 40, 30] : [18, 30, 22]);
     }
-    if (!counted && t > DESCEND + PRESS + 60) {
+    if (!counted && t > FALL + 80) {
       counted = true;
       count.animate(
         [
@@ -196,7 +180,7 @@ export function stampMoment(state: CardState, index: number, options: { complete
   }
   requestAnimationFrame(frame);
 
-  // A tap anywhere moves on to the card, once the stamp has lifted.
+  // A tap anywhere moves on to the card, once the ink has landed.
   let tapped: () => void = () => undefined;
   const tap = new Promise<void>((done) => { tapped = done; });
   root.addEventListener('pointerdown', () => tapped(), { once: true });

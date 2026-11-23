@@ -145,7 +145,7 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
   const root = el(
     'article',
     {
-      class: `passport${options.justStamped ? ' is-just-stamped' : ''}`,
+      class: 'passport',
       style: pageStyle(state),
       'aria-label': `${business.name} passport page`,
     },

@@ -1,9 +1,8 @@
 // Paper and ink drawn on canvas, because CSS shapes read as a picture of a stamp, not ink on paper.
-// Three things live here: a business's paper (mottled colour, tooth, fibres, a security print and
-// rosette in its own ink), a rubber-stamp impression (heavy, patchy ink with a rocked double edge
-// and stray specks), and the rubber stamp itself seen from above, for the stamp page. Each is drawn
-// once and cached; the card and the stamp page show the same images, so a stamp looks the same
-// wherever it appears. Nothing here draws per frame except the stamp page's animation.
+// Two things live here: a business's paper (mottled colour, tooth, fibres, a security print and
+// rosette in its own ink) and a rubber-stamp impression (heavy, patchy ink with a rocked double
+// edge and stray specks). Each is drawn once and cached; the card and the stamp page show the same
+// images, so a stamp looks the same wherever it appears.
 
 export type StampShape = 'round' | 'rect' | 'oval';
 
@@ -241,85 +240,3 @@ export function impressionURL(spec: ImpressionSpec, size: number) {
 
 /** The share of an impression's square taken by the stamp itself (the rest is room for specks). */
 export const IMPRESSION_SCALE = 1 / 1.28;
-
-// ---------- The rubber stamp, seen from above ----------
-
-/**
- * The stamp as the diner would see it looking down at the paper: a square wooden block with a
- * round knob on top, lit from the top left, turned to the angle its impression will land at. The
- * caller sets `size` larger while it's lifted, since nearer the eye looks bigger.
- */
-export function drawStampFromAbove(g: CanvasRenderingContext2D, x: number, y: number, size: number, angle: number, ink: string) {
-  g.save();
-  g.translate(x, y);
-  g.rotate(angle);
-  const half = size * 0.52;
-  // The inked rubber just showing beyond the block's edge.
-  g.fillStyle = ink;
-  g.globalAlpha = 0.9;
-  g.beginPath();
-  g.roundRect(-half - 2, -half - 2, half * 2 + 4, half * 2 + 4, size * 0.09);
-  g.fill();
-  g.globalAlpha = 1;
-  // The block's top face: warm wood, lighter at the top left, with grain running across.
-  const wood = g.createLinearGradient(-half, -half, half, half);
-  wood.addColorStop(0, '#c48a52');
-  wood.addColorStop(0.5, '#a06a38');
-  wood.addColorStop(1, '#6e4524');
-  g.fillStyle = wood;
-  g.beginPath();
-  g.roundRect(-half, -half, half * 2, half * 2, size * 0.08);
-  g.fill();
-  g.save();
-  g.clip();
-  g.strokeStyle = 'rgba(60, 32, 12, 0.22)';
-  g.lineWidth = 1;
-  for (let k = -8; k <= 8; k += 1) {
-    g.beginPath();
-    g.moveTo(-half, k * half * 0.13);
-    g.bezierCurveTo(-half * 0.3, k * half * 0.13 - 6, half * 0.3, k * half * 0.13 + 6, half, k * half * 0.13);
-    g.stroke();
-  }
-  g.restore();
-  // A bevel: light catches the top-left edges, shadow the bottom-right.
-  g.lineWidth = Math.max(2, size * 0.025);
-  g.strokeStyle = 'rgba(255, 230, 200, 0.45)';
-  g.beginPath();
-  g.moveTo(-half + 4, half - 6);
-  g.lineTo(-half + 4, -half + 4);
-  g.lineTo(half - 6, -half + 4);
-  g.stroke();
-  g.strokeStyle = 'rgba(40, 20, 6, 0.4)';
-  g.beginPath();
-  g.moveTo(half - 4, -half + 6);
-  g.lineTo(half - 4, half - 4);
-  g.lineTo(-half + 6, half - 4);
-  g.stroke();
-  // The knob: a turned wooden dome with rings and a highlight.
-  const knob = size * 0.27;
-  g.shadowColor = 'rgba(0,0,0,0.35)';
-  g.shadowBlur = size * 0.06;
-  g.shadowOffsetX = size * 0.02;
-  g.shadowOffsetY = size * 0.03;
-  const dome = g.createRadialGradient(-knob * 0.35, -knob * 0.35, knob * 0.1, 0, 0, knob);
-  dome.addColorStop(0, '#e8b27a');
-  dome.addColorStop(0.6, '#a8713c');
-  dome.addColorStop(1, '#5e3b1d');
-  g.fillStyle = dome;
-  g.beginPath();
-  g.arc(0, 0, knob, 0, Math.PI * 2);
-  g.fill();
-  g.shadowColor = 'transparent';
-  g.strokeStyle = 'rgba(70, 38, 14, 0.25)';
-  g.lineWidth = 1;
-  for (const ring of [0.45, 0.7, 0.88]) {
-    g.beginPath();
-    g.arc(0, 0, knob * ring, 0, Math.PI * 2);
-    g.stroke();
-  }
-  g.fillStyle = 'rgba(255, 245, 230, 0.35)';
-  g.beginPath();
-  g.ellipse(-knob * 0.35, -knob * 0.4, knob * 0.28, knob * 0.16, -0.6, 0, Math.PI * 2);
-  g.fill();
-  g.restore();
-}
