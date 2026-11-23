@@ -50,6 +50,7 @@ as `import.meta.env.VITE_MODE`.
 | `npm run dev` | Demo on your network, for pitches on phones (e.g. http://10.0.0.184:5180) |
 | `npm run build:demo` | Demo build in `dist/` |
 | `npm run preview:demo` | Builds the demo, then serves it with the demo backend |
+| `npm run dev:api` | The page against the shared API running on this Mac (`services/api`, `npm run dev` there). The dev server passes `/v1` through to `API_TARGET` (default `http://localhost:8080`), so the diner's cookie works with no CORS setup |
 | `VITE_API_BASE=https://api.example.com npm run dev:prod` | The page against the real backend, with hot reload |
 | `VITE_API_BASE=https://api.example.com npm run build` | Production build in `dist/` |
 | `VITE_API_BASE=https://api.example.com npm run preview` | Builds production, then serves it (no demo backend) |

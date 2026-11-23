@@ -15,8 +15,16 @@ export async function createApi(): Promise<StampApi> {
     const { DemoStampApi } = await import('./demo');
     return new DemoStampApi();
   }
-  const base = import.meta.env.VITE_API_BASE;
+  return new HttpStampApi(apiBase());
+}
+
+/**
+ * Where the API is: VITE_API_BASE in prod, or this origin in api mode, where the dev server passes
+ * /v1 through to the local API (vite.config.ts).
+ */
+export function apiBase() {
+  const base = import.meta.env.VITE_API_BASE ?? '';
   // vite.config.ts refuses a prod build without it; this guards anything that slips past.
-  if (!base) throw new Error('VITE_API_BASE is not set');
-  return new HttpStampApi(base.replace(/\/$/, ''));
+  if (import.meta.env.VITE_MODE === 'prod' && !base) throw new Error('VITE_API_BASE is not set');
+  return base.replace(/\/$/, '');
 }

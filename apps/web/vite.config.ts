@@ -1,16 +1,20 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 
-// Two builds, picked with --mode (see package.json):
+// Three modes, picked with --mode (see package.json):
 //   demo  Sample data on the demo backend (server/demo), mounted in the dev and preview servers, with
 //         the Preview states bar. For pitches on the team's phones. VITE_API_BASE is ignored.
+//   api   The dev server in front of the shared API (services/api) running on this Mac: /v1 is
+//         passed through to API_TARGET (default http://localhost:8080), so the page and the API
+//         share one origin and the diner's session cookie just works. Dev server only.
 //   prod  The real backend at VITE_API_BASE, which is required. No demo backend, no Wallet signing
 //         here (the backend signs passes), and no demo code in the bundle.
 // `vite` with no --mode is demo; `vite build` with no --mode is prod, so a forgotten flag can only
 // fail a build, never ship sample data.
-type AppMode = 'demo' | 'prod';
+type AppMode = 'demo' | 'api' | 'prod';
 
 function appModeFor(mode: string, command: 'serve' | 'build'): AppMode {
-  if (mode === 'demo' || mode === 'prod') return mode;
+  if (mode === 'api' && command === 'build') throw new Error('api mode is for the dev server. Build with --mode prod.');
+  if (mode === 'demo' || mode === 'api' || mode === 'prod') return mode;
   if (mode === 'production') return 'prod';
   if (mode === 'development' && command === 'serve') return 'demo';
   throw new Error(`Unknown mode "${mode}". Use --mode demo or --mode prod.`);
@@ -40,13 +44,16 @@ export default defineConfig(({ mode, command }) => {
   if (appMode === 'demo' && apiBase) {
     console.warn(`\n  Demo mode: ignoring VITE_API_BASE (${apiBase}). The page uses the demo backend.\n`);
   }
+  const apiTarget = process.env.API_TARGET || 'http://localhost:8080';
   return {
     appType: 'spa',
     plugins: appMode === 'demo' ? [demoServer()] : [],
     define: {
       'import.meta.env.VITE_MODE': JSON.stringify(appMode),
+      // Empty means "this origin": demo answers itself, api mode proxies to the API.
       'import.meta.env.VITE_API_BASE': JSON.stringify(appMode === 'prod' ? apiBase : ''),
     },
+    ...(appMode === 'api' ? { server: { proxy: { '/v1': { target: apiTarget, changeOrigin: false } } } } : {}),
     build: { target: 'es2020', cssMinify: true },
     // A Cloudflare quick tunnel (cloudflared tunnel --url http://localhost:5180) gives the demo an
     // https:// address, which Wallet needs before passes can update themselves. Vite otherwise

@@ -37,7 +37,7 @@ on('PUT', /^\/v1\/web\/me\/profile$/, ({ device, body }) => service.saveProfile(
 on('DELETE', /^\/v1\/web\/me$/, ({ device }) => service.deleteAccount(device));
 on('POST', /^\/v1\/web\/cards\/([^/]+)\/wallet$/, ({ device, params, body }) => service.walletPass(device, params[0], String(body.platform ?? '')));
 // With ?query= this is the shared backend's Places API, answered the same way; without, the Discover list.
-on('GET', /^\/v1\/places$/, ({ query }) => (query.has('query') ? service.searchPlaces(query.get('query') ?? '') : service.places()));
+on('GET', /^\/v1\/places$/, ({ query }) => (query.has('query') ? service.searchPlaces(query.get('query') ?? '') : service.listPlaces()));
 
 // The business site (docs/business-api.md).
 on('GET', /^\/v1\/partner\/me$/, ({ device }) => partner.me(device), false);

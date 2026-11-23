@@ -93,6 +93,10 @@ export interface Place {
   name: string;
   location: string;
   logoURL: string | null;
+  /** Not in the shared API yet (it has name and location only); the demo sends them for Discover. */
+  category?: string;
+  address?: string;
+  hoursToday?: Business['hoursToday'];
   program: Omit<ProgramVersion, 'theme'> & { theme: Omit<MerchantTheme, 'coverURL'> & { coverURL: string | null } };
 }
 

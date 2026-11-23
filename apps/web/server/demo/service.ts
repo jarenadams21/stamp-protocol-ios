@@ -403,6 +403,22 @@ export const places = (): PlaceSummary[] => Object.values(BUSINESSES)
  * same rules: trimmed, any case, the exact ID first, then names starting with the query, then names
  * containing it, A to Z, at most 20, live places only. Answers in the backend's shape.
  */
+/** A place in the shared backend's shape (`/v1/places`), plus the details only the demo has. */
+const asPlace = ({ business, program }: PlaceSummary): Place => ({
+  id: business.id,
+  clientId: business.id,
+  name: business.name,
+  location: business.location,
+  logoURL: null,
+  category: business.category,
+  address: business.address,
+  hoursToday: business.hoursToday,
+  program: { ...program, theme: { ...program.theme, coverURL: program.theme.coverURL ?? null } },
+});
+
+/** `GET /v1/places` with no query: every live place, as the shared backend lists them. */
+export const listPlaces = (): { places: Place[] } => ({ places: places().map(asPlace) });
+
 export function searchPlaces(raw: string): { places: Place[] } {
   const query = raw.trim();
   if (!query || [...query].length > 40) throw new BadRequest(query ? 'Use a shorter search.' : 'Type a place’s name to search.');
@@ -417,16 +433,7 @@ export function searchPlaces(raw: string): { places: Place[] } {
     .filter((place) => rank(place) < 3)
     .sort((a, b) => rank(a) - rank(b) || a.business.name.localeCompare(b.business.name))
     .slice(0, 20);
-  return {
-    places: found.map(({ business, program }) => ({
-      id: business.id,
-      clientId: business.id,
-      name: business.name,
-      location: business.location,
-      logoURL: null,
-      program: { ...program, theme: { ...program.theme, coverURL: program.theme.coverURL ?? null } },
-    })),
-  };
+  return { places: found.map(asPlace) };
 }
 
 /** Returns where to download this card's pass. Each business's card keeps one pass serial for good. */
