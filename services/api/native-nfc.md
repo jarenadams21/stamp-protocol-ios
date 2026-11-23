@@ -80,8 +80,9 @@ unification remain separate work.
 
 The phone continues to read NDEF using `NFCNDEFReaderSession`; an expired hostname
 programmed on a chip does not prevent foreground verification of its ciphertext.
-Tapping outside the app still opens that programmed hostname. This is not Universal
-Links/background NFC support.
+Tapping outside the app opens that programmed hostname. Since the iOS app claims the chip
+domain (Associated Domains) and the domain's web server vouches for it, iOS opens the app
+instead and the app adds the stamp: see [docs/setup/tap-opens-app.md](../../docs/setup/tap-opens-app.md).
 
 ### Backwards-compatible native contract
 

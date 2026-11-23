@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TapView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(TapLinkInbox.self) private var links
     @State private var store = TapStore(mode: .configured)
     @State private var scanner = NFCTagScanner()
     @State private var wallet = TapWallet()
@@ -66,7 +67,15 @@ struct TapView: View {
             .background { AppBackground() }
             .scrollDismissesKeyboard(.interactively)
             .toolbarVisibility(.hidden, for: .navigationBar)
-            .task { await store.refresh() }
+            .task {
+                await store.refresh()
+                await openIncomingLink()
+            }
+            // A chip link that opened the app waits in the inbox until the screen is free to use it.
+            .onChange(of: links.revision) { Task { await openIncomingLink() } }
+            .onChange(of: store.isSignedIn) { Task { await openIncomingLink() } }
+            .onChange(of: store.pending) { Task { await openIncomingLink() } }
+            .onChange(of: busy) { Task { await openIncomingLink() } }
             .onChange(of: scenePhase) {
                 if scenePhase == .active && !busy { Task { await store.refresh() } }
             }
@@ -226,6 +235,16 @@ struct TapView: View {
         } catch {
             isScanning = false
             store.message = (error as? TapError)?.errorDescription ?? "Could not scan this tag. Please try again."
+        }
+    }
+
+    /// The person tapped a chip and iOS opened the app with its link: add the stamp, then update Wallet,
+    /// exactly as after an in-app scan.
+    private func openIncomingLink() async {
+        guard links.url != nil, !busy else { return }
+        wallet.message = nil
+        if let card = await store.submitIncoming(from: links) {
+            await updateWallet(for: card, onlyIfInstalled: store.mode != .prototype)
         }
     }
 

@@ -7,6 +7,7 @@ struct JOEYYApp: App {
     @State private var business: PartnerStore
     @State private var accounts: AccountStore
     @State private var screens = ScreenTracker()
+    @State private var tapLinks = TapLinkInbox()
     private let defaults: UserDefaults
     @AppStorage("appearance") private var appearance = "System"
     @AppStorage("accent") private var accent = AppAccent.orange.rawValue
@@ -85,6 +86,7 @@ struct JOEYYApp: App {
                 .environment(business)
                 .environment(accounts)
                 .environment(screens)
+                .environment(tapLinks)
                 .defaultAppStorage(defaults)
                 .environment(\.appAccent, AppAccent(rawValue: accent) ?? .orange)
                 .tint((AppAccent(rawValue: accent) ?? .orange).color)
@@ -94,6 +96,11 @@ struct JOEYYApp: App {
                     ProcessInfo.processInfo.arguments.contains("-reduce-motion")
                 )
                 .preferredColorScheme(appearance == "System" ? nil : appearance == "Dark" ? .dark : .light)
+                // A chip tapped with the app closed (or open) arrives here as a link on our domain.
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL { tapLinks.receive(url) }
+                }
+                .onOpenURL { tapLinks.receive($0) }
         }
     }
 }
@@ -106,6 +113,7 @@ struct RootView: View {
     @Environment(LoyaltyStore.self) private var store
     @Environment(MerchantBrandingStore.self) private var branding
     @Environment(PartnerStore.self) private var business
+    @Environment(TapLinkInbox.self) private var tapLinks
     @AppStorage("hasSeenWelcome") private var hasCompletedSetup = false
     @State private var tab = AppTab.home
     /// The side chosen on the setup landing; reopened on the next launch.
@@ -140,7 +148,9 @@ struct RootView: View {
                 BusinessRootView(onSetup: { setupEntry = .replay })
             }
         }
+        .onChange(of: tapLinks.revision) { openTapTab() }
         .onAppear {
+            openTapTab()
             if experience == .customer && !hasCompletedSetup
                 && !ProcessInfo.processInfo.arguments.contains("-skip-welcome") {
                 setupEntry = .install
@@ -152,7 +162,7 @@ struct RootView: View {
                     hasCompletedSetup = true
                     experience = .customer
                     homeEntry = UUID()
-                    tab = .home
+                    tab = tapLinks.url == nil ? .home : .tap
                     setupEntry = nil
                 },
                 onBusiness: {
@@ -173,6 +183,13 @@ struct RootView: View {
             }
         }
 
+    }
+
+    /// A chip link is a customer action, so it always lands on the Tap tab, where the stamp is added.
+    private func openTapTab() {
+        guard tapLinks.url != nil else { return }
+        experience = .customer
+        tab = .tap
     }
 
     private enum Experience: String {

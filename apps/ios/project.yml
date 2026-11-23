@@ -34,7 +34,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         MARKETING_VERSION: "0.1.0"
         # TestFlight build number. TestFlight refuses a number it has already seen, so only ever go up.
-        CURRENT_PROJECT_VERSION: 5
+        CURRENT_PROJECT_VERSION: 6
       # Where the app reaches the API (AppConfiguration.apiBaseURL). Release builds, the IPA for
       # sideloading, use the hosted dev API; release.yml can override it with the repository
       # variable JOEYY_API_BASE_URL. The apiBaseURL user default overrides both.
