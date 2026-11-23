@@ -36,7 +36,11 @@ export interface ProgramInput {
     theme: Theme;
     /** A key from POST /images, or null for the card's original artwork. */
     coverKey: string | null;
+    /** The business's own limit on repeat stamps, in minutes; null for none (team decision, 2026-11-11). */
+    minMinutesBetweenStamps: number | null;
 }
+
+export const MIN_MINUTES_RANGE = { min: 1, max: 1440 };
 
 /** Thrown for a key that is malformed, of the wrong kind, or not this business's upload. */
 export const unknownImage = () => invalid("unknownImage", "Upload the image again, then save.");
@@ -163,7 +167,15 @@ export function parseProgram(body: unknown): ProgramInput {
     const theme = parseTheme(body.theme);
     // The cover travels with the theme, as theme.coverKey. Leaving it out publishes without a cover.
     const coverKey = parseImageKey((body.theme as Record<string, unknown>).coverKey ?? null);
-    return { requiredPunches, rewardDescription, theme, coverKey };
+    // Optional: absent or null means no limit, which is the default (JOEYY sets none).
+    const minutes = body.minMinutesBetweenStamps ?? null;
+    if (
+        minutes !== null &&
+        (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < MIN_MINUTES_RANGE.min || minutes > MIN_MINUTES_RANGE.max)
+    ) {
+        throw invalid("invalidMinMinutes", `Choose between ${MIN_MINUTES_RANGE.min} and ${MIN_MINUTES_RANGE.max} minutes, or no limit.`);
+    }
+    return { requiredPunches, rewardDescription, theme, coverKey, minMinutesBetweenStamps: minutes };
 }
 
 /** True when two programs would look and behave identically (publishing would change nothing). */
@@ -173,6 +185,7 @@ export function sameProgram(a: ProgramInput, b: ProgramInput): boolean {
         a.requiredPunches === b.requiredPunches &&
         a.rewardDescription === b.rewardDescription &&
         a.coverKey === b.coverKey &&
+        a.minMinutesBetweenStamps === b.minMinutesBetweenStamps &&
         keys.every((key) => a.theme[key] === b.theme[key])
     );
 }

@@ -4,11 +4,13 @@ import { createPool } from "./db.ts";
 import { imageCleanupFromEnv, scheduleImageCleanup } from "./imageCleanup.ts";
 import { imagesFromEnv } from "./images.ts";
 import { pruneAuthRecords } from "./signIn.ts";
+import { tagsFromEnv } from "./tags.ts";
 
 const pool = createPool();
 const images = imagesFromEnv();
 const cleanup = imageCleanupFromEnv(process.env, images);
 const auth = await authFromEnv();
+const tags = tagsFromEnv();
 const trustProxy = process.env.TRUST_PROXY;
 const app = buildApp({
     pool,
@@ -17,6 +19,12 @@ const app = buildApp({
     // "true" trusts every proxy; otherwise a comma-separated list of proxy addresses or CIDRs.
     trustProxy: !trustProxy || trustProxy === "false" ? false : trustProxy === "true" ? true : trustProxy,
     images,
+    tags,
+    // The website's origins, comma-separated (for example https://joeyy.app). Unset: no CORS.
+    webOrigins: (process.env.WEB_ORIGINS ?? "").split(",").map((origin) => origin.trim()).filter(Boolean),
+    // AUTH_MODE=dev runs on plain http://localhost, where browsers drop Secure cookies.
+    secureCookie: auth.mode !== "dev",
+    devRoutes: auth.mode === "dev",
     logger: {
         level: process.env.LOG_LEVEL ?? "info",
         // Never log tokens (spec section 10).
@@ -27,6 +35,7 @@ app.log.info(
     { auth: auth.mode, issuer: auth.signer.config.issuer, methods: auth.signIn.methods, sms: auth.signIn.sms.label, email: auth.signIn.email.label },
     "sign-in",
 );
+app.log.info({ tags: tags.mode, devRoutes: auth.mode === "dev" }, "stand taps");
 
 // Deletes expired refresh tokens and old phone-code rows, hourly.
 const pruneAuth = setInterval(() => {

@@ -12,13 +12,14 @@ import { businessJSON, versionJSON, type BusinessRow, type VersionRow } from "./
 // shown, and reads the same as an ID that doesn't exist.
 
 const SEARCH_LIMIT = 20;
+const LIST_LIMIT = 50;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PLACE_COLUMNS = `
     b.id, b.name, b.location, b.logo_key, b.time_zone, b.current_version_id,
     v.id AS v_id, v.version AS v_version, v.required_punches AS v_required_punches,
     v.reward_description AS v_reward_description, v.theme AS v_theme, v.cover_key AS v_cover_key,
-    v.published_at AS v_published_at`;
+    v.published_at AS v_published_at, v.min_minutes_between_stamps AS v_min_minutes_between_stamps`;
 
 const PLACE_FROM = "FROM businesses b JOIN program_versions v ON v.id = b.current_version_id AND v.business_id = b.id";
 
@@ -30,6 +31,7 @@ type PlaceRow = BusinessRow & {
     v_theme: VersionRow["theme"];
     v_cover_key: string | null;
     v_published_at: Date;
+    v_min_minutes_between_stamps: number | null;
 };
 
 /** A place is its business (the same fields the partner app sees) and its live card (section 3.1). */
@@ -44,6 +46,7 @@ async function placeJSON(images: ImageStore, row: PlaceRow) {
             theme: row.v_theme,
             cover_key: row.v_cover_key,
             published_at: row.v_published_at,
+            min_minutes_between_stamps: row.v_min_minutes_between_stamps,
         }),
     };
 }
@@ -65,6 +68,18 @@ export async function placesRoutes(app: FastifyInstance, options: { pool: pg.Poo
     const { pool, images } = options;
 
     app.get<{ Querystring: { query?: string } }>("/", async (request) => {
+        // No query: the Discover list. Live places only, meaning a published card and at least one
+        // linked stand, since a diner can't collect anything at a place with no stand yet.
+        if (request.query.query === undefined) {
+            const result = await pool.query<PlaceRow>(
+                `SELECT ${PLACE_COLUMNS} ${PLACE_FROM}
+                 WHERE EXISTS (SELECT 1 FROM readers r WHERE r.business_id = b.id AND r.kind = 'stand' AND r.status = 'active')
+                 ORDER BY b.created_at DESC, b.id
+                 LIMIT $1`,
+                [LIST_LIMIT],
+            );
+            return { places: await Promise.all(result.rows.map((row) => placeJSON(images, row))) };
+        }
         const query = parseQuery(request.query.query);
         const text = likeText(query);
         const clientId = UUID.test(query) ? query.toLowerCase() : null;
