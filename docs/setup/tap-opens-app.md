@@ -51,8 +51,8 @@ The file already exists in the repository. It only has to be **published** by th
    It prints `OK` or says exactly what is wrong. Before the file is published it says the server returns its normal web
    page instead of the file.
 
-The web image's Dockerfile and nginx config are not in this repository (the running image is
-`joeyy-web-test` in the Azure registry), so this step needs whoever builds that image.
+The web image is built from `apps/web/deploy/Dockerfile` (`az acr build ... --file deploy/Dockerfile .` from `apps/web`).
+The nginx rule for the file is already in `apps/web/deploy/nginx.conf`.
 
 ## Testing on a phone
 
