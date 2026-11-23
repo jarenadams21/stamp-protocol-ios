@@ -34,7 +34,8 @@ function verifying() {
 }
 
 export async function tapScreen(api: StampApi, query: URLSearchParams) {
-  const picc = query.get('picc') ?? '';
+  // Stands programmed for the app's verifier write picc_data; the page's own links write picc.
+  const picc = query.get('picc') ?? query.get('picc_data') ?? '';
   const cmac = query.get('cmac') ?? '';
   verifying();
 

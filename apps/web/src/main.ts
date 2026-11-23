@@ -24,6 +24,8 @@ async function start() {
   const api = await createApi();
   route('/', () => homeScreen(api));
   route('/t', (_params, query) => tapScreen(api, query));
+  // The paths the team's programmed stands use (the app's verifier accepts all three).
+  for (const path of ['/tap', '/tag', '/tagtt']) route(path, (_params, query) => tapScreen(api, query));
   route('/c', (_params, query) => cardsScreen(api, query.get('open') ?? undefined));
   // A card's own address opens it in Your cards, so a card looks the same however you get to it.
   route('/c/:businessId', ({ businessId }) => navigate(`/c?open=${encodeURIComponent(businessId)}`, { replace: true }));

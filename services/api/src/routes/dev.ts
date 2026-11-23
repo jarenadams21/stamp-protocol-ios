@@ -13,8 +13,18 @@ import { nextStandLabel, standCredentialHash, standsJSON } from "./stands.ts";
 
 const standNotFound = () => new ApiError(404, "standNotFound", "No stand has this tag.");
 
-async function allocate(client: pg.PoolClient | pg.Pool, businessId: string, status: "allocated" | "active", label: string | null) {
-    const tagUid = `dev-${randomBytes(6).toString("hex")}`;
+/** A real NTAG 424 DNA UID: 7 bytes, as the tag check reports it (upper-case hex). */
+const REAL_UID = /^[0-9A-F]{14}$/;
+
+async function allocate(
+    client: pg.PoolClient | pg.Pool,
+    businessId: string,
+    status: "allocated" | "active",
+    label: string | null,
+    tagUid = `dev-${randomBytes(6).toString("hex")}`,
+) {
+    const taken = await client.query("SELECT 1 FROM readers WHERE tag_uid = $1", [tagUid]);
+    if (taken.rowCount) throw new ApiError(409, "standTaken", "That tag is already allocated to a business.");
     await client.query(
         `INSERT INTO readers (business_id, kind, tag_uid, status, credential_hash, label, activated_at)
          VALUES ($1, 'stand', $2, $3, $4, $5, $6)`,
@@ -26,11 +36,20 @@ async function allocate(client: pg.PoolClient | pg.Pool, businessId: string, sta
 export async function devRoutes(app: FastifyInstance, options: { pool: pg.Pool; auth: AuthConfig }) {
     const { pool, auth } = options;
 
-    /** Allocates a new stand to the owner's business, as packing one for them would. */
+    /**
+     * Allocates a stand to the owner's business, as packing one for them would. Body `{ tagUid }`
+     * allocates a real tag by its 14-hex-digit UID (then the owner links it with a real tap while
+     * pairing is open); without it, a made-up dev tag.
+     */
     app.post("/stands", async (request, reply) => {
         const subject = await verifyBearer(auth, request.headers.authorization, "partner");
         const business = await requireBusiness(pool, subject);
-        return reply.code(201).send({ tagUid: await allocate(pool, business.id, "allocated", null) });
+        const raw = (request.body as { tagUid?: unknown } | undefined)?.tagUid;
+        if (raw !== undefined && (typeof raw !== "string" || !REAL_UID.test(raw.toUpperCase()))) {
+            throw new ApiError(400, "invalidTagUid", "Use the tag's 7-byte UID as 14 hex digits.");
+        }
+        const tagUid = typeof raw === "string" ? raw.toUpperCase() : undefined;
+        return reply.code(201).send({ tagUid: await allocate(pool, business.id, "allocated", null, tagUid) });
     });
 
     /** The owner's phone touching a new stand from their kit while pairing is open: allocates and links one. */
