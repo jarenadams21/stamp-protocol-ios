@@ -10,3 +10,8 @@ test/
 .git
 Dockerfile
 .dockerignore
+# Signing certificates and keys are never part of an image (they come from the secrets store).
+*.pem
+*.p12
+*.cer
+*.key

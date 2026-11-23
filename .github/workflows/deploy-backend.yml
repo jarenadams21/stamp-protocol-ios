@@ -1,0 +1,37 @@
+name: Deploy backend
+
+# Ships the ASP.NET NFC/Wallet api (services/api-dotnet) and the verifier to Azure Container Apps after the
+# "API (.NET)" tests pass on main.
+# One-time setup: infra/owner-setup.sh, then add the AZURE_* repository variables it prints.
+on:
+  workflow_run:
+    workflows: ["API (.NET)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      vars.AZURE_CLIENT_ID != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: infra/deploy.sh

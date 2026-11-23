@@ -7,25 +7,34 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     TARGETED_DEVICE_FAMILY: "1,2"
-    DEVELOPMENT_TEAM: ""
+configFiles:
+  Debug: Config/App.xcconfig
+  Release: Config/App.xcconfig
 targets:
   JOEYY:
     type: application
     platform: iOS
     sources: [JOEYY]
+    # Capabilities (Sign in with Apple, NFC tag reading, Wallet pass types) come from the entitlements file,
+    # which Xcode's automatic signing turns into App ID capabilities. Not repeated as `attributes:
+    # SystemCapabilities`, because XcodeGen writes that dictionary in a random order and the project would
+    # then differ from `xcodegen generate` on about half of all runs (CI compares them).
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joeyy.customer
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: JOEYY/App/JOEYY.entitlements
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: JOEYY/App/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: JOEYY
+        INFOPLIST_KEY_NFCReaderUsageDescription: Scan a cafe loyalty tag to securely verify your visit and update your card.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 1
+        # TestFlight build number. TestFlight refuses a number it has already seen, so only ever go up.
+        CURRENT_PROJECT_VERSION: 5
       # Where the app reaches the API (AppConfiguration.apiBaseURL). Release builds, the IPA for
       # sideloading, use the hosted dev API; release.yml can override it with the repository
       # variable JOEYY_API_BASE_URL. The apiBaseURL user default overrides both.

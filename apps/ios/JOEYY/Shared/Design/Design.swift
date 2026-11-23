@@ -178,7 +178,6 @@ enum AppAccent: String, CaseIterable, Identifiable, Sendable {
     var surfaceColor: Color { .adaptive(light: values.surface, dark: values.darkSurface) }
     var solidColor: Color { Color(hex: values.fill) }
     var onSolidColor: Color { Color(hex: values.onFill) }
-    var washColor: Color { Color.paper.mix(with: solidColor, by: 0.14) }
 }
 
 private struct AppAccentKey: EnvironmentKey {
@@ -234,6 +233,7 @@ struct PageTitle: View {
             .tracking(-1.1)
             .foregroundStyle(.tint)
             .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -265,14 +265,22 @@ struct PrimaryButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.medium))
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .padding(.horizontal, 16)
-            .foregroundStyle(accent.onSolidColor)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 24)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .foregroundStyle(isEnabled ? accent.onSolidColor : Color.muted)
             .background {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(accent.solidColor)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isEnabled ? accent.solidColor : Color.paper)
             }
-            .opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.5)
+            .overlay {
+                if !isEnabled {
+                    RoundedRectangle(cornerRadius: 12).strokeBorder(Color.rule, lineWidth: 0.75)
+                }
+            }
+            .opacity(configuration.isPressed && isEnabled ? 0.78 : 1)
     }
 }
 
@@ -313,18 +321,20 @@ extension View {
 
 struct SecondaryButton: ButtonStyle {
     @Environment(\.appAccent) private var accent
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline)
-            .foregroundStyle(accent.color)
+            .foregroundStyle(isEnabled ? accent.color : Color.muted)
+            .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.rule))
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .background(Color.surface, in: .rect(cornerRadius: 12))
+            .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Color.rule, lineWidth: 0.75) }
+            .opacity(configuration.isPressed && isEnabled ? 0.7 : 1)
     }
 }
 
@@ -340,14 +350,8 @@ struct TextButton: ButtonStyle {
 }
 
 struct AppBackground: View {
-    @Environment(\.appAccent) private var accent
-
     var body: some View {
-        RadialGradient(
-            colors: [accent.washColor, .paper],
-            center: .topTrailing, startRadius: 0, endRadius: 640
-        )
-        .ignoresSafeArea()
+        Color.paper.ignoresSafeArea()
     }
 }
 

@@ -198,6 +198,7 @@ final class AccountStoreTests: XCTestCase {
         XCTAssertEqual(items.first { $0.name == "redirect_uri" }?.value, "com.googleusercontent.apps.123-abc:/oauth2redirect")
         XCTAssertEqual(items.first { $0.name == "code_challenge_method" }?.value, "S256")
         XCTAssertEqual(items.first { $0.name == "nonce" }?.value, "nonce")
+        XCTAssertEqual(items.first { $0.name == "scope" }?.value, "openid email")
 
         let callback = URL(string: "com.googleusercontent.apps.123-abc:/oauth2redirect?state=state&code=auth-code")!
         XCTAssertEqual(try google.code(from: callback, state: "state"), "auth-code")

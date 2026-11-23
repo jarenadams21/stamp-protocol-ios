@@ -14,7 +14,12 @@ struct ProfileView: View {
             Form {
                 Section {
                     HStack(spacing: 4) {
-                        PageTitle(text: "You")
+                        VStack(alignment: .leading, spacing: 8) {
+                            PageTitle(text: "You")
+                            Text("Make it feel like you.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.muted)
+                        }
                         Spacer(minLength: 8)
                         AccountButton(role: .customer)
                     }
@@ -33,6 +38,9 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
                             Text("Accent color")
+                            Spacer(minLength: 8)
+                            Text(accent).font(.subheadline).foregroundStyle(Color.muted)
+                                .accessibilityHidden(true)
                         }
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 12)], spacing: 16) {
                             ForEach(AppAccent.allCases) { option in
@@ -48,6 +56,12 @@ struct ProfileView: View {
                                                     Image(systemName: "checkmark")
                                                         .font(.body.weight(.semibold))
                                                         .foregroundStyle(option.onSolidColor)
+                                                }
+                                            }
+                                            .overlay {
+                                                if accent == option.rawValue {
+                                                    Circle().strokeBorder(Color.primary, lineWidth: 1.5)
+                                                        .padding(-4)
                                                 }
                                             }
                                         Text(option.rawValue)
@@ -124,7 +138,7 @@ struct ProfileView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.paper.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbarVisibility(.hidden, for: .navigationBar)
         }
     }
 }

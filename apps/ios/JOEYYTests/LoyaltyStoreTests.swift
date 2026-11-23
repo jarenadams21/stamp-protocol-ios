@@ -586,11 +586,11 @@ final class LoyaltyStoreTests: XCTestCase {
             }
 
             for accent in AppAccent.allCases {
-                for background in [Color.paper, .surface, accent.surfaceColor, accent.washColor] {
+                for background in [Color.paper, .surface, accent.surfaceColor] {
                     XCTAssertGreaterThanOrEqual(contrast(accent.color, background, style: style), 4.5)
+                    XCTAssertGreaterThanOrEqual(contrast(.muted, background, style: style), 4.5)
                 }
                 XCTAssertGreaterThanOrEqual(contrast(accent.onSolidColor, accent.solidColor, style: style), 4.5)
-                XCTAssertGreaterThanOrEqual(contrast(.muted, accent.washColor, style: style), 4.5)
             }
         }
     }

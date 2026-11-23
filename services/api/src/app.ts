@@ -1,10 +1,12 @@
-import Fastify, { type FastifyServerOptions } from "fastify";
+import Fastify, { LogController, type FastifyServerOptions } from "fastify";
 import type pg from "pg";
 import type { AuthConfig } from "./auth.ts";
 import { ApiError } from "./errors.ts";
 import { imageTooLarge, unsupportedImageType, type ImageStore } from "./images.ts";
 import { devRoutes } from "./routes/dev.ts";
 import { partnerRoutes } from "./routes/partner.ts";
+import type { NativeServices } from "./native/index.ts";
+import { nativeRoutes } from "./native/routes.ts";
 import { placesRoutes } from "./routes/places.ts";
 import { webRoutes } from "./routes/web.ts";
 import { signInRoutes, type SignInOptions } from "./signIn.ts";
@@ -27,6 +29,7 @@ export interface AppOptions {
     secureCookie?: boolean;
     /** Registers /v1/dev (AUTH_MODE=dev only). */
     devRoutes?: boolean;
+    native?: NativeServices;
 }
 
 /** Routes the website calls from its own origin, so CORS applies to them and nothing else. */
@@ -44,6 +47,7 @@ export function buildApp({
     webOrigins = [],
     secureCookie = true,
     devRoutes: dev = false,
+    native,
 }: AppOptions) {
     const app = Fastify({
         logger,
@@ -52,6 +56,10 @@ export function buildApp({
         genReqId: () => crypto.randomUUID(),
         requestIdHeader: false,
         bodyLimit: 64 * 1024,
+        // Wallet path parameters contain device identifiers. Never emit raw access URLs.
+        logController: new LogController({
+            disableRequestLogging: (request) => request.url.startsWith("/wallet/") || request.url.startsWith("/api/v1/"),
+        }),
     });
 
     app.addHook("onSend", async (request, reply) => {
@@ -99,7 +107,7 @@ export function buildApp({
     app.get("/healthz", async (request, reply) => {
         try {
             await pool.query("SELECT 1");
-            return { status: "ok" };
+            return { status: "ok", nativeNfc: native ? { enabled: true, factoryKeyTest: native.factoryTest } : { enabled: false } };
         } catch (error) {
             request.log.error({ err: error }, "database health check failed");
             return reply.code(503).send({ status: "unavailable" });
@@ -118,6 +126,7 @@ export function buildApp({
     app.register(webRoutes, { prefix: "/v1/web", pool, images, tags, signIn, secureCookie, origins: webOrigins, claimUnknownStands: dev });
     if (dev) app.register(devRoutes, { prefix: "/v1/dev", pool, auth });
     if (images.routes) app.register(images.routes);
+    if (native) app.register(nativeRoutes, native);
 
     return app;
 }

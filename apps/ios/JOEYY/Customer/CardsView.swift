@@ -57,16 +57,14 @@ struct HomeView: View {
                     HStack(alignment: .top, spacing: 12) {
                         collectionPicker.layoutPriority(1)
                         Spacer()
-                        Button {
+                        Button(showingSearch ? "Close search" : "Find your places",
+                               systemImage: showingSearch ? "xmark" : "magnifyingglass") {
                             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                                 showingSearch.toggle()
                                 if !showingSearch { query = "" }
                             }
-                        } label: {
-                            Image(systemName: showingSearch ? "xmark" : "magnifyingglass")
-                                .font(.system(size: 20))
-                                .frame(width: 44, height: 44)
                         }
+                        .buttonStyle(UtilityButton())
                         .accessibilityLabel(showingSearch ? "Close search" : "Find your places")
                         .accessibilityIdentifier("home.search")
                     }
@@ -130,7 +128,7 @@ struct HomeView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background { AppBackground() }
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbarVisibility(.hidden, for: .navigationBar)
             .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
             .sheet(isPresented: $showingArchive) { MemoriesView() }
             .sheet(isPresented: $showingGroups) { GroupsView() }
@@ -537,13 +535,18 @@ struct SearchView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    PageTitle(text: "Search")
+                    VStack(alignment: .leading, spacing: 8) {
+                        PageTitle(text: "Search")
+                        Text("Find your next regular spot.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.muted)
+                    }
                     CollectionSearchField(
                         prompt: "Business name or client ID", query: $query, identifier: "search.query"
                     )
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         DiscoveryGallery(
-                            title: "Discoverable", places: Place.discoverable,
+                            title: "Places to know", places: Place.discoverable,
                             identifier: "discovery.gallery", cardPrefix: "discover"
                         )
                     } else if matches.isEmpty {
@@ -561,7 +564,7 @@ struct SearchView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background { AppBackground() }
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbarVisibility(.hidden, for: .navigationBar)
             .navigationDestination(for: Place.self) { PlaceDetailView(place: $0) }
         }
     }
