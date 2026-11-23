@@ -1,5 +1,4 @@
 import '../styles/business.css';
-import { ApiError } from '../api/types';
 import { navigate } from '../router';
 import { loading, mount } from '../screens/shared';
 import { notice, openSheet, toast } from '../ui/components';
@@ -7,27 +6,57 @@ import { announce, busy, countdown, el, haptic } from '../ui/dom';
 import { icon, panelTitle } from '../ui/icons';
 import { logoMark } from '../ui/sections';
 import { clearMerchantTheme } from '../ui/theme';
-import { createPartnerApi, type PartnerAccount, type PartnerApi, type Stand, type Today } from './api';
-import { draftFrom, ideas, lookFields, preview, stepper, textField, type Draft } from './card-form';
+import { createPartnerApi, PartnerError, type Activity, type Dashboard, type LiveProgram, type PartnerApi, type PartnerBusiness, type Stand, type Stands } from './api';
+import { draftFrom, ideas, LIMITS, lookFields, preview, programInput, stepper, textField, type Draft } from './card-form';
 
 // The business site: /business and below. An owner signs in with their email, makes their card in
 // four steps (place, reward, look, stand), then lands on Today. Loaded on its own (main.ts imports
-// it lazily), so diners never download it.
+// it lazily), so diners never download it. Talks to the shared API through ./api.ts.
 
 const isDemo = import.meta.env.VITE_MODE === 'demo';
+/** The development API (AUTH_MODE=dev) and the demo both answer /v1/dev/stands/touch; prod has no such route. */
+const canTouchStand = isDemo || import.meta.env.DEV;
 let api: PartnerApi | undefined;
 const partnerApi = () => (api ??= createPartnerApi());
 
 type Section = 'today' | 'card' | 'stands';
 
-const isLive = (account: PartnerAccount) => Boolean(account.program && account.stands.some((stand) => stand.status === 'active'));
+/** What the owner has set up so far. */
+interface Account extends Stands {
+  business: PartnerBusiness | null;
+  program: LiveProgram | null;
+}
+
+const isLive = (account: Account) => Boolean(account.program && account.stands.some((stand) => stand.status === 'active'));
+const homeFor = (account: Account) => (account.program ? '/business/today' : '/business/setup');
+const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+/** The API's own words for a refused change, or a connection hint when there was no answer. */
+const problemText = (problem: unknown, fallback: string) =>
+  problem instanceof PartnerError && problem.status >= 400 && problem.status < 500 ? problem.message : fallback;
+
+/** The signed-in owner's account, or null when this browser has no session (or it ended). */
+async function loadAccount(): Promise<Account | null> {
+  const partner = partnerApi();
+  if (!partner.hasSession()) return null;
+  try {
+    const business = await partner.business();
+    if (!business) return { business, program: null, stands: [], pairing: null };
+    const [program, stands] = await Promise.all([partner.program(), partner.stands()]);
+    return { business, program, ...stands };
+  } catch (problem) {
+    if (problem instanceof PartnerError && problem.status === 401) return null;
+    throw problem;
+  }
+}
 
 // ---------- Frame ----------
 
-function bizHeader(account: PartnerAccount | null, current?: Section) {
+function bizHeader(account: Account | null, current?: Section) {
   const signOut = el('button', { class: 'biz-signout', type: 'button' }, 'Sign out');
   signOut.addEventListener('click', async () => {
     busy(signOut, 'Signing out…');
+    forgetDraft();
     await partnerApi().signOut().catch(() => undefined);
     navigate('/business', { replace: true });
   });
@@ -54,7 +83,7 @@ function bizFooter() {
   );
 }
 
-function page(account: PartnerAccount | null, current: Section | undefined, ...children: (Node | null)[]) {
+function page(account: Account | null, current: Section | undefined, ...children: (Node | null)[]) {
   clearMerchantTheme();
   mount(el('main', { class: `page page-business${current ? ` is-${current}` : ''}` }, bizHeader(account, current), ...children, bizFooter()));
 }
@@ -62,7 +91,7 @@ function page(account: PartnerAccount | null, current: Section | undefined, ...c
 /** The signed-in account, or a trip to sign-in. */
 async function signedIn(label: string) {
   try {
-    const account = await loading(partnerApi().me(), label);
+    const account = await loading(loadAccount(), label);
     if (!account) navigate('/business/sign-in', { replace: true });
     return account;
   } catch {
@@ -81,12 +110,12 @@ function offline() {
 // ---------- Landing ----------
 
 export async function landingScreen() {
-  const account = await partnerApi().me().catch(() => null);
+  const account = await loadAccount().catch(() => null);
   if (account) {
-    navigate(account.program ? '/business/today' : '/business/setup', { replace: true });
+    navigate(homeFor(account), { replace: true });
     return;
   }
-  const sample = draftFrom(null);
+  const sample = draftFrom(null, null);
   Object.assign(sample, { name: 'Your place', location: 'Your neighbourhood', reward: 'A free coffee', punches: 8 });
   page(
     null,
@@ -113,9 +142,9 @@ export async function landingScreen() {
 // ---------- Sign in ----------
 
 export async function signInScreen() {
-  const existing = await partnerApi().me().catch(() => null);
+  const existing = await loadAccount().catch(() => null);
   if (existing) {
-    navigate(existing.program ? '/business/today' : '/business/setup', { replace: true });
+    navigate(homeFor(existing), { replace: true });
     return;
   }
   const error = el('p', { class: 'field-error', role: 'alert' });
@@ -131,12 +160,15 @@ export async function signInScreen() {
     event.preventDefault();
     error.textContent = '';
     const done = busy(send, 'Sending…');
+    const address = email.value.trim();
     try {
-      const { maskedEmail } = await partnerApi().startEmail(email.value);
-      codeStep(form, maskedEmail);
+      await partnerApi().startEmail(address);
+      codeStep(form, address);
     } catch (problem) {
       done();
-      error.textContent = problem instanceof ApiError && problem.code === 'invalidEmail' ? 'That doesn’t look like an email. Check it and try again.' : 'Couldn’t send the code. Check your connection.';
+      error.textContent = problem instanceof PartnerError && problem.code === 'invalidEmail'
+        ? 'That doesn’t look like an email. Check it and try again.'
+        : problemText(problem, 'Couldn’t send the code. Check your connection.');
       email.focus();
     }
   });
@@ -148,12 +180,12 @@ export async function signInScreen() {
   email.focus();
 }
 
-function codeStep(form: HTMLFormElement, maskedEmail: string) {
+function codeStep(form: HTMLFormElement, address: string) {
   const error = el('p', { class: 'field-error', role: 'alert' });
   const code = el('input', { class: 'field-input is-code', id: 'biz-code', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, pattern: '[0-9]*' });
   const verify = el('button', { class: 'button button-primary', type: 'submit' }, 'Sign in');
   const next = el('form', { class: 'biz-form', novalidate: true },
-    el('label', { class: 'field-label', for: 'biz-code' }, `Code sent to ${maskedEmail}`),
+    el('label', { class: 'field-label', for: 'biz-code' }, `Code sent to ${address}`),
     code,
     isDemo ? el('p', { class: 'field-help' }, 'Demo: the code is 123456.') : null,
     error,
@@ -164,12 +196,16 @@ function codeStep(form: HTMLFormElement, maskedEmail: string) {
     error.textContent = '';
     const done = busy(verify, 'Checking…');
     try {
-      const account = await partnerApi().verifyEmail(code.value);
+      await partnerApi().verifyEmail(address, code.value.replace(/\D/g, ''));
+      forgetDraft();
       announce('Signed in.');
-      navigate(account.program ? '/business/today' : '/business/setup', { replace: true });
+      const account = await loadAccount().catch(() => null);
+      navigate(account ? homeFor(account) : '/business/setup', { replace: true });
     } catch (problem) {
       done();
-      error.textContent = problem instanceof ApiError && problem.code === 'invalidCode' ? 'That code doesn’t match. Check the email and try again.' : 'Couldn’t sign in. Try again.';
+      error.textContent = problem instanceof PartnerError && problem.code === 'invalidCode'
+        ? 'That code doesn’t match. Check the email and try again.'
+        : problemText(problem, 'Couldn’t sign in. Try again.');
       code.select();
     }
   });
@@ -188,15 +224,13 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]['id'];
 
 // The draft lives across the steps' page changes and a reload (sessionStorage, this tab only), and
-// starts again when another owner signs in. Nothing in it is secret: it becomes the public card.
+// starts again at every sign-in and sign-out. Nothing in it is secret: it becomes the public card.
 const DRAFT_KEY = 'joeyy-business-draft';
 let draft: Draft | undefined;
-let draftOwner = '';
 
-function restoreDraft(owner: string) {
+function restoreDraft() {
   try {
-    const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null') as { owner: string; draft: Draft } | null;
-    return saved?.owner === owner ? saved.draft : undefined;
+    return (JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null') as Draft | null) ?? undefined;
   } catch {
     return undefined;
   }
@@ -204,13 +238,22 @@ function restoreDraft(owner: string) {
 
 function keepDraft() {
   try {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ owner: draftOwner, draft }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   } catch {
     /* Private mode or storage off: the draft lasts until the tab reloads. */
   }
 }
 
-function progress(current: StepId, account: PartnerAccount) {
+function forgetDraft() {
+  draft = undefined;
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* Nothing kept. */
+  }
+}
+
+function progress(current: StepId, account: Account) {
   const saved: Record<StepId, boolean> = {
     place: Boolean(account.business),
     reward: Boolean(account.program),
@@ -229,10 +272,7 @@ function progress(current: StepId, account: PartnerAccount) {
 export async function setupScreen(query: URLSearchParams) {
   const account = await signedIn('Opening setup…');
   if (!account) return;
-  if (draftOwner !== account.maskedEmail || !draft) {
-    draftOwner = account.maskedEmail;
-    draft = restoreDraft(draftOwner) ?? draftFrom(account);
-  }
+  draft ??= restoreDraft() ?? draftFrom(account.business, account.program);
   const requested = query.get('step') as StepId | null;
   const fallback: StepId = !account.business ? 'place' : !account.program ? 'reward' : 'stand';
   const step: StepId = requested && STEPS.some((item) => item.id === requested) ? requested : fallback;
@@ -258,36 +298,34 @@ export async function setupScreen(query: URLSearchParams) {
     question = 'What’s your place called?';
     lede = 'This is how it shows on the card and on Discover.';
     fields = [
-      textField('Name', current.name, (value) => { current.name = value; card.update(); }, { autocomplete: 'organization', placeholder: 'Ferrous Coffee' }),
-      textField('What kind of place', current.category, (value) => { current.category = value; }, { max: 30, placeholder: 'Café, bakery, ramen bar…' }),
-      textField('Neighbourhood and city', current.location, (value) => { current.location = value; card.update(); }, { max: 60, placeholder: 'Belltown, Seattle' }),
-      textField('Street address', current.address, (value) => { current.address = value; }, { max: 100, autocomplete: 'street-address', help: 'Optional. Diners use it for directions.' }),
+      textField('Name', current.name, (value) => { current.name = value; card.update(); }, { max: LIMITS.name, autocomplete: 'organization', placeholder: 'Ferrous Coffee' }),
+      textField('Neighbourhood and city', current.location, (value) => { current.location = value; card.update(); }, { max: LIMITS.location, placeholder: 'Belltown, Seattle' }),
     ];
     next.addEventListener('click', async () => {
-      if (current.name.trim().length < 2 || current.location.trim().length < 2) {
-        error.textContent = 'Add your place’s name and where it is.';
+      if (!current.name.trim()) {
+        error.textContent = 'Add your place’s name.';
         return;
       }
       const done = busy(next, 'Saving…');
       try {
-        await partnerApi().saveBusiness({ name: current.name, category: current.category, location: current.location, address: current.address });
+        await saveBusiness(account, current);
         navigate('/business/setup?step=reward');
-      } catch {
+      } catch (problem) {
         done();
-        error.textContent = 'Couldn’t save. Check your connection and try again.';
+        error.textContent = problemText(problem, 'Couldn’t save. Check your connection and try again.');
       }
     });
   } else if (step === 'reward') {
     question = 'What do regulars get?';
     lede = 'Something you’d be glad to hand over. Keep it short: it’s printed on the card.';
-    const rewardField = textField('Reward', current.reward, (value) => { current.reward = value; card.update(); }, { max: 50, placeholder: 'A free coffee' });
+    const rewardField = textField('Reward', current.reward, (value) => { current.reward = value; card.update(); }, { max: LIMITS.reward, placeholder: 'A free coffee' });
     fields = [
       rewardField,
       ideas(() => rewardField.querySelector('input'), (value) => { current.reward = value; card.update(); }),
       stepper('Stamps to earn it', current.punches, (value) => { current.punches = value; card.update(); }),
     ];
     next.addEventListener('click', () => {
-      if (current.reward.trim().length < 2) {
+      if (!current.reward.trim()) {
         error.textContent = 'Add the reward diners earn.';
         return;
       }
@@ -301,21 +339,15 @@ export async function setupScreen(query: URLSearchParams) {
     next.addEventListener('click', async () => {
       const done = busy(next, 'Publishing…');
       try {
-        await partnerApi().publishCard({ requiredPunches: current.punches, rewardDescription: current.reward, theme: current.theme });
+        // Null means it matches the live card already: nothing to publish, carry on.
+        await partnerApi().publish(programInput(current));
         // Published: the server's copy is the card now.
-        try {
-          sessionStorage.removeItem(DRAFT_KEY);
-        } catch {
-          /* Nothing kept. */
-        }
-        draft = undefined;
+        forgetDraft();
         haptic([10, 40, 14]);
         navigate('/business/setup?step=stand');
       } catch (problem) {
         done();
-        error.textContent = problem instanceof ApiError && problem.code === 'invalidCard'
-          ? 'Check the reward and the stamps, then try again.'
-          : 'Couldn’t publish. Check your connection and try again.';
+        error.textContent = problemText(problem, 'Couldn’t publish. Check your connection and try again.');
       }
     });
   } else {
@@ -343,13 +375,22 @@ export async function setupScreen(query: URLSearchParams) {
   page(account, undefined, form);
 }
 
+/** Saves the place's name and location. The time zone is the browser's at first, then kept as it is. */
+function saveBusiness(account: Account, current: Draft) {
+  return partnerApi().saveBusiness({
+    name: current.name.trim(),
+    location: current.location.trim(),
+    timeZone: account.business?.timeZone ?? browserTimeZone(),
+  });
+}
+
 // ---------- Linking a stand ----------
 
 /**
  * Opens a two-minute linking window, then waits for the owner's phone to touch a stand from their
  * kit. The server links the first unlinked stand tapped by this signed-in owner while it's open.
  */
-function standLinker(account: PartnerAccount, onDone: () => void, heading: 'h1' | 'h2' = 'h1') {
+function standLinker(account: Account, onDone: () => void, heading: 'h1' | 'h2' = 'h1') {
   const root = el('section', { class: 'linker', 'aria-labelledby': 'linker-title' });
   const title = (text: string, extra = '') => el(heading, { class: `headline${extra}`, id: 'linker-title' }, text);
   const known = account.stands.length;
@@ -383,10 +424,11 @@ function standLinker(account: PartnerAccount, onDone: () => void, heading: 'h1' 
       const done = busy(start, 'Getting ready…');
       try {
         const opened = await partnerApi().startPairing();
-        waiting(Date.parse(opened.pairing!.expiresAt));
-      } catch {
+        if (!opened.pairing) throw new PartnerError(500, 'server', 'Linking didn’t open.');
+        waiting(Date.parse(opened.pairing.expiresAt));
+      } catch (problem) {
         done();
-        notice('Couldn’t start linking', 'Check your connection and try again.');
+        notice('Couldn’t start linking', problemText(problem, 'Check your connection and try again.'));
       }
     });
     root.replaceChildren(
@@ -406,12 +448,12 @@ function standLinker(account: PartnerAccount, onDone: () => void, heading: 'h1' 
       await partnerApi().cancelPairing().catch(() => undefined);
       intro();
     });
-    const simulate = isDemo
+    const simulate = canTouchStand
       ? el('button', {
           class: 'button button-secondary', type: 'button',
           onclick: async () => {
-            const { demo } = await import('../api/demo');
-            await demo.linkStand().catch(() => undefined);
+            // Stands in for the owner's phone touching a new stand from their kit.
+            await partnerApi().request('POST', '/v1/dev/stands/touch').catch(() => undefined);
             void check();
           },
         }, 'Preview: touch the stand')
@@ -426,7 +468,7 @@ function standLinker(account: PartnerAccount, onDone: () => void, heading: 'h1' 
 
     const check = async () => {
       if (!polling || !root.isConnected) return stop();
-      const fresh = await partnerApi().me().catch(() => null);
+      const fresh = await partnerApi().stands().catch(() => null);
       if (!polling || !fresh) return;
       if (fresh.stands.length > known) linked(fresh.stands[fresh.stands.length - 1]);
     };
@@ -459,11 +501,13 @@ function standLinker(account: PartnerAccount, onDone: () => void, heading: 'h1' 
 const timeOfDay = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 const longDate = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
-function activityLine(item: Today['activity'][number], required: number) {
+function activityLine(item: Activity, required: number) {
+  // An earned stamp fills its card, so its number is that card's size (older versions may differ).
+  const filled = item.punches ?? required;
   const what = {
     first: 'First visit: stamp 1',
-    stamp: `Stamp ${item.punches} of ${required}`,
-    earned: `Stamp ${required} of ${required}: reward earned`,
+    stamp: item.punches ? `Stamp ${item.punches} of ${required}` : 'Stamp',
+    earned: `Stamp ${filled} of ${filled}: reward earned`,
     used: 'Reward used',
   }[item.kind];
   return el('li', { class: `till-row is-${item.kind}` },
@@ -483,15 +527,28 @@ export async function todayScreen() {
     return;
   }
   const program = account.program;
+  const business = account.business!;
   const stats = el('div', { class: 'biz-figures', 'aria-live': 'polite' });
   const till = el('ol', { class: 'till' });
   const empty = el('p', { class: 'panel-note till-empty' }, 'No taps yet today. When a diner taps your stand, it shows up here.');
-  const draw = (today: Today) => {
-    stats.replaceChildren(figure(today.stamps, today.stamps === 1 ? 'stamp' : 'stamps'), figure(today.rewardsUsed, today.rewardsUsed === 1 ? 'reward used' : 'rewards used'), figure(today.newDiners, today.newDiners === 1 ? 'new diner' : 'new diners'));
-    till.replaceChildren(...today.activity.map((item) => activityLine(item, program.requiredPunches)));
-    empty.hidden = today.activity.length > 0;
+  const draw = (figures: Dashboard, activity: Activity[]) => {
+    stats.replaceChildren(
+      figure(figures.punches, figures.punches === 1 ? 'stamp' : 'stamps'),
+      figure(figures.rewardsEarned, figures.rewardsEarned === 1 ? 'reward earned' : 'rewards earned'),
+      figure(figures.rewardsRedeemed, figures.rewardsRedeemed === 1 ? 'reward used' : 'rewards used'));
+    till.replaceChildren(...activity.map((item) => activityLine(item, program.requiredPunches)));
+    empty.hidden = activity.length > 0;
   };
-  draw(await partnerApi().today().catch(() => ({ stamps: 0, rewardsUsed: 0, newDiners: 0, activity: [] })));
+  /** Today in this browser's time zone, as UTC instants: midnight to the next midnight. */
+  const fetchToday = () => {
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 1);
+    return Promise.all([partnerApi().dashboard(from, to), partnerApi().activity(from, to)]);
+  };
+  const first = await fetchToday().catch(() => null);
+  if (first) draw(...first);
 
   const live = isLive(account);
   const tryTap = isDemo && live
@@ -499,18 +556,18 @@ export async function todayScreen() {
         class: 'button button-secondary', type: 'button',
         onclick: async () => {
           const { demo } = await import('../api/demo');
-          const { next } = await demo.stamp(account.business!.id);
+          const { next } = await demo.stamp(business.id);
           // The diner's side opens in its own tab, as it would on their phone.
           window.open(next, '_blank', 'noopener');
         },
       }, 'Preview: a diner taps')
     : null;
-  const card = preview(draftFrom(account));
+  const card = preview(draftFrom(business, program));
 
   page(account, 'today',
     el('section', { class: 'hero' },
       el('p', { class: 'setup-kicker' }, longDate.format(new Date())),
-      el('h1', { class: 'headline' }, `Today at ${account.business!.name}`)),
+      el('h1', { class: 'headline' }, `Today at ${business.name}`)),
     live ? null : el('section', { class: 'block panel biz-alert', 'aria-labelledby': 'alert-title' },
       panelTitle('pin', 'Your card isn’t on a counter yet', 'alert-title'),
       el('p', { class: 'panel-note' }, 'Link a stand so diners can start collecting.'),
@@ -530,8 +587,8 @@ export async function todayScreen() {
   const refresh = window.setInterval(async () => {
     if (!stats.isConnected) return window.clearInterval(refresh);
     if (document.visibilityState !== 'visible') return;
-    const today = await partnerApi().today().catch(() => null);
-    if (today) draw(today);
+    const fresh = await fetchToday().catch(() => null);
+    if (fresh) draw(...fresh);
   }, 5000);
 }
 
@@ -544,30 +601,40 @@ export async function cardScreen() {
     navigate('/business/setup', { replace: true });
     return;
   }
-  const current = draftFrom(account);
+  const current = draftFrom(account.business, account.program);
+  let savedPlace = { name: current.name, location: current.location };
   const card = preview(current);
   const error = el('p', { class: 'field-error', role: 'alert' });
   const publish = el('button', { class: 'button button-primary', type: 'button' }, 'Publish changes');
   publish.addEventListener('click', async () => {
     error.textContent = '';
-    if (current.name.trim().length < 2 || current.location.trim().length < 2 || current.reward.trim().length < 2) {
-      error.textContent = 'Fill in the name, where you are and the reward.';
+    if (!current.name.trim() || !current.reward.trim()) {
+      error.textContent = 'Fill in the name and the reward.';
       return;
     }
     const done = busy(publish, 'Publishing…');
     try {
-      await partnerApi().saveBusiness({ name: current.name, category: current.category, location: current.location, address: current.address });
-      const saved = await partnerApi().publishCard({ requiredPunches: current.punches, rewardDescription: current.reward, theme: current.theme });
+      const place = { name: current.name.trim(), location: current.location.trim() };
+      const placeChanged = place.name !== savedPlace.name || place.location !== savedPlace.location;
+      if (placeChanged) {
+        await saveBusiness(account, current);
+        savedPlace = place;
+      }
+      const published = await partnerApi().publish(programInput(current));
       done();
-      version.textContent = `Version ${saved.program!.version}, published just now.`;
-      toast('Card published');
-    } catch {
+      if (published) {
+        version.textContent = `Version ${published.version}, published just now.`;
+        toast('Card published');
+      } else {
+        toast(placeChanged ? 'Place saved' : 'Nothing changed');
+      }
+    } catch (problem) {
       done();
-      error.textContent = 'Couldn’t publish. Check your connection and try again.';
+      error.textContent = problemText(problem, 'Couldn’t publish. Check your connection and try again.');
     }
   });
   const version = el('p', { class: 'field-help' }, `Version ${account.program.version} is live.`);
-  const rewardField = textField('Reward', current.reward, (value) => { current.reward = value; card.update(); }, { max: 50 });
+  const rewardField = textField('Reward', current.reward, (value) => { current.reward = value; card.update(); }, { max: LIMITS.reward });
 
   page(account, 'card',
     el('section', { class: 'hero' }, el('h1', { class: 'headline' }, 'Your card')),
@@ -575,10 +642,8 @@ export async function cardScreen() {
       el('div', { class: 'desk-form' },
         el('section', { class: 'block panel', 'aria-labelledby': 'place-title' },
           el('h2', { class: 'desk-title', id: 'place-title' }, 'Your place'),
-          textField('Name', current.name, (value) => { current.name = value; card.update(); }, { autocomplete: 'organization' }),
-          textField('What kind of place', current.category, (value) => { current.category = value; }, { max: 30 }),
-          textField('Neighbourhood and city', current.location, (value) => { current.location = value; card.update(); }, { max: 60 }),
-          textField('Street address', current.address, (value) => { current.address = value; }, { max: 100, autocomplete: 'street-address' })),
+          textField('Name', current.name, (value) => { current.name = value; card.update(); }, { max: LIMITS.name, autocomplete: 'organization' }),
+          textField('Neighbourhood and city', current.location, (value) => { current.location = value; card.update(); }, { max: LIMITS.location })),
         el('section', { class: 'block panel', 'aria-labelledby': 'reward-title' },
           el('h2', { class: 'desk-title', id: 'reward-title' }, 'Reward'),
           rewardField,
@@ -628,7 +693,7 @@ export async function standsScreen() {
   }
   const list = el('ul', { class: 'stand-list' });
   const linkerSlot = el('div', {});
-  const draw = (fresh: PartnerAccount) => {
+  const draw = (fresh: Stands) => {
     list.replaceChildren(...fresh.stands.map((stand) => standRow(stand, turnOff)));
   };
   const turnOff = (stand: Stand) => openSheet((close) => {
@@ -639,9 +704,9 @@ export async function standsScreen() {
         draw(await partnerApi().turnOffStand(stand.standId));
         close();
         toast(`${stand.label} turned off`);
-      } catch {
+      } catch (problem) {
         close();
-        notice('Couldn’t turn it off', 'Check your connection and try again.');
+        notice('Couldn’t turn it off', problemText(problem, 'Check your connection and try again.'));
       }
     });
     return el('div', { class: 'sheet-body' },

@@ -39,6 +39,4 @@ export const demo = {
   scenario: (name: string) => call<{ next: string }>('POST', `/api/demo/scenarios/${encodeURIComponent(name)}`),
   /** A tap on this business's stand. */
   stamp: (businessId: string) => call<{ next: string }>('POST', '/api/demo/stamp', { businessId }),
-  /** The business site: the owner's phone touching a new stand while linking is open. */
-  linkStand: () => call<unknown>('POST', '/api/demo/partner/link-stand'),
 };

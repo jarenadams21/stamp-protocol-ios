@@ -116,12 +116,12 @@ The page is a **passport in a Wallet stack** (the direction picked on the design
 | `/privacy`, `/terms` | Placeholders until the real policies exist |
 | `/business` | The business site for owners: what JOEYY is, then sign in with an email code |
 | `/business/setup` | Four steps with a live card: place, reward, look, then link a stand (`?step=`) |
-| `/business/today` | Today's stamps, rewards used and new diners, with each tap as it lands |
+| `/business/today` | Today's stamps, rewards earned and rewards used, with each tap as it lands |
 | `/business/card` | Edit and republish the card, with the preview beside the form |
 | `/business/stands` | Linked stands, when each was last tapped, turn one off, link another |
 
-The business pages load on their own, so diners never download them. Their backend routes are in
-[docs/business-api.md](docs/business-api.md).
+The business pages load on their own, so diners never download them. They call the shared API
+(`services/api`) with an owner's bearer token; the routes are in [docs/business-api.md](docs/business-api.md).
 
 Any host must serve `index.html` for these paths (SPA fallback). Vercel, Netlify and
 Cloudflare Pages do this with a one-line rewrite.
