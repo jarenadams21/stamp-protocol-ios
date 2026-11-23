@@ -1,8 +1,7 @@
 // Paper and ink drawn on canvas, because CSS shapes read as a picture of a stamp, not ink on paper.
 // Two things live here: a business's paper (mottled colour, tooth, fibres, a security print and
 // rosette in its own ink) and a rubber-stamp impression (heavy, patchy ink with a rocked double
-// edge and stray specks). Each is drawn once and cached; the card and the stamp page show the same
-// images, so a stamp looks the same wherever it appears.
+// edge and stray specks). Each is drawn once and cached as an image URL.
 
 export type StampShape = 'round' | 'rect' | 'oval';
 
@@ -52,9 +51,9 @@ function canvas(width: number, height: number) {
 // ---------- Paper ----------
 
 const PAPER_SIZE = 420;
-const papers = new Map<string, { node: HTMLCanvasElement; url: string }>();
+const papers = new Map<string, string>();
 
-/** A business's paper as a canvas (for the stamp page) and an image URL (for the card's CSS). */
+/** A business's paper as an image URL, for the card's CSS. */
 export function paper(base: string, ink: string) {
   const key = `${base}${ink}`;
   const cached = papers.get(key);
@@ -129,9 +128,9 @@ export function paper(base: string, ink: string) {
     g.stroke();
   }
   g.restore();
-  const made = { node, url: node.toDataURL('image/png') };
-  papers.set(key, made);
-  return made;
+  const url = node.toDataURL('image/png');
+  papers.set(key, url);
+  return url;
 }
 
 // ---------- Ink ----------
@@ -154,7 +153,7 @@ const fontsReady = () => !('fonts' in document) || document.fonts.check('600 16p
  * A rubber-stamp impression, unrotated (callers turn it), on a transparent square with room for
  * stray specks. `size` is the stamp's width in CSS pixels.
  */
-export function impression(spec: ImpressionSpec, size: number): HTMLCanvasElement {
+function impression(spec: ImpressionSpec, size: number): HTMLCanvasElement {
   const key = `${spec.ink}|${spec.shape}|${spec.label}|${spec.sub ?? ''}|${spec.seed}|${size}|${fontsReady()}`;
   const cached = impressions.get(key);
   if (cached) return cached;
@@ -238,5 +237,3 @@ export function impressionURL(spec: ImpressionSpec, size: number) {
   return url;
 }
 
-/** The share of an impression's square taken by the stamp itself (the rest is room for specks). */
-export const IMPRESSION_SCALE = 1 / 1.28;

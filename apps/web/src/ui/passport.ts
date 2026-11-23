@@ -61,7 +61,7 @@ const STAMP_PX = 120;
  */
 function applyPaper(root: HTMLElement, state: CardState) {
   const { lightPaper, lightInk } = state.program.theme;
-  const run = () => root.style.setProperty('--paper-texture', `url("${paper(lightPaper, lightInk).url}")`);
+  const run = () => root.style.setProperty('--paper-texture', `url("${paper(lightPaper, lightInk)}")`);
   // Safari has no requestIdleCallback.
   if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 300 });
   else setTimeout(run, 0);
@@ -80,13 +80,8 @@ interface PassportOptions {
 
 export interface PassportView {
   root: HTMLElement;
-  /**
-   * Stamps visit `index` onto the page with a rubber-stamp press, tagged "New" (or `tag`). With
-   * `arrived`, the stamp moment (stamp-moment.ts) already showed the blow: it just settles in.
-   */
-  stampIn(index: number, tag?: string, options?: { arrived?: boolean }): Promise<void>;
-  /** The slot for visit `index`, for the stamp moment to fly into. */
-  slot(index: number): HTMLElement | null;
+  /** Stamps visit `index` onto the page with a rubber-stamp press, tagged "New" (or `tag`). */
+  stampIn(index: number, tag?: string): Promise<void>;
   /** The card just filled up: the reward-earned moment. */
   celebrate(): Promise<void>;
 }
@@ -162,7 +157,7 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
   applyPaper(root, state);
 
   /** The counts in the corner and the foot roll over to the new number. */
-  function tickCounts(count: number, pop = false) {
+  function tickCounts(count: number) {
     const tick = root.querySelector<HTMLElement>('.passport-tick');
     if (tick) tick.textContent = String(count);
     showTogo(count);
@@ -173,20 +168,13 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
         { duration: 320, easing: token('--ease-out') },
       );
     }
-    // A stamp landing also bumps the visit count, so the eye goes from the stamp to the number.
-    if (pop) {
-      root.querySelector('.passport-count')?.animate(
-        [{ transform: 'scale(1)' }, { transform: 'scale(1.25)', offset: 0.3 }, { transform: 'scale(1)' }],
-        { duration: 420, easing: token('--spring-lift') },
-      );
-    }
   }
 
   /**
-   * Ink flecks thrown out from a slot, above the whole grid so no neighbouring stamp covers them.
-   * `reach` scales how far they fly: a small spatter for one stamp, a burst for a full card.
+   * Ink flecks thrown upward from a slot in a cone, in the place's ink, above the whole grid so no
+   * neighbouring stamp covers them. Only for a full card: it's the rare moment, so it gets a burst.
    */
-  function inkBurst(from: HTMLElement, inks: string[], flecks: number, reach: number) {
+  function inkBurst(from: HTMLElement, ink: string, flecks: number) {
     const page = root.getBoundingClientRect();
     const origin = from.getBoundingClientRect();
     const burst = el('span', {
@@ -196,98 +184,96 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
     });
     root.append(burst);
     const runs = Array.from({ length: flecks }, (_, index) => {
-      const angle = (index / flecks) * Math.PI * 2 + (index % 2) * 0.25;
-      const distance = (58 + ((index * 37) % 46)) * reach;
-      const size = (8 + ((index * 5) % 8)) * (reach < 1 ? 0.6 : 1);
-      const fleck = el('span', { class: 'ink-fleck', style: `--ink:${inks[index % inks.length]};--size:${size}px` });
+      // A 120° cone pointing up, each fleck at its own angle, distance and size.
+      const angle = -Math.PI / 2 + ((index / (flecks - 1)) - 0.5) * (Math.PI * 2 / 3) + ((index * 7) % 5 - 2) * 0.04;
+      const distance = 30 + ((index * 37) % 41);
+      const size = 4 + ((index * 5) % 6);
+      const fleck = el('span', { class: 'ink-fleck', style: `--ink:${ink};--size:${size}px` });
       burst.append(fleck);
       return fleck.animate(
         [
-          { transform: 'translate(0, 0) scale(0.4)', opacity: 1 },
-          { transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) scale(1)`, opacity: 1, offset: 0.6 },
-          { transform: `translate(${Math.cos(angle) * distance * 1.15}px, ${Math.sin(angle) * distance * 1.15 + 10}px) scale(0.6)`, opacity: 0 },
+          { transform: 'translate(0, 0) scale(0.5) rotate(0deg)', opacity: 1 },
+          { transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) scale(1) rotate(${(index % 2 ? 1 : -1) * 90}deg)`, opacity: 0 },
         ],
-        { duration: 760 + (index % 3) * 80, easing: token('--ease-out') },
+        { duration: 900, delay: (index % 4) * 20, easing: token('--ease-out') },
       ).finished;
     });
-    const done = Promise.race([Promise.all(runs), new Promise((resolve) => window.setTimeout(resolve, 1100))])
+    return Promise.race([Promise.all(runs), new Promise((resolve) => window.setTimeout(resolve, 1200))])
       .catch(() => undefined)
       .finally(() => burst.remove());
-    return done;
   }
 
   const slotAt = (index: number) => grid.querySelector<HTMLElement>(`.ink-slot[data-index="${index}"]`);
 
-  async function stampIn(index: number, tag = 'New', options: { arrived?: boolean } = {}) {
+  async function stampIn(index: number, tag = 'New') {
     const slot = slotAt(index);
     if (!slot) return;
     const mark = inkStamp(index, seed, dates[index]);
     slot.replaceChildren(mark);
-    slot.classList.add('is-newest');
     slot.dataset.tag = tag;
-    if (options.arrived) {
-      // The stamp flew in from the moment: count it, and let the page give a little under it.
-      tickCounts(index + 1, true);
-      if (!prefersReducedMotion()) {
-        root.animate(
-          [{ transform: 'translateY(0)' }, { transform: 'translateY(4px) scale(0.992)', offset: 0.25 }, { transform: 'translateY(0)' }],
-          { duration: 420, easing: token('--ease-out'), composite: 'add' },
-        );
-      }
-      return;
-    }
+    // The "New" tag arrives with the ink, not before it.
+    const tagIt = () => slot.classList.add('is-newest');
     if (prefersReducedMotion() || !program.theme.allowsMotion) {
+      tagIt();
+      // No movement: the ink just fades in where it lands, and the count changes.
+      if (program.theme.allowsMotion) mark.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
       tickCounts(index + 1);
-      haptic(14);
+      haptic(12);
       return;
     }
-    // The press: the stamp's shadow gathers under it as it comes down, big and out of focus and
-    // picking up speed like a real hand stamp; it hits, squashes hard and settles on a spring.
-    // Everything else (the buzz, the page giving, ink flecks and a ring spreading, the count
-    // popping over, the wet ink drying) starts on the impact frame, so it all reads as one blow.
+    // One gesture, after real rubber stamping (docs: DESIGN_LOG v4.4): the stamp's face appears just
+    // above the slot and rises a hair (anticipation), strikes fast, squashes a little on contact,
+    // and lifts away. The ink appears at contact, under the face, and never moves after. Two
+    // things support it, each tied to a moment: the card gives on contact, and the count turns
+    // over once the face has lifted. Nothing else on the page moves.
     const rot = rotationOf(index, seed);
-    const DURATION = 720;
-    const IMPACT = 0.4;
-    const ink = mark.style.getPropertyValue('--ink');
+    const CONTACT = 230;
+    const head = mark.cloneNode(true) as HTMLElement;
+    head.classList.add('ink-head');
     const shadow = el('span', { class: 'ink-shadow', 'aria-hidden': 'true' });
     slot.prepend(shadow);
-    shadow
-      .animate(
-        [
-          { transform: 'scale(1.9)', opacity: 0, easing: 'cubic-bezier(0.55, 0, 1, 0.45)' },
-          { transform: 'scale(0.95)', opacity: 0.45, offset: IMPACT },
-          { transform: 'scale(1)', opacity: 0 },
-        ],
-        { duration: DURATION },
-      )
-      .finished.catch(() => undefined)
-      .finally(() => shadow.remove());
-    const press = mark.animate(
+    slot.append(head);
+    mark.style.opacity = '0';
+    const face = head.animate(
       [
-        { transform: `translateY(-44px) rotate(${rot - 16}deg) scale(2)`, opacity: 0, filter: 'blur(4px)', easing: 'cubic-bezier(0.55, 0, 1, 0.45)' },
-        { transform: `translateY(0) rotate(${rot}deg) scale(0.8, 0.86)`, opacity: 1, filter: 'blur(0) saturate(1.6) brightness(0.8)', offset: IMPACT, easing: token('--spring-lift') },
-        { transform: `rotate(${rot}deg) scale(1.06)`, filter: 'saturate(1.4) brightness(0.88)', offset: 0.62 },
-        { transform: `rotate(${rot}deg) scale(1)`, opacity: 0.94, filter: 'saturate(1) brightness(1)' },
+        { transform: `translateY(-24px) rotate(${rot - 6}deg) scale(1.15)`, opacity: 0, easing: token('--ease-out') },
+        { transform: `translateY(-28px) rotate(${rot - 4}deg) scale(1.15)`, opacity: 1, offset: 140 / 520, easing: 'cubic-bezier(0.55, 0, 1, 0.45)' },
+        { transform: `translateY(0) rotate(${rot}deg) scale(1.04, 0.96)`, opacity: 1, offset: CONTACT / 520, easing: token('--ease-out') },
+        { transform: `translateY(0) rotate(${rot}deg) scale(1)`, opacity: 1, offset: 330 / 520, easing: token('--ease-out') },
+        { transform: `translateY(-10px) rotate(${rot}deg) scale(1.02)`, opacity: 0 },
       ],
-      { duration: DURATION + 360 },
+      { duration: 520, fill: 'forwards' },
+    );
+    shadow.animate(
+      [
+        { transform: 'scale(1.3)', opacity: 0 },
+        { transform: 'scale(1)', opacity: 0.4, offset: CONTACT / 520 },
+        { transform: 'scale(1.1)', opacity: 0 },
+      ],
+      { duration: 520, easing: token('--ease-out'), fill: 'forwards' },
     );
     window.setTimeout(() => {
-      haptic([10, 24, 18]);
-      tickCounts(index + 1, true);
-      const splash = el('span', { class: 'ink-splash', style: `--ink:${ink}`, 'aria-hidden': 'true' });
-      slot.append(splash);
-      splash
-        .animate([{ transform: 'scale(0.7)', opacity: 0.7 }, { transform: 'scale(1.9)', opacity: 0 }], { duration: 560, easing: token('--ease-out') })
-        .finished.catch(() => undefined)
-        .finally(() => splash.remove());
-      void inkBurst(slot, [ink], 7, 0.5);
-      root.animate(
-        [{ transform: 'translateY(0)' }, { transform: 'translateY(6px) scale(0.988)', offset: 0.18 }, { transform: 'translateY(0)' }],
-        { duration: 520, easing: token('--ease-out'), composite: 'add' },
+      haptic(12);
+      tagIt();
+      // The ink, from the centre out, where the face touched; then it settles.
+      mark.style.opacity = '';
+      mark.animate(
+        [
+          { clipPath: 'circle(12% at 50% 50%)', opacity: 0.6 },
+          { clipPath: 'circle(72% at 50% 50%)', opacity: 1 },
+        ],
+        { duration: 100, easing: token('--ease-out') },
       );
-    }, DURATION * IMPACT);
+      root.animate(
+        [{ transform: 'none' }, { transform: 'translateY(1.5px) rotate(0.4deg)', offset: 0.35 }, { transform: 'none' }],
+        { duration: 160, easing: token('--ease-out'), composite: 'add' },
+      );
+    }, CONTACT);
+    window.setTimeout(() => tickCounts(index + 1), 380);
     // A hidden tab gets no frames, so the animation may never finish: don't hold the page on it.
-    await Promise.race([press.finished, new Promise((done) => window.setTimeout(done, DURATION + 120))]).catch(() => undefined);
+    await Promise.race([face.finished, new Promise((done) => window.setTimeout(done, 640))]).catch(() => undefined);
+    head.remove();
+    shadow.remove();
   }
 
   /**
@@ -296,40 +282,35 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
    * it can afford a moment.
    */
   async function celebrate() {
-    haptic([18, 50, 28]);
+    haptic([14, 90, 20]);
     if (prefersReducedMotion() || !program.theme.allowsMotion) return;
     const slots = [...grid.querySelectorAll<HTMLElement>('.ink-slot')];
     const last = slots[card.punches - 1];
     if (!last) return;
+    // The earlier stamps answer the last one: a ripple outward from it, 35ms per step of distance.
     const origin = last.getBoundingClientRect();
+    const step = origin.width || 60;
     for (const slot of slots) {
       const stamp = slot.querySelector<HTMLElement>('.ink-stamp');
-      if (!stamp) continue;
+      if (!stamp || slot === last) continue;
       const box = slot.getBoundingClientRect();
-      const distance = Math.hypot(box.left - origin.left, box.top - origin.top);
-      const rot = getComputedStyle(stamp).getPropertyValue('--rot').trim() || '0deg';
+      const distance = Math.hypot(box.left - origin.left, box.top - origin.top) / step;
+      const rot = stamp.style.getPropertyValue('--rot').trim() || '0deg';
       stamp.animate(
-        [{ transform: `rotate(${rot}) scale(1)` }, { transform: `rotate(${rot}) scale(1.12)`, offset: 0.35 }, { transform: `rotate(${rot}) scale(1)` }],
-        { duration: 520, delay: distance * 0.9, easing: token('--ease-out') },
+        [{ transform: `rotate(${rot}) scale(1)` }, { transform: `rotate(${rot}) scale(1.06)`, offset: 0.4 }, { transform: `rotate(${rot}) scale(1)` }],
+        { duration: 360, delay: 150 + distance * 35, easing: token('--ease-out') },
       );
     }
-    // Ink flecks, in the page's own stamp inks.
-    const runs = inkBurst(last, INKS.map((_, index) => INKS[(index + seed) % INKS.length]), 16, 1);
-    const ring = el('span', { class: 'passport-ring', 'aria-hidden': 'true' });
-    root.append(ring);
-    const glow = ring.animate(
-      [
-        { opacity: 0, transform: 'scale(0.98)', easing: token('--ease-out') },
-        { opacity: 1, transform: 'scale(1)', offset: 0.25, easing: 'ease-in-out' },
-        { opacity: 0, transform: 'scale(1.01)' },
-      ],
-      { duration: 1000 },
+    // Then the card itself lifts toward you for a beat and settles: the only time the whole card moves.
+    const lift = root.animate(
+      [{ transform: 'none' }, { transform: 'scale(1.03)', offset: 0.45 }, { transform: 'none' }],
+      { duration: 700, delay: 450, easing: token('--spring-lift'), composite: 'add' },
     ).finished;
-    await Promise.race([Promise.all([runs, glow]), new Promise((done) => window.setTimeout(done, 1100))]).catch(() => undefined);
-    ring.remove();
+    await new Promise((done) => window.setTimeout(done, 600));
+    await Promise.race([Promise.all([inkBurst(last, program.theme.lightInk, 12), lift]), new Promise((done) => window.setTimeout(done, 1100))]).catch(() => undefined);
   }
 
-  return { root, stampIn, celebrate, slot: slotAt };
+  return { root, stampIn, celebrate };
 }
 
 /**

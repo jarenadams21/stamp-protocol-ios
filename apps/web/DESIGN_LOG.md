@@ -10,6 +10,7 @@ shared from its Share menu).
 
 | Version | Date | What changed | Why |
 | --- | --- | --- | --- |
+| [v4.4](#v44-one-gesture-on-the-card) | 2026-11-22 | The separate stamp page is gone. The stamp lands on the card itself as one gesture: its face appears above the slot, strikes, squashes a little and lifts; the ink stays put; the card gives; the count turns over. Full card: a ripple, a light lift, flecks in the place's ink. Ivory accent; badges in the place's ink; no green outline or accent ring | Feedback: the stamp page felt forced, transitions "0/10", everything boxy; orange read as Claude's colours; green clashed |
 | [v4.3](#v43-drawn-paper-and-ink-and-the-stamp-page) | 2026-11-22 | Paper and ink are drawn on canvas: real grain, fibres and mottling in each card's paper, patchy rubber-stamp ink with a rocked double edge. A tap opens a stamp page: a wooden stamp, seen from above, presses the place's paper and lifts; the ink spreads and dries; then it flies into the card | Feedback: still dry and plain, no texture; the hand stamp's angle looked off |
 | [v4.2](#v42-search-places) | 2026-11-20 | A search box on Discover finds places by name through the shared backend's Places API; tap a result to see its card | Yemi's task: search the restaurants in our database and open one to see its card |
 | [v4.2](#v42-the-stamp-moment) | 2026-11-22 | A tap opens on a full-screen stamp moment: the cover dims, a big stamp in the visit's ink falls and slams down (shockwave rings, ink spatter, shake, double buzz, "Stamp 4 of 8"), then flies into its slot as the card page shows | Feedback: the stamp still wasn't the main focus; it has to land before the rest of the page |
@@ -39,6 +40,33 @@ shared from its Share menu).
 | [v1](#v1-paper-card) | 2026-11-11 | First build: punch card matching the iOS app, every tap and error state, redeem and staff screens | First version |
 
 ---
+
+## v4.4: one gesture, on the card
+
+**Why:** "the stamp page feels forced, transitions are like a 0/10, everything feels boxy." The orange
+read as Claude's own colours, and the green outline didn't belong.
+
+**How it was decided:** a research pass over Apple Pay's "Done" (WWDC19 *Audio, Haptic and Visual
+Design*), Apple Wallet, the HIG on motion and haptics, Emil Kowalski and Rauno Freiberg on motion,
+Josh Comeau on particles, Duolingo's milestone celebrations, and how a real rubber stamp moves
+(anticipation, strike, small squash, lift; the ink appears at contact). What it said we'd got wrong:
+an overlay that took the card away, ink that moved after it landed, and every effect at once.
+
+**What changed:**
+- **No stamp page, no overlay.** The page stays usable throughout; nothing else dims or moves.
+- **The stamp** (`stampIn`, `src/ui/passport.ts`), 520ms: its inked face appears 24px above the slot,
+  slightly large and turned, and rises 4px; strikes down in 90ms; on contact (230ms) squashes 4%, the
+  ink appears under it from the centre out, the card gives 1.5px, one buzz, and the "New" tag shows; the
+  face lifts 10px and fades. The ink never moves. At 380ms the count turns over.
+- **Cut:** the ink splash ring, the fleck spatter and the count pop on a regular stamp.
+- **A full card:** two taps of haptics; the earlier stamps ripple outward from the last one; the card
+  lifts 3% on a light spring (the only time the whole card moves); a dozen flecks fly up in a 120° cone
+  in the place's own ink. The orange ring around the card is gone.
+- **Colour:** the accent is ivory (tokens, logo, Wallet icon). "Just stamped" and "New" use the place's
+  ink. No outline on a just-stamped card, and no accent ring around the open card.
+- Reduced motion: the ink fades in over 150ms and the count changes; nothing moves.
+
+![The stamp landed on the card](docs/iterations/v4.4-stamp-landed.png)
 
 ## v4.3: drawn paper and ink, and the stamp page
 
