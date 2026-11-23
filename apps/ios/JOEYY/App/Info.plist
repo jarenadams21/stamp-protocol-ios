@@ -8,6 +8,9 @@
 	<!-- The NFC/Wallet service (the Tap tab). Set in Config/App.xcconfig or the ignored Config/Local.xcconfig. -->
 	<key>LoyaltyAPIBaseURL</key>
 	<string>$(LOYALTY_API_BASE_URL)</string>
+	<!-- The domain NFC chips point at; links from it open this app (Associated Domains entitlement). -->
+	<key>LoyaltyTapLinkHost</key>
+	<string>$(LOYALTY_TAP_LINK_HOST)</string>
 	<key>LoyaltyPrototypeMode</key>
 	<string>$(LOYALTY_PROTOTYPE_MODE)</string>
 	<!-- Only standard operating-system encryption and HTTPS. Revisit if custom on-device encryption is added. -->

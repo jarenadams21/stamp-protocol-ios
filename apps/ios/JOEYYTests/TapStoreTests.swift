@@ -429,3 +429,150 @@ private final class MockTapAPI: TapAPI {
         if logoutFailure { throw TapError.message("Service unavailable.") }
     }
 }
+
+/// A chip tapped with the app installed arrives as a link on our domain; these cover recognising it and adding the stamp.
+@MainActor
+final class TapLinkTests: XCTestCase {
+    private let host = "try.thejoeyy.site"
+    /// A real read captured from a programmed card, including the trial programmer's watermark parameter.
+    private let chipLink = "https://try.thejoeyy.site/tagtt?_____TRIAL_VERSION______NOT_FOR_PRODUCTION_____&picc_data=04B1AAAE4E989DE9B6EAB9183EA242CC&enc=96C603DCA30C128FB51E24BF1D4CA196&cmac=A8D3EDBC1FD9800A"
+
+    /// A prototype phone that already has its anonymous test card (`signedIn`), or a brand-new one without.
+    private func prototypeStore(_ api: MockTapAPI, signedIn: Bool) -> TapStore {
+        let storage = MemoryTapStorage()
+        storage.value = signedIn ? TapSession(token: "prototype-existing", username: "nfc-fixture", prototype: true) : nil
+        return TapStore(api: api, storage: storage, mode: .prototype)
+    }
+
+    func testRecognisesAChipLinkOnTheConfiguredDomain() throws {
+        XCTAssertTrue(TapLink.isTapLink(try XCTUnwrap(URL(string: chipLink)), host: host))
+        XCTAssertTrue(TapLink.isTapLink(try XCTUnwrap(URL(string: "HTTPS://Try.TheJoeyy.Site/tap?e=00ff")), host: host))
+        XCTAssertTrue(TapLink.isTapLink(try XCTUnwrap(URL(string: "https://try.thejoeyy.site:443/tag?picc_data=00&cmac=00")), host: host))
+    }
+
+    func testIgnoresEveryOtherLink() throws {
+        let others = [
+            "http://try.thejoeyy.site/tagtt?picc_data=00&cmac=00",                  // not https
+            "https://example.com/tagtt?picc_data=00&cmac=00",                       // another domain
+            "https://try.thejoeyy.site.evil.test/tagtt?picc_data=00&cmac=00",       // lookalike domain
+            "https://evil.test@try.thejoeyy.site/tagtt?picc_data=00&cmac=00",       // user info
+            "https://try.thejoeyy.site:8443/tagtt?picc_data=00&cmac=00",            // another port
+            "https://try.thejoeyy.site/t?picc=00&cmac=00",                          // the website's own page, not a chip read
+            "https://try.thejoeyy.site/",                                           // the website's home page
+            "https://try.thejoeyy.site/tagtt",                                      // no signed message to verify
+            "https://try.thejoeyy.site/tagtt?picc_data=00",                         // message without its signature
+            "https://try.thejoeyy.site/tagtt?cmac=00",
+        ]
+        for value in others {
+            XCTAssertFalse(TapLink.isTapLink(try XCTUnwrap(URL(string: value)), host: host), value)
+        }
+        // An app without a configured domain never treats a link as a chip tap.
+        XCTAssertFalse(TapLink.isTapLink(try XCTUnwrap(URL(string: chipLink)), host: nil))
+    }
+
+    func testConfiguredHostComesFromTheBuildSettingAndIgnoresAnUnexpandedOne() {
+        XCTAssertEqual(TapLink.configuredHost(infoValue: " Try.TheJoeyy.Site "), "try.thejoeyy.site")
+        XCTAssertNil(TapLink.configuredHost(infoValue: "$(LOYALTY_TAP_LINK_HOST)"))
+        XCTAssertNil(TapLink.configuredHost(infoValue: ""))
+        XCTAssertNil(TapLink.configuredHost(infoValue: nil))
+        XCTAssertNil(TapLink.configuredHost(infoValue: 42))
+    }
+
+    func testInboxDeliversEachLinkOnceAndKeepsItUntilTaken() throws {
+        let inbox = TapLinkInbox(host: host)
+        let link = try XCTUnwrap(URL(string: chipLink))
+        XCTAssertTrue(inbox.receive(link))
+        XCTAssertEqual(inbox.revision, 1)
+        XCTAssertEqual(inbox.url, link)
+        XCTAssertFalse(inbox.receive(link), "iOS can deliver one link through two callbacks")
+        XCTAssertEqual(inbox.revision, 1)
+        XCTAssertFalse(inbox.receive(try XCTUnwrap(URL(string: "https://example.com/tagtt?picc_data=00&cmac=00"))))
+        XCTAssertEqual(inbox.take(), link)
+        XCTAssertNil(inbox.take())
+        XCTAssertFalse(inbox.receive(link), "a link already handled is not handled again")
+    }
+
+    func testALinkAddsTheStampOnAPrototypePhoneWithoutScanning() async throws {
+        let api = MockTapAPI()
+        api.verification = TapVerification(verified: true, counter: 15)
+        let store = prototypeStore(api, signedIn: false)
+        let inbox = TapLinkInbox(host: host)
+        XCTAssertTrue(inbox.receive(try XCTUnwrap(URL(string: chipLink))))
+
+        let card = await store.submitIncoming(from: inbox)
+
+        XCTAssertEqual(card, api.card)
+        XCTAssertEqual(api.prototypeTokens, [nil], "the phone starts its anonymous test card by itself")
+        XCTAssertEqual(api.requests.map(\.url), [chipLink], "the whole link, with the chip's message, reaches the server unchanged")
+        XCTAssertNil(inbox.url)
+        XCTAssertNil(store.pending)
+        XCTAssertEqual(store.cards, [api.card])
+        XCTAssertEqual(store.lastVerification, api.verification)
+    }
+
+    func testAFailedTapFromALinkStaysPendingForRetryLikeAScan() async throws {
+        let api = MockTapAPI()
+        api.verification = TapVerification(verified: true, counter: 15)
+        api.tapFailures = 1
+        let store = prototypeStore(api, signedIn: true)
+        let inbox = TapLinkInbox(host: host)
+        _ = inbox.receive(try XCTUnwrap(URL(string: chipLink)))
+
+        let result1 = await store.submitIncoming(from: inbox)
+        XCTAssertNil(result1)
+        XCTAssertEqual(store.pending?.url, chipLink)
+        XCTAssertNil(inbox.url, "the saved pending tap now holds it")
+
+        let result2 = await store.retry()
+        XCTAssertEqual(result2, api.card)
+        XCTAssertEqual(api.requests.count, 2)
+        XCTAssertEqual(Set(api.requests.map(\.requestId)).count, 1, "a retry never makes a second request ID")
+    }
+
+    func testALinkWaitsWhileAnEarlierTapIsPendingThenIsUsed() async throws {
+        let api = MockTapAPI()
+        api.verification = TapVerification(verified: true, counter: 15)
+        api.tapFailures = 1
+        let store = prototypeStore(api, signedIn: true)
+        await store.startPrototype()
+        _ = await store.submit(url: "https://cafe.test/t?counter=1")
+        XCTAssertNotNil(store.pending)
+        let inbox = TapLinkInbox(host: host)
+        let link = try XCTUnwrap(URL(string: chipLink))
+        _ = inbox.receive(link)
+
+        let result3 = await store.submitIncoming(from: inbox)
+        XCTAssertNil(result3)
+        XCTAssertEqual(inbox.url, link, "kept, not lost")
+        XCTAssertEqual(api.requests.count, 1)
+        XCTAssertNotNil(store.message)
+
+        _ = await store.retry()
+        XCTAssertNil(store.pending)
+        let result4 = await store.submitIncoming(from: inbox)
+        XCTAssertEqual(result4, api.card)
+        XCTAssertEqual(api.requests.last?.url, chipLink)
+        XCTAssertNil(inbox.url)
+    }
+
+    func testALinkWaitsForSignInInAccountMode() async throws {
+        let api = MockTapAPI()
+        let storage = MemoryTapStorage()
+        storage.value = nil
+        let store = TapStore(api: api, storage: storage, mode: .account)
+        let inbox = TapLinkInbox(host: host)
+        let link = try XCTUnwrap(URL(string: chipLink))
+        _ = inbox.receive(link)
+
+        let result5 = await store.submitIncoming(from: inbox)
+        XCTAssertNil(result5)
+        XCTAssertEqual(inbox.url, link)
+        XCTAssertTrue(api.requests.isEmpty)
+        XCTAssertTrue(store.message?.contains("Sign in") == true)
+
+        await store.authenticate(username: "link.tester", password: "twelve-chars!", create: false)
+        let result6 = await store.submitIncoming(from: inbox)
+        XCTAssertEqual(result6, api.card)
+        XCTAssertEqual(api.requests.map(\.url), [chipLink])
+    }
+}

@@ -23,6 +23,14 @@ signing files and customer data are ignored, not committed. Real NFC and final
 Wallet delivery require a physical iPhone. The current zero-key configuration is
 for hardware testing only and must not be used for valuable rewards.
 
+### Tap opens the app
+
+With the app installed, tapping a chip opens JOEYY and adds the stamp, with no need to press Scan. It works through
+Universal Links: the app claims the chip domain (`LOYALTY_TAP_LINK_HOST` in `Config/App.xcconfig`, entitlement
+`applinks:`) and the domain's web server publishes `/.well-known/apple-app-site-association`. How it works, what the
+website must publish, and how to test on a phone: [docs/setup/tap-opens-app.md](../../docs/setup/tap-opens-app.md).
+Check the domain with `node Tools/check-tap-link.mjs https://YOUR-CHIP-DOMAIN`.
+
 ### No-account NFC prototype
 
 Customer onboarding belongs to a separate workstream. For the NFC prototype, use

@@ -53,6 +53,7 @@
 		C7F3C2C2721084AF9DE06B9E /* BusinessCardDesigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51E67A18A35EA8A32A8454D /* BusinessCardDesigner.swift */; };
 		CBF441B3BAD3ADF15B3E39AC /* UtilityButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDFE789690983B8723CDCF9 /* UtilityButton.swift */; };
 		D3DFCD38FE45682AAB364E1B /* TapHTTPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084B74A2552279604022E708 /* TapHTTPTests.swift */; };
+		D67AB3FEBE5E0C88BC5E56AA /* TapLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1113C95449BD1453CBD8DEED /* TapLink.swift */; };
 		E7C8BB6CA0A2FE3E90B199EF /* CustomerFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */; };
 		E7FFB559905BF7E3914C5EEA /* BusinessOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A2AC76A1D1B5083A62908D /* BusinessOverviewView.swift */; };
 		EF46C315D389F8C5C55DC768 /* TapIllustration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E003091150911187AB2008 /* TapIllustration.swift */; };
@@ -82,6 +83,7 @@
 		04AE035B5A39FD7441982A32 /* TapLiveCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapLiveCard.swift; sourceTree = "<group>"; };
 		0770F89DB29E7DB078C61D3D /* BugReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BugReport.swift; sourceTree = "<group>"; };
 		084B74A2552279604022E708 /* TapHTTPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapHTTPTests.swift; sourceTree = "<group>"; };
+		1113C95449BD1453CBD8DEED /* TapLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapLink.swift; sourceTree = "<group>"; };
 		12880CD427FAB7881B0D736A /* MerchantViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerchantViews.swift; sourceTree = "<group>"; };
 		12C787F2F77F633051D97E8E /* CustomerFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerFlowTests.swift; sourceTree = "<group>"; };
 		1523FF0DC91EDFC744C47B16 /* JOEYYTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JOEYYTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -249,6 +251,7 @@
 				2A14C9FAFA4CBEA1DDEB05B7 /* NFCTagScanner.swift */,
 				1DFE9BE2E52B855306396539 /* TapAPI.swift */,
 				21E003091150911187AB2008 /* TapIllustration.swift */,
+				1113C95449BD1453CBD8DEED /* TapLink.swift */,
 				04AE035B5A39FD7441982A32 /* TapLiveCard.swift */,
 				0167A4013F96A604BAFF1620 /* TapSignInForm.swift */,
 				FA70B6DB36B916B4477C66DC /* TapStatusMessage.swift */,
@@ -442,6 +445,7 @@
 				253AFCD8DA2825C4092AE794 /* SurfacePanel.swift in Sources */,
 				AC0F9271DC9DE55339509917 /* TapAPI.swift in Sources */,
 				EF46C315D389F8C5C55DC768 /* TapIllustration.swift in Sources */,
+				D67AB3FEBE5E0C88BC5E56AA /* TapLink.swift in Sources */,
 				7EF45D00DED149EABC3D5988 /* TapLiveCard.swift in Sources */,
 				860BD9DECFA6FAF09BA497C0 /* TapSignInForm.swift in Sources */,
 				1369762A374846D8DED7FCF6 /* TapStatusMessage.swift in Sources */,

@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["S23DT2V34P.com.joeyy.customer"],
+        "components": [
+          { "/": "/tagtt", "comment": "NFC chip taps. Opens the JOEYY app, which adds the stamp. See docs/setup/tap-opens-app.md" }
+        ]
+      }
+    ]
+  }
+}
