@@ -79,7 +79,7 @@ jobs:
           if [ "$MODE" = merge ] && [ -n "$BASE" ]; then
             CHANGED=$(git diff --name-only "$BASE" "$SHA")
             echo "$CHANGED" | grep -qE '^(apps/ios/|\.github/)' || IOS=false
-            echo "$CHANGED" | grep -qE '^(services/api/|\.github/)' || API=false
+            echo "$CHANGED" | grep -qE '^(services/api/|docs/setup/see-signed-up-users\.sql|\.github/)' || API=false
             echo "$CHANGED" | grep -qE '^(apps/web/|\.github/)' || WEB=false
           fi
           EXPECTED=""

@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type pg from "pg";
 import { createPool } from "./db.ts";
 
@@ -53,8 +53,13 @@ export function quoteIdentifier(name: string): string {
     return `"${name.replaceAll('"', '""')}"`;
 }
 
+/** True when this module is the script Node was started with (`node src/migrate.ts`), on any OS. */
+export function isMainModule(moduleUrl: string, argv1: string | undefined): boolean {
+    return argv1 !== undefined && moduleUrl === pathToFileURL(path.resolve(argv1)).href;
+}
+
 // CLI: npm run migrate
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url, process.argv[1])) {
     const pool = createPool(process.env, { max: 1 });
     try {
         await migrate(pool, { role: process.env.MIGRATION_ROLE || undefined, log: console.log });

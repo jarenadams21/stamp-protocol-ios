@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { after, before, describe, test } from "node:test";
 import { decodeJwt } from "jose";
 import { TOKEN_AUDIENCES, verifyBearer } from "../src/auth.ts";
@@ -131,6 +132,43 @@ describe("Google", () => {
         const token = await ctx.google.idToken({ sub: "x", nonce: "n" });
         assert.equal(await verifyIdToken(verifier, token, "n"), undefined);
     });
+
+    const googleSignIn = async (role: string, sub: string, claims: { email?: string; email_verified?: boolean | string } = {}) => {
+        const nonce = newNonce();
+        const idToken = await ctx.google.idToken({ sub, nonce, ...claims });
+        return post("/v1/auth/google", { role, idToken, nonce });
+    };
+    const account = async (table: "customers" | "business_owners", subject: string) =>
+        (await ctx.pool.query<{ email: string | null; last_sign_in_at: Date | null }>(
+            `SELECT email, last_sign_in_at FROM ${table} WHERE subject = $1`,
+            [subject],
+        )).rows[0];
+
+    test("saves the verified email and sign-in time for customers and business owners", async () => {
+        for (const [role, table] of [["customer", "customers"], ["partner", "business_owners"]] as const) {
+            const signedIn = await googleSignIn(role, "google-email", { email: "Pat@Gmail.com", email_verified: true });
+            assert.equal(signedIn.status, 200);
+            const row = await account(table, "google:google-email");
+            assert.equal(row?.email, "pat@gmail.com");
+            assert.ok(row?.last_sign_in_at);
+
+            // A later sign-in updates both, and a token without an email keeps the saved one.
+            ctx.clockOffsetMs += 60_000;
+            await googleSignIn(role, "google-email", { email: "pat.new@gmail.com", email_verified: true });
+            const updated = await account(table, "google:google-email");
+            assert.equal(updated?.email, "pat.new@gmail.com");
+            assert.ok(updated!.last_sign_in_at! > row!.last_sign_in_at!);
+            await googleSignIn(role, "google-email");
+            assert.equal((await account(table, "google:google-email"))?.email, "pat.new@gmail.com");
+        }
+    });
+
+    test("doesn't save an email Google hasn't verified", async () => {
+        assert.equal((await googleSignIn("customer", "google-unverified", { email: "x@gmail.com", email_verified: false })).status, 200);
+        await googleSignIn("partner", "google-unverified", { email: "x@gmail.com" });
+        assert.equal((await account("customers", "google:google-unverified"))?.email, null);
+        assert.equal((await account("business_owners", "google:google-unverified"))?.email, null);
+    });
 });
 
 describe("phone number and text code", () => {
@@ -152,6 +190,8 @@ describe("phone number and text code", () => {
         const subject = decodeJwt(signedIn.body.accessToken).sub!;
         assert.match(subject, /^phone:[0-9a-f]{64}$/);
         assert.equal(subject.includes("2065550101"), false, "the phone number is never stored or put in tokens");
+        const row = await ctx.pool.query("SELECT email FROM customers WHERE subject = $1", [subject]);
+        assert.equal(row.rows[0].email, null);
 
         assert.equal((await verify("+12065550101", code)).body.error, "invalidCode", "a code works once");
     });
@@ -257,7 +297,7 @@ describe("email and one-time code", () => {
     const start = (email: string) => post("/v1/auth/email/start", { email });
     const verify = (email: string, code: string | undefined, role = "customer") => post("/v1/auth/email/verify", { role, email, code });
 
-    test("sends a code to the normalized address that signs in once, without storing the address", async () => {
+    test("sends a code to the normalized address that signs in once, and saves the address only once verified", async () => {
         const started = await start("  Pat.Owner@Example.COM ");
         assert.equal(started.status, 202);
         assert.deepEqual(started.body, { expiresIn: 600, resendAfter: 30 });
@@ -267,13 +307,17 @@ describe("email and one-time code", () => {
 
         const wrong = code === "000000" ? "111111" : "000000";
         assert.equal((await verify("pat.owner@example.com", wrong)).body.error, "invalidCode");
+        const unverified = await ctx.pool.query("SELECT 1 FROM customers WHERE email = 'pat.owner@example.com'");
+        assert.equal(unverified.rowCount, 0, "a wrong code saves nothing");
         const signedIn = await verify("PAT.OWNER@example.com", code);
         assert.equal(signedIn.status, 200);
         const subject = decodeJwt(signedIn.body.accessToken).sub!;
         assert.match(subject, /^email:[0-9a-f]{64}$/);
         assert.equal(subject.includes("example"), false);
-        const stored = await ctx.pool.query("SELECT subject FROM customers WHERE subject = $1", [subject]);
+        const stored = await ctx.pool.query("SELECT email, last_sign_in_at FROM customers WHERE subject = $1", [subject]);
         assert.equal(stored.rowCount, 1);
+        assert.equal(stored.rows[0].email, "pat.owner@example.com");
+        assert.ok(stored.rows[0].last_sign_in_at);
         const leaks = await ctx.pool.query("SELECT 1 FROM auth_codes WHERE target_hash LIKE '%example%'");
         assert.equal(leaks.rowCount, 0);
 
@@ -287,6 +331,11 @@ describe("email and one-time code", () => {
         await start("both@example.com");
         const owner = await verify("both@example.com", ctx.email.lastCode("both@example.com"), "partner");
         assert.equal(owner.status, 200);
+        const ownerRow = await ctx.pool.query("SELECT email, last_sign_in_at FROM business_owners WHERE subject = $1", [
+            decodeJwt(owner.body.accessToken).sub,
+        ]);
+        assert.equal(ownerRow.rows[0].email, "both@example.com");
+        assert.ok(ownerRow.rows[0].last_sign_in_at);
         assert.equal(decodeJwt(owner.body.accessToken).aud, TOKEN_AUDIENCES.partner);
         assert.equal((await partnerBusiness(customer.body.accessToken)).statusCode, 401);
         assert.equal((await partnerBusiness(owner.body.accessToken)).statusCode, 404);
@@ -339,6 +388,46 @@ describe("email and one-time code", () => {
             assert.equal((await post("/v1/auth/email/start", { email })).body.error, "invalidEmail");
         }
         assert.equal(parseEmail(" Ünïcode@Example.org "), "ünïcode@example.org");
+    });
+});
+
+describe("docs/setup/see-signed-up-users.sql", () => {
+    test("lists both sides with email, provider, sign-in time, active devices, and business", async () => {
+        const nonce = newNonce();
+        const idToken = await ctx.google.idToken({ sub: "report-owner", nonce, email: "report.owner@gmail.com", email_verified: true });
+        const owner = await post("/v1/auth/google", { role: "partner", idToken, nonce });
+        await ctx.app.inject({
+            method: "PUT",
+            url: "/v1/partner/business",
+            headers: { authorization: `Bearer ${owner.body.accessToken}` },
+            payload: { name: "Report Cafe", location: "Seattle" },
+        });
+        const nonce2 = newNonce();
+        const second = await ctx.google.idToken({ sub: "report-owner", nonce: nonce2, email: "report.owner@gmail.com", email_verified: true });
+        const otherDevice = await post("/v1/auth/google", { role: "partner", idToken: second, nonce: nonce2 });
+        await post("/v1/auth/refresh", { refreshToken: otherDevice.body.refreshToken });
+
+        await post("/v1/auth/email/start", { email: "report.customer@example.com" });
+        const customer = await post("/v1/auth/email/verify", {
+            role: "customer",
+            email: "report.customer@example.com",
+            code: ctx.email.lastCode("report.customer@example.com"),
+        });
+        await post("/v1/auth/sign-out", { refreshToken: customer.body.refreshToken });
+
+        const sql = await readFile(new URL("../../../docs/setup/see-signed-up-users.sql", import.meta.url), "utf8");
+        const rows = (await ctx.pool.query(sql)).rows;
+        const ownerRow = rows.find((row) => row.email === "report.owner@gmail.com");
+        assert.equal(ownerRow?.side, "business owner");
+        assert.equal(ownerRow?.provider, "google");
+        assert.equal(ownerRow?.business, "Report Cafe");
+        assert.equal(Number(ownerRow?.active_devices), 2, "two devices, one of them refreshed");
+        assert.ok(ownerRow?.last_sign_in_at);
+        const customerRow = rows.find((row) => row.email === "report.customer@example.com");
+        assert.equal(customerRow?.side, "customer");
+        assert.equal(customerRow?.provider, "email");
+        assert.equal(Number(customerRow?.active_devices), 0, "signed out");
+        assert.equal(customerRow?.business, null);
     });
 });
 

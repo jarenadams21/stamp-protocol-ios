@@ -3,7 +3,7 @@ name: API
 # Pull requests that change the API. After merge, post-merge.yml calls this with the merged commit.
 on:
   pull_request:
-    paths: [services/api/**, .github/workflows/api.yml]
+    paths: [services/api/**, docs/setup/see-signed-up-users.sql, .github/workflows/api.yml]
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -84,3 +84,28 @@ jobs:
         with:
           name: results-api
           path: ${{ runner.temp }}/results/api-tests.json
+
+  image:
+    name: Container image builds
+    # Pull requests and manual runs only; post-merge validation runs just the tests.
+    if: ${{ !inputs.report }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Build
+        run: docker build -t joeyy-api:ci .
+      - name: No secrets or local state in the image, runs as non-root, and the app loads
+        run: |
+          docker run --rm --entrypoint sh joeyy-api:ci -c '
+            set -e
+            test "$(id -u)" != 0
+            test ! -e .env && test ! -e node_modules/.env && test -z "$(ls -A .dev)" && test ! -e test
+            node --version
+            node --input-type=module -e "await import(\"./src/app.ts\"); await import(\"sharp\"); console.log(\"app loads\")"
+          '
