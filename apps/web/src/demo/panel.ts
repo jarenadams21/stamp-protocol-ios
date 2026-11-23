@@ -13,7 +13,7 @@ const groups: { title: string; items: [label: string, scenario: string][] }[] = 
     items: [
       ['New phone, sign in with Apple', 'new-phone-apple'],
       ['New phone, sign in with Google', 'new-phone-google'],
-      ['New phone, text code', 'new-phone-code'],
+      ['New phone, email code', 'new-phone-code'],
       ['Open my card from the Wallet pass', 'pass-link'],
       ['Already signed in on this phone', 'signed-in'],
     ],

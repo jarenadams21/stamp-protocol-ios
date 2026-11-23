@@ -36,16 +36,6 @@ import {
 const REDEEM_WINDOW_MS = 120_000;
 export const DEMO_CODE = '123456';
 
-const masked = (phone: string) => `••• ••• ${phone.slice(-4)}`;
-
-/**
- * Digits only, so "+1 (206) 472-6147" and "2064726147" are one account. The demo's numbers are
- * North American, so a leading country code 1 on an 11-digit number is dropped.
- */
-const normalisedPhone = (phone: string) => {
-  const digits = phone.replace(/\D/g, '');
-  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
-};
 const unused = (customer: Customer, businessId: string) =>
   customer.rewards.filter((reward) => reward.businessId === businessId && !reward.redeemedAt);
 
@@ -55,18 +45,17 @@ export const snapshot = (customer: Customer, card: StoredCard) => `${card.punche
 /** "sample.diner@icloud.com" → "s•••@icloud.com" */
 export const maskedEmail = (email: string) => email.replace(/^(.)[^@]*/, '$1•••');
 
-/** The account has a way to sign in of its own: a number, an Apple ID or a Google account. */
-const hasSignIn = (customer: Customer) => Boolean(customer.phone || customer.apple || customer.google);
+/** The account has a way to sign in of its own: an email, an Apple ID or a Google account. */
+const hasSignIn = (customer: Customer) => Boolean(customer.email || customer.apple || customer.google);
 
 export function identity(device: Device): Identity {
   const customer = customerOf(device);
   if (hasSignIn(customer)) {
-    const method = device.signedInWith ?? (customer.phone ? 'phone' : customer.apple ? 'apple' : 'google');
-    const email = method === 'phone' ? undefined : customer[method];
+    const method = device.signedInWith ?? (customer.email ? 'email' : customer.apple ? 'apple' : 'google');
+    const email = customer[method];
     return {
       kind: 'account',
       method,
-      maskedPhone: customer.phone ? masked(customer.phone) : undefined,
       maskedEmail: email ? maskedEmail(email) : undefined,
       displayName: customer.displayName,
     };
@@ -252,20 +241,20 @@ export function cancelRedeem(device: Device, intentId: string) {
 
 // ---------- Sign-in ----------
 
-export function startPhone(device: Device, phone: string) {
-  const digits = normalisedPhone(String(phone ?? ''));
-  if (digits.length < 10 || digits.length > 15) throw new ApiError('invalidPhone', 'Invalid phone');
-  device.pendingPhone = digits;
-  return { maskedPhone: masked(digits) };
+export function startEmail(device: Device, email: string) {
+  const address = String(email ?? '').trim().toLowerCase();
+  if (address.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) throw new ApiError('invalidEmail', 'Invalid email');
+  device.pendingEmail = address;
+  return { maskedEmail: maskedEmail(address) };
 }
 
-export function verifyPhone(device: Device, code: string): SignInResult {
-  const phone = device.pendingPhone;
-  if (!phone) throw new ApiError('expired', 'Start again');
-  // The demo has no text messages: the code is always 123456.
+export function verifyEmail(device: Device, code: string): SignInResult {
+  const email = device.pendingEmail;
+  if (!email) throw new ApiError('expired', 'Start again');
+  // The demo sends no email: the code is always 123456.
   if (String(code ?? '').trim() !== DEMO_CODE) throw new ApiError('invalidCode', 'Wrong code');
-  device.pendingPhone = undefined;
-  return signInWith(device, 'phone', phone);
+  device.pendingEmail = undefined;
+  return signInWith(device, 'email', email);
 }
 
 /**
@@ -278,8 +267,8 @@ export function providerSignIn(device: Device, provider: string): SignInResult {
   return signInWith(device, provider, SAMPLE_EMAILS[provider]);
 }
 
-/** One sign-in rule for a number, an Apple ID or a Google account. */
-function signInWith(device: Device, method: 'phone' | 'apple' | 'google', value: string): SignInResult {
+/** One sign-in rule for an email, an Apple ID or a Google account. */
+function signInWith(device: Device, method: 'email' | 'apple' | 'google', value: string): SignInResult {
   const current = customerOf(device);
   const account = Object.values(state.customers).find((customer) => customer[method] === value);
   device.signedInWith = method;
@@ -301,7 +290,7 @@ export function restoreFromPass(device: Device, token: string): SignInResult {
 
 export function signOut(device: Device) {
   newCustomerFor(device);
-  device.pendingPhone = undefined;
+  device.pendingEmail = undefined;
 }
 
 /** PUT /v1/web/me/profile. A name needs somewhere lasting to live, so not for anonymous browsers. */
@@ -327,11 +316,11 @@ export function deleteAccount(device: Device) {
     if (intent.customerId === customer.id) delete state.intents[intentId];
   }
   customer.passes = [];
-  customer.phone = customer.apple = customer.google = undefined;
+  customer.email = customer.apple = customer.google = undefined;
   for (const other of Object.values(state.devices)) {
     if (other.customerId === customer.id) {
       newCustomerFor(other);
-      other.pendingPhone = undefined;
+      other.pendingEmail = undefined;
     }
   }
   delete state.customers[customer.id];

@@ -1016,7 +1016,7 @@ body:has(.page-staff) .demo-bar {
   background: var(--rule);
 }
 
-.idp-phone {
+.idp-email {
   min-height: 48px;
   border-radius: 24px;
   color: var(--text);

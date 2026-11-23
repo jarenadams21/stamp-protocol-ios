@@ -21,7 +21,7 @@ function holderName(identity: Identity) {
   if (identity.kind === 'anonymous') return 'This phone';
   if (identity.method === 'apple') return identity.maskedEmail ?? 'Apple ID';
   if (identity.method === 'google') return identity.maskedEmail ?? 'Google';
-  return identity.maskedPhone ?? 'Account';
+  return identity.maskedEmail ?? identity.maskedPhone ?? 'Account';
 }
 
 /** The passport photo box: a holder outline, since JOEYY never asks for a face. */

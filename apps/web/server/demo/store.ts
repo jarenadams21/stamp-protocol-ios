@@ -38,11 +38,11 @@ export interface StoredPass {
   updatedAt?: number;
 }
 
-/** Anonymous until it has a sign-in (number, Apple or Google). A device signed in from a pass link has kind "pass". */
+/** Anonymous until it has a sign-in (email code, Apple or Google). A device signed in from a pass link has kind "pass". */
 export interface Customer {
   id: string;
-  phone?: string;
-  /** The Apple ID and Google account emails that sign in to this account. */
+  /** The email that signs in with a code, and the Apple ID and Google account emails. */
+  email?: string;
   apple?: string;
   google?: string;
   cards: StoredCard[];
@@ -61,8 +61,8 @@ export interface Device {
   /** Signed in from a Wallet pass link, to an account with no sign-in of its own yet. */
   viaPass?: boolean;
   /** How this device signed in to its account. */
-  signedInWith?: 'phone' | 'apple' | 'google';
-  pendingPhone?: string;
+  signedInWith?: 'email' | 'apple' | 'google';
+  pendingEmail?: string;
   /** Preview switches for this device. */
   offline?: boolean;
 }
@@ -216,7 +216,7 @@ export function newCustomerFor(device: Device) {
  */
 export function forgetIfOrphaned(customer: Customer | undefined) {
   if (!customer) return;
-  const reachable = customer.phone || customer.apple || customer.google || customer.passes.length
+  const reachable = customer.email || customer.apple || customer.google || customer.passes.length
     || Object.values(state.devices).some((device) => device.customerId === customer.id);
   if (!reachable) delete state.customers[customer.id];
 }

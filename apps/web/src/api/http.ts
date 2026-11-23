@@ -59,11 +59,11 @@ export class HttpStampApi implements StampApi {
   async cancelRedeem(intentId: string) {
     await this.request<unknown>('DELETE', `/v1/web/redeem-intents/${encodeURIComponent(intentId)}`);
   }
-  startPhone(phone: string) {
-    return this.request<{ maskedPhone: string }>('POST', '/v1/web/phone/start', { phone });
+  startEmail(email: string) {
+    return this.request<{ maskedEmail: string }>('POST', '/v1/web/email/start', { email });
   }
-  verifyPhone(code: string) {
-    return this.request<SignInResult>('POST', '/v1/web/phone/verify', { code });
+  verifyEmail(code: string) {
+    return this.request<SignInResult>('POST', '/v1/web/email/verify', { code });
   }
 
   /**

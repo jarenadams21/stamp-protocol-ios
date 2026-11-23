@@ -1,8 +1,8 @@
 # JOEYY web
 
 The page a diner sees when they tap a JOEYY stand without the app: the stamp lands on their card,
-and they can save it to Wallet, get the app, or keep it by signing in with Apple, Google or a
-phone number. Built for phones.
+and they can save it to Wallet, get the app, or keep it by signing in with Apple, Google or an
+emailed code. Built for phones.
 
 Every design iteration, with screenshots, is in [DESIGN_LOG.md](DESIGN_LOG.md).
 
@@ -74,8 +74,8 @@ The page is a **passport in a Wallet stack** (the direction picked on the design
   animation (it drops, squashes and splashes ink) and a **New** tag under it. Empty slots are dashed, the last one reads "Free".
 - Under the page (`cardSections()` in `src/screens/shared.ts`): the next reward drawn as the reward
   filling up (a cup, bowl, teapot, loaf or cone), rewards ready (tickets that print out when a card
-  fills), **Keep this card** as three tiles (Wallet, Save cards with Apple, Google or a mobile
-  number, and the app), "About this place" (cover art, logo badge, type of place, address, today's
+  fills), **Keep this card** as three tiles (Wallet, Save cards with Apple, Google or an email
+  code, and the app), "About this place" (cover art, logo badge, type of place, address, today's
   hours, directions), visits as a row of date stamps, "How this card works" as three stamps,
   "How JOEYY works", and the diner's other cards. New places live in the Discover tab.
 - **Your cards** (`/c`) behaves like Apple Wallet: the cards sit in an overlapping list; tap one
@@ -155,9 +155,8 @@ page falls back to **Update Wallet card**.
 ## How it identifies diners
 
 There's no account to start with. The server sets an HttpOnly cookie with a random ID on the
-first tap. To keep the stamps, the diner signs in with Apple, Google or a mobile number and a text
-code (the Nov 11 team decision; no email and password, so the servers can't be flooded with fake
-accounts). Full design, cookie settings and the API
+first tap. To keep the stamps, the diner signs in with Apple, Google or a 6-digit code sent by
+email (no passwords; text codes are off for now because each one costs money). Full design, cookie settings and the API
 routes: [docs/identity-and-api.md](docs/identity-and-api.md).
 
 ## Design

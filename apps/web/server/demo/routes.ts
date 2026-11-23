@@ -38,8 +38,8 @@ on('GET', /^\/v1\/web\/me\/cards\/([^/]+)$/, ({ device, params }) => service.car
 on('POST', /^\/v1\/web\/redeem-intents$/, ({ device, body }) => service.startRedeem(device, String(body.rewardId ?? '')));
 on('GET', /^\/v1\/web\/redeem-intents\/([^/]+)$/, ({ params }) => service.redeemIntent(params[0]));
 on('DELETE', /^\/v1\/web\/redeem-intents\/([^/]+)$/, ({ device, params }) => service.cancelRedeem(device, params[0]));
-on('POST', /^\/v1\/web\/phone\/start$/, ({ device, body }) => service.startPhone(device, String(body.phone ?? '')));
-on('POST', /^\/v1\/web\/phone\/verify$/, ({ device, body }) => service.verifyPhone(device, String(body.code ?? '')));
+on('POST', /^\/v1\/web\/email\/start$/, ({ device, body }) => service.startEmail(device, String(body.email ?? '')));
+on('POST', /^\/v1\/web\/email\/verify$/, ({ device, body }) => service.verifyEmail(device, String(body.code ?? '')));
 on('POST', /^\/v1\/web\/pass-links\/([^/]+)$/, ({ device, params }) => service.restoreFromPass(device, params[0]));
 on('POST', /^\/v1\/web\/sign-out$/, ({ device }) => service.signOut(device));
 on('PUT', /^\/v1\/web\/me\/profile$/, ({ device, body }) => service.saveProfile(device, body.displayName));
@@ -102,7 +102,7 @@ function readCookie(req: IncomingMessage) {
 }
 
 const STATUS: Record<ApiError['code'], number> = {
-  offline: 503, server: 500, invalidPhone: 400, invalidCode: 400, invalidName: 400, expired: 410, notFound: 404,
+  offline: 503, server: 500, invalidEmail: 400, invalidCode: 400, invalidName: 400, expired: 410, notFound: 404,
 };
 
 function servePass(req: IncomingMessage, res: ServerResponse, path: string) {
