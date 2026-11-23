@@ -1,0 +1,8 @@
+# Only used by builds whose context is the repository root (services/api-dotnet/Dockerfile).
+# services/api/ and services/verifier/ builds use their own folder as context and their own .dockerignore.
+*
+!services/api-dotnet/global.json
+!services/api-dotnet/Joeyy.Api/**
+!services/api/db/migrations/*.sql
+services/api-dotnet/**/bin
+services/api-dotnet/**/obj

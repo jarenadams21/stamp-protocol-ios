@@ -1,9 +1,11 @@
-import Fastify, { type FastifyServerOptions } from "fastify";
+import Fastify, { LogController, type FastifyServerOptions } from "fastify";
 import type pg from "pg";
 import type { AuthConfig } from "./auth.ts";
 import { ApiError } from "./errors.ts";
 import { imageTooLarge, unsupportedImageType, type ImageStore } from "./images.ts";
 import { partnerRoutes } from "./routes/partner.ts";
+import type { NativeServices } from "./native/index.ts";
+import { nativeRoutes } from "./native/routes.ts";
 import { placesRoutes } from "./routes/places.ts";
 import { signInRoutes, type SignInOptions } from "./signIn.ts";
 
@@ -16,10 +18,11 @@ export interface AppOptions {
     /** Fastify's trustProxy, so rate limits see the client's IP behind a load balancer. */
     trustProxy?: FastifyServerOptions["trustProxy"];
     logger?: FastifyServerOptions["logger"];
+    native?: NativeServices;
 }
 
 /** The single backend application (spec section 2). Handlers are modules registered under /v1. */
-export function buildApp({ pool, auth, images, signIn, trustProxy = false, logger = false }: AppOptions) {
+export function buildApp({ pool, auth, images, signIn, trustProxy = false, logger = false, native }: AppOptions) {
     const app = Fastify({
         logger,
         trustProxy,
@@ -27,6 +30,10 @@ export function buildApp({ pool, auth, images, signIn, trustProxy = false, logge
         genReqId: () => crypto.randomUUID(),
         requestIdHeader: false,
         bodyLimit: 64 * 1024,
+        // Wallet path parameters contain device identifiers. Never emit raw access URLs.
+        logController: new LogController({
+            disableRequestLogging: (request) => request.url.startsWith("/wallet/") || request.url.startsWith("/api/v1/"),
+        }),
     });
 
     app.addHook("onSend", async (request, reply) => {
@@ -55,7 +62,7 @@ export function buildApp({ pool, auth, images, signIn, trustProxy = false, logge
     app.get("/healthz", async (request, reply) => {
         try {
             await pool.query("SELECT 1");
-            return { status: "ok" };
+            return { status: "ok", nativeNfc: native ? { enabled: true, factoryKeyTest: native.factoryTest } : { enabled: false } };
         } catch (error) {
             request.log.error({ err: error }, "database health check failed");
             return reply.code(503).send({ status: "unavailable" });
@@ -72,6 +79,7 @@ export function buildApp({ pool, auth, images, signIn, trustProxy = false, logge
     app.register(partnerRoutes, { prefix: "/v1/partner", pool, auth, images });
     app.register(placesRoutes, { prefix: "/v1/places", pool, images });
     if (images.routes) app.register(images.routes);
+    if (native) app.register(nativeRoutes, native);
 
     return app;
 }

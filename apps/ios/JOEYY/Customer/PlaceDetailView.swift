@@ -70,7 +70,7 @@ struct PlaceDetailView: View {
                     Text("Place details").font(.subheadline.weight(.medium))
                 }
                 .padding(20)
-                .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
+                .modifier(SurfacePanel())
 
                 if let membership {
                     DisclosureGroup {
@@ -86,7 +86,7 @@ struct PlaceDetailView: View {
                         Text("Activity").font(.subheadline.weight(.medium))
                     }
                     .padding(20)
-                    .background(Color.surface, in: RoundedRectangle(cornerRadius: 8))
+                    .modifier(SurfacePanel())
                 }
             }
             .padding(24)
@@ -96,11 +96,11 @@ struct PlaceDetailView: View {
         .background { AppBackground() }
         .appNavigationTitle("Card")
         .sensoryFeedback(.impact(weight: .medium), trigger: stampFeedback)
-        .toolbar(.visible, for: .navigationBar)
+        .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar {
             if active {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
+                    Menu("Card options", systemImage: "ellipsis") {
                         Button(membership?.isFavorite == true ? "Remove favorite" : "Favorite", systemImage: "star") {
                             do { try store.setFavorite(membership?.isFavorite != true, for: place) }
                             catch { failure = error.localizedDescription }
@@ -115,9 +115,8 @@ struct PlaceDetailView: View {
                         }
                         .accessibilityIdentifier("detail.queueStamp")
                         Button("Move to Memories", systemImage: "tray.and.arrow.down") { confirmingArchive = true }
-                    } label: {
-                        Image(systemName: "ellipsis").frame(width: 44, height: 44)
                     }
+                    .buttonStyle(UtilityButton())
                     .accessibilityLabel("Card options")
                 }
             }

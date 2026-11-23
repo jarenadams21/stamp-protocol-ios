@@ -4,6 +4,25 @@ Status: **partly implemented.** The database is Azure Database for PostgreSQL (`
 database `joeyyRewards`), images are in a private Azure Blob Storage container, and the partner
 routes in section 8.1 (except redeem) are built in [services/api/](../services/api/README.md). Both apps still
 run on local sample data.
+The native **Tap** client adds customer
+sessions, phone-read NTAG 424 DNA verification, replay-safe stamps, and Wallet
+issuance/updates; see [services/api/native-nfc.md](../services/api/native-nfc.md).
+The local customer/business demo screens remain separate from server balances.
+Native hardware-test accounts, cafes and balances are preserved in additive
+`native_*` compatibility tables. They do not yet use the partner's published
+programs, OIDC customer identities, dashboard or redemption flow.
+For NFC-only demonstrations, explicit nonproduction prototype mode skips customer
+onboarding using anonymous test cards. Chip decryption/authentication, replay
+protection and idempotent stamp updates remain required; real customer identity
+integration stays separate.
+
+**NFC distinction:** section 5 below describes a merchant reader reading a
+customer's contactless Wallet pass. The implemented low-cost flow instead has
+the **customer's iPhone read a programmed SUN/SDM chip**, then submit its dynamic
+URL with customer authentication. No Apple VAS reader or contactless Wallet NFC
+payload is used. Purchase verification and production authorization still need
+their own policy; a valid chip read alone is insufficient.
+
 This document defines the **one shared backend** that both the customer app and the business
 (partner) app will use once they move off sample data. It follows the agreed Partner MVP
 Excalidraw diagram (sign in → authenticated route → handler → database) and extends the same

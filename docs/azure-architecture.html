@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOEYY architecture – how a scan flows through Azure</title>
+<style>
+  :root {
+    --bg: #f6f3ec; --ink: #1d2a33; --muted: #6b7780; --line: #c9c3b6;
+    --azure: #0f6cbd; --azure-soft: #e3effa; --phone: #19394f; --phone-soft: #e5ecf1;
+    --github: #24292f; --github-soft: #ebedf0; --apple: #8a2be2; --apple-soft: #f1e8fb;
+    --hot: #e8590c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { padding: 28px 32px 8px; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  header p { margin: 0; color: var(--muted); }
+  main { padding: 12px 32px 48px; max-width: 1280px; }
+  .flows { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+  .flows button, .controls button {
+    border: 1px solid var(--line); background: #fff; padding: 8px 14px; border-radius: 999px;
+    font: inherit; cursor: pointer; color: var(--ink);
+  }
+  .flows button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .stage { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  @media (max-width: 1000px) { .stage { grid-template-columns: 1fr; } }
+  svg { width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px; position: sticky; top: 12px; }
+  .panel h2 { margin: 0 0 6px; font-size: 18px; }
+  .panel .count { color: var(--muted); font-size: 13px; }
+  .panel .step-title { font-weight: 650; margin: 12px 0 4px; font-size: 16px; }
+  .panel .step-text { margin: 0; min-height: 96px; }
+  .controls { display: flex; gap: 8px; margin-top: 14px; }
+  .panel ol { padding-left: 20px; margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+  .panel ol li.current { color: var(--hot); font-weight: 600; }
+  .panel ol li { cursor: pointer; }
+
+  /* diagram */
+  .group-label { font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+  .node rect { stroke-width: 1.5; transition: stroke .2s, stroke-width .2s, filter .2s; }
+  .node .t { font-size: 14px; font-weight: 650; }
+  .node .s { font-size: 11.5px; fill: var(--muted); }
+  .node.lit rect { stroke: var(--hot) !important; stroke-width: 3.5; filter: drop-shadow(0 0 6px rgba(232, 89, 12, .45)); }
+  .arrow { fill: none; stroke: #b7b0a2; stroke-width: 2; opacity: .18; transition: opacity .2s, stroke .2s; }
+  .arrow.in-flow { opacity: .55; stroke: #8c8577; }
+  .arrow.lit { opacity: 1; stroke: var(--hot); stroke-width: 3.5; stroke-dasharray: 8 6; animation: dash 1s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -28; } }
+  .alabel { font-size: 11.5px; fill: var(--muted); opacity: .25; transition: opacity .2s; }
+  .alabel.in-flow { opacity: .8; }
+  .alabel.lit { opacity: 1; fill: var(--hot); font-weight: 700; }
+
+  section.explain { margin-top: 28px; }
+  section.explain h2 { font-size: 20px; margin: 0 0 10px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #ece7dc; vertical-align: top; }
+  th { background: #faf8f3; font-size: 13px; color: var(--muted); font-weight: 600; }
+  td code { background: #f2efe7; padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--azure-soft); color: var(--azure); font-weight: 600; }
+  .tag.old { background: #eef3e8; color: #3d6b21; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .card p { margin: 0; color: #3b4952; font-size: 14px; }
+
+  /* top-level tabs */
+  .tabs { display: flex; gap: 6px; padding: 0 32px; margin-top: 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tabs button {
+    border: 1px solid var(--line); border-bottom: none; background: #ece7dc; padding: 10px 18px;
+    border-radius: 12px 12px 0 0; font: inherit; font-weight: 600; cursor: pointer; color: var(--muted); margin-bottom: -1px;
+  }
+  .tabs button.active { background: var(--bg); color: var(--ink); border-color: var(--line); border-bottom: 1px solid var(--bg); }
+  .tabpanel[hidden] { display: none; }
+  .lead { margin: 6px 0 0; color: #3b4952; max-width: 880px; }
+
+  /* second tour (ASP.NET) */
+  #tab-dotnet .node .t { font-size: 13px; }
+  #tab-dotnet .node .s { font-size: 11.5px; }
+  #tab-dotnet svg .legend-t { font-size: 12px; fill: var(--muted); }
+  pre.code { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; overflow: auto; font-size: 12.5px; line-height: 1.55; margin: 10px 0; }
+  pre.code .c { color: #7a8791; }
+  .note { background: #fff7ee; border: 1px solid #f0c9a8; border-left: 4px solid var(--hot); border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 14px; }
+  .note b:first-child { color: var(--hot); }
+  td.path code, td code { white-space: nowrap; }
+  td.wrap code { white-space: normal; }
+  .tbl-scroll { overflow-x: auto; }
+  ol.plain { margin: 8px 0 0; padding-left: 22px; }
+  ol.plain li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JOEYY architecture: how a scan flows through Azure</h1>
+  <p>Pick a flow, then use <b>Next</b> (or the → key) to step through it. The orange box and arrow show what is happening right now.</p>
+</header>
+<nav class="tabs" role="tablist" aria-label="Pages">
+  <button role="tab" data-tab="azure" class="active">☁️ Azure tour</button>
+  <button role="tab" data-tab="dotnet">🧩 ASP.NET &amp; containers</button>
+</nav>
+<main>
+<div class="tabpanel" id="tab-azure" role="tabpanel">
+  <div class="flows"></div>
+
+  <div class="stage">
+    <svg viewBox="0 0 1180 760" role="img" aria-label="JOEYY architecture diagram">
+      <defs>
+        <marker id="head" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+        </marker>
+      </defs>
+
+      <!-- Group backgrounds -->
+      <rect x="20" y="70" width="210" height="265" rx="16" fill="var(--phone-soft)" stroke="var(--phone)" stroke-opacity=".35"/>
+      <text class="group-label" x="36" y="94" fill="var(--phone)">📱 YOUR IPHONE</text>
+
+      <rect x="20" y="465" width="210" height="240" rx="16" fill="var(--github-soft)" stroke="var(--github)" stroke-opacity=".3"/>
+      <text class="group-label" x="36" y="489" fill="var(--github)">GITHUB</text>
+
+      <rect x="262" y="100" width="908" height="645" rx="18" fill="var(--azure-soft)" stroke="var(--azure)" stroke-opacity=".45"/>
+      <text class="group-label" x="280" y="92" fill="var(--azure)">☁️ AZURE · resource group joeyy-dev-rg (West US)</text>
+
+      <rect x="284" y="140" width="490" height="330" rx="14" fill="#f3f8fd" stroke="var(--azure)" stroke-dasharray="5 4" stroke-opacity=".6"/>
+      <text class="group-label" x="298" y="162" fill="var(--azure)">Container Apps environment · joeyy-dev-env</text>
+
+      <!-- Arrows (drawn before nodes so boxes sit on top) -->
+      <g id="arrows">
+        <path id="a-tap"      class="arrow" marker-end="url(#head)" d="M210,140 L320,262"/>
+        <path id="a-verify"   class="arrow" marker-end="url(#head)" d="M550,292 L568,292"/>
+        <path id="a-verified" class="arrow" marker-end="url(#head)" d="M570,338 L552,338"/>
+        <path id="a-db"       class="arrow" marker-end="url(#head)" d="M500,235 V122 H990 V138"/>
+        <path id="a-reply"    class="arrow" marker-end="url(#head)" d="M320,312 L212,168"/>
+        <path id="a-add"      class="arrow" marker-end="url(#head)" d="M125,190 L125,228"/>
+        <path id="a-push"     class="arrow" marker-end="url(#head)" d="M460,235 L548,78"/>
+        <path id="a-ping"     class="arrow" marker-end="url(#head)" d="M432,58 L212,252"/>
+        <path id="a-fetch"    class="arrow" marker-end="url(#head)" d="M210,292 L320,400"/>
+        <path id="a-commit"   class="arrow" marker-end="url(#head)" d="M125,560 L125,608"/>
+        <path id="a-login"    class="arrow" marker-end="url(#head)" d="M210,662 L552,662"/>
+        <path id="a-build"    class="arrow" marker-end="url(#head)" d="M210,628 L288,578"/>
+        <path id="a-pull"     class="arrow" marker-end="url(#head)" d="M400,520 L400,458"/>
+        <path id="a-secrets"  class="arrow" marker-end="url(#head)" d="M820,300 L758,300"/>
+        <path id="a-idkv"     class="arrow" marker-end="url(#head)" d="M780,540 V330 H818"/>
+        <path id="a-idpg"     class="arrow" marker-end="url(#head)" d="M800,540 V190 H818"/>
+        <path id="a-logs"     class="arrow" marker-end="url(#head)" d="M700,455 V490 H990 V518"/>
+      </g>
+      <g id="arrow-labels">
+        <text class="alabel" data-for="a-tap" x="232" y="190">HTTPS: chip read</text>
+        <text class="alabel" data-for="a-verify" x="545" y="282">decrypt?</text>
+        <text class="alabel" data-for="a-verified" x="540" y="356">✓ chip + #</text>
+        <text class="alabel" data-for="a-db" x="640" y="117">+1 stamp (SQL transaction)</text>
+        <text class="alabel" data-for="a-reply" x="226" y="232">stamps + pass</text>
+        <text class="alabel" data-for="a-add" x="134" y="214">add / replace</text>
+        <text class="alabel" data-for="a-push" x="512" y="150">“pass changed”</text>
+        <text class="alabel" data-for="a-ping" x="300" y="128">wake up Wallet</text>
+        <text class="alabel" data-for="a-fetch" x="236" y="372">GET new pass</text>
+        <text class="alabel" data-for="a-commit" x="134" y="590">merge to main</text>
+        <text class="alabel" data-for="a-login" x="330" y="680">sign in with OIDC badge</text>
+        <text class="alabel" data-for="a-build" x="226" y="606">build images</text>
+        <text class="alabel" data-for="a-pull" x="408" y="500">pull image</text>
+        <text class="alabel" data-for="a-secrets" x="770" y="292">secrets</text>
+        <text class="alabel" data-for="a-idkv" x="706" y="520">badge</text>
+        <text class="alabel" data-for="a-idpg" x="806" y="250">token</text>
+        <text class="alabel" data-for="a-logs" x="860" y="485">logs</text>
+      </g>
+
+      <!-- Nodes -->
+      <g class="node" id="n-app">
+        <rect x="35" y="110" width="180" height="80" rx="12" fill="#fff" stroke="var(--phone)"/>
+        <text class="t" x="50" y="140">JOEYY app (SwiftUI)</text>
+        <text class="s" x="50" y="160">reads the NFC chip,</text>
+        <text class="s" x="50" y="176">talks to the backend</text>
+      </g>
+      <g class="node" id="n-wallet">
+        <rect x="35" y="230" width="180" height="80" rx="12" fill="#fff" stroke="var(--phone)"/>
+        <text class="t" x="50" y="260">Apple Wallet</text>
+        <text class="s" x="50" y="280">the loyalty card;</text>
+        <text class="s" x="50" y="296">updates itself</text>
+      </g>
+      <g class="node" id="n-chip">
+        <rect x="35" y="360" width="180" height="70" rx="12" fill="#fff" stroke="#7a6a4f"/>
+        <text class="t" x="50" y="388">NFC chip (NTAG 424)</text>
+        <text class="s" x="50" y="408">at the counter; makes a new</text>
+        <text class="s" x="50" y="422">encrypted link on every tap</text>
+      </g>
+      <g class="node" id="n-apns">
+        <rect x="430" y="18" width="250" height="60" rx="12" fill="var(--apple-soft)" stroke="var(--apple)"/>
+        <text class="t" x="446" y="44">Apple Push service (APNs)</text>
+        <text class="s" x="446" y="64">Apple’s server that pings iPhones</text>
+      </g>
+      <g class="node" id="n-repo">
+        <rect x="35" y="500" width="180" height="60" rx="12" fill="#fff" stroke="var(--github)"/>
+        <text class="t" x="50" y="526">Code repo</text>
+        <text class="s" x="50" y="545">services/, infra/, apps/</text>
+      </g>
+      <g class="node" id="n-actions">
+        <rect x="35" y="610" width="180" height="80" rx="12" fill="#fff" stroke="var(--github)"/>
+        <text class="t" x="50" y="638">GitHub Actions</text>
+        <text class="s" x="50" y="658">robot: test → build →</text>
+        <text class="s" x="50" y="674">deploy (on merge)</text>
+      </g>
+
+      <g class="node" id="n-capp">
+        <rect x="300" y="175" width="460" height="282" rx="12" fill="#fff" stroke="var(--azure)"/>
+        <text class="t" x="316" y="200">Container App · joeyy-api</text>
+        <text class="s" x="316" y="218">joeyy-api.happycoast-32e2d60b.westus.azurecontainerapps.io · always 1 copy running</text>
+      </g>
+      <g class="node" id="n-api">
+        <rect x="316" y="235" width="234" height="205" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="330" y="260">api container</text>
+        <text class="s" x="330" y="278">ASP.NET Core · C# · .NET 10</text>
+        <text class="s" x="330" y="302">• /api/v1 – scans, cards, passes</text>
+        <text class="s" x="330" y="320">• /wallet/v1 – Apple Wallet calls</text>
+        <text class="s" x="330" y="338">• /healthz – health check</text>
+        <text class="s" x="330" y="356">• signs Wallet passes</text>
+        <text class="s" x="330" y="374">• worker every 15 s sends</text>
+        <text class="s" x="342" y="390">Wallet update pings</text>
+        <text class="s" x="330" y="414">public HTTPS · port 8080</text>
+      </g>
+      <g class="node" id="n-verifier">
+        <rect x="570" y="235" width="175" height="205" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="584" y="260">verifier (sidecar)</text>
+        <text class="s" x="584" y="278">Python · sdm-backend</text>
+        <text class="s" x="584" y="302">• decrypts the chip</text>
+        <text class="s" x="584" y="318">  data (AES-128)</text>
+        <text class="s" x="584" y="336">• checks signature</text>
+        <text class="s" x="584" y="352">  (CMAC)</text>
+        <text class="s" x="584" y="370">• returns chip ID +</text>
+        <text class="s" x="584" y="386">  read number</text>
+        <text class="s" x="584" y="414">private: 127.0.0.1 only</text>
+      </g>
+
+      <g class="node" id="n-pg">
+        <rect x="820" y="140" width="335" height="100" rx="12" fill="#fff" stroke="#336791"/>
+        <text class="t" x="836" y="166">PostgreSQL · joeyy-dev-pg <tspan class="s">(existed before)</tspan></text>
+        <text class="s" x="836" y="186">database joeyyRewards: cafes, chips + last read #,</text>
+        <text class="s" x="836" y="202">cards, stamps, events, Wallet passes + registrations,</text>
+        <text class="s" x="836" y="218">partner businesses. Sign-in: Entra ID (no password)</text>
+      </g>
+      <g class="node" id="n-kv">
+        <rect x="820" y="260" width="335" height="90" rx="12" fill="#fff" stroke="#c48a00"/>
+        <text class="t" x="836" y="286">Key Vault · joeyy-dev-kv-q6nfbh</text>
+        <text class="s" x="836" y="306">locked safe: Apple Wallet certificate + key,</text>
+        <text class="s" x="836" y="322">Apple WWDR cert, chip master key.</text>
+        <text class="s" x="836" y="338">Never in GitHub.</text>
+      </g>
+      <g class="node" id="n-blob">
+        <rect x="820" y="370" width="335" height="70" rx="12" fill="#fff" stroke="#5c7f3a"/>
+        <text class="t" x="836" y="396">Blob storage · joeyydevimages <tspan class="s">(existed)</tspan></text>
+        <text class="s" x="836" y="416">cafe images (partner side; the new api doesn’t use it yet)</text>
+      </g>
+
+      <g class="node" id="n-acr">
+        <rect x="288" y="520" width="225" height="95" rx="12" fill="#fff" stroke="var(--azure)"/>
+        <text class="t" x="304" y="546">Container Registry</text>
+        <text class="s" x="304" y="564">joeyydevacrq6nfbh.azurecr.io</text>
+        <text class="s" x="304" y="582">shelf of packaged versions:</text>
+        <text class="s" x="304" y="598">joeyy-api-dotnet, joeyy-verifier</text>
+      </g>
+      <g>
+        <rect x="540" y="500" width="265" height="215" rx="12" fill="#fff" stroke="var(--azure)" stroke-dasharray="5 4"/>
+        <text class="group-label" x="554" y="522" fill="var(--azure)">Managed identities (ID badges)</text>
+      </g>
+      <g class="node" id="n-apiid">
+        <rect x="552" y="532" width="240" height="78" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="566" y="556">joeyy-api-identity</text>
+        <text class="s" x="566" y="574">the running app’s badge: opens Key</text>
+        <text class="s" x="566" y="590">Vault, pulls images, signs in to the DB</text>
+      </g>
+      <g class="node" id="n-deployer">
+        <rect x="552" y="625" width="240" height="78" rx="10" fill="#f8fbff" stroke="var(--azure)"/>
+        <text class="t" x="566" y="649">joeyy-github-deployer</text>
+        <text class="s" x="566" y="667">GitHub’s badge: only commits on</text>
+        <text class="s" x="566" y="683">main may deploy (no password)</text>
+      </g>
+      <g class="node" id="n-logs">
+        <rect x="820" y="520" width="335" height="70" rx="12" fill="#fff" stroke="var(--azure)"/>
+        <text class="t" x="836" y="546">Log Analytics · joeyy-dev-logs</text>
+        <text class="s" x="836" y="566">the app’s logs and errors, for debugging</text>
+      </g>
+
+      <!-- Legend -->
+      <g transform="translate(820,620)">
+        <text class="group-label" x="0" y="0" fill="var(--muted)">LEGEND</text>
+        <rect x="0" y="12" width="14" height="14" rx="3" fill="var(--azure-soft)" stroke="var(--azure)"/>
+        <text class="s" x="22" y="24">Azure (new for hosting, unless marked)</text>
+        <rect x="0" y="36" width="14" height="14" rx="3" fill="var(--phone-soft)" stroke="var(--phone)"/>
+        <text class="s" x="22" y="48">your phone</text>
+        <rect x="0" y="60" width="14" height="14" rx="3" fill="var(--apple-soft)" stroke="var(--apple)"/>
+        <text class="s" x="22" y="72">Apple</text>
+        <rect x="0" y="84" width="14" height="14" rx="3" fill="var(--github-soft)" stroke="var(--github)"/>
+        <text class="s" x="22" y="96">GitHub</text>
+      </g>
+    </svg>
+
+    <aside class="panel" aria-live="polite">
+      <h2 class="flow-title"></h2>
+      <div class="count flow-sub"></div>
+      <div class="step-title"></div>
+      <p class="step-text"></p>
+      <div class="controls">
+        <button class="prev">← Back</button>
+        <button class="next">Next →</button>
+        <button class="play">▶ Play</button>
+      </div>
+      <ol class="step-list"></ol>
+    </aside>
+  </div>
+
+  <section class="explain">
+    <h2>What each Azure piece is (plain English)</h2>
+    <table>
+      <tr><th>Azure resource</th><th>Name</th><th>Think of it as…</th><th>Why we need it</th></tr>
+      <tr><td>Resource group</td><td><code>joeyy-dev-rg</code></td><td>A folder</td><td>Everything for the dev setup lives in one place with shared permissions (the <code>joeyy-devs</code> group are Owners).</td></tr>
+      <tr><td>Container Apps environment <span class="tag">new</span></td><td><code>joeyy-dev-env</code></td><td>The building</td><td>A private network area where our containers run. More services (e.g. a .NET accounts service) could be added here later.</td></tr>
+      <tr><td>Container App <span class="tag">new</span></td><td><code>joeyy-api</code></td><td>The kitchen, open 24/7</td><td>Runs two containers side by side: the ASP.NET backend (public) and the verifier (private). Gives us a permanent HTTPS address, so your Mac can be off.</td></tr>
+      <tr><td>Container App <span class="tag">added by the team</span></td><td><code>joeyy-api-node</code></td><td>A second kitchen</td><td>The shared Node API: sign-in (Apple, Google, one-time codes), places and the partner routes. Same environment, registry and database as <code>joeyy-api</code>, but it does <b>not</b> handle chip taps or Wallet passes (that part is switched off), and it scales to zero when idle. The iOS app's <code>JOEYY_API_BASE_URL</code> points here; its Tap tab points at <code>joeyy-api</code>.</td></tr>
+      <tr><td>Container Registry <span class="tag">new</span></td><td><code>joeyydevacrq6nfbh</code></td><td>A shelf of packaged meals</td><td>Stores each built version (“image”) of the backend and verifier. Deploying = telling the Container App which version to run.</td></tr>
+      <tr><td>Key Vault <span class="tag">new</span></td><td><code>joeyy-dev-kv-q6nfbh</code></td><td>A locked safe</td><td>Holds the Apple Wallet signing certificate and the chip master key. The app reads them at startup using its ID badge. They are never stored in GitHub.</td></tr>
+      <tr><td>Managed identity <span class="tag">new</span></td><td><code>joeyy-api-identity</code></td><td>The app’s ID badge</td><td>Lets the running app open Key Vault, pull images and sign in to PostgreSQL <b>without any password</b>. It has its own database login (a member of <code>joeyy-devs</code>).</td></tr>
+      <tr><td>Managed identity <span class="tag">new</span></td><td><code>joeyy-github-deployer</code></td><td>GitHub’s ID badge</td><td>Lets GitHub Actions deploy, but only for commits on <code>main</code> in our repo (OIDC trust, no stored password).</td></tr>
+      <tr><td>Log Analytics <span class="tag">new</span></td><td><code>joeyy-dev-logs</code></td><td>The kitchen’s logbook</td><td>Collects app logs so we can see what went wrong.</td></tr>
+      <tr><td>PostgreSQL <span class="tag old">existed</span></td><td><code>joeyy-dev-pg</code></td><td>The memory</td><td>The single source of truth: cafes, chips, cards, stamps, Wallet registrations, partner data.</td></tr>
+      <tr><td>Blob storage <span class="tag old">existed</span></td><td><code>joeyydevimages</code></td><td>A photo cabinet</td><td>Images uploaded on the partner (cafe setup) side. The ASP.NET api doesn’t use it yet; that side is still Node-only.</td></tr>
+    </table>
+  </section>
+
+  <section class="explain">
+    <h2>The big ideas</h2>
+    <div class="cards">
+      <div class="card"><h3>Your Mac is out of the picture</h3><p>Before, the backend, verifier and a temporary tunnel ran on your laptop. Now all three jobs are done in Azure at one permanent address.</p></div>
+      <div class="card"><h3>Keys stay in one locked place</h3><p>The phone never holds keys. It just forwards the chip’s encrypted link. Only the verifier, reading from Key Vault, can decrypt it.</p></div>
+      <div class="card"><h3>Three anti-cheat checks</h3><p>1) A forged or edited link fails decryption. 2) Every tap has a higher read number, so old links are refused. 3) A retry with the same request ID never adds a second stamp.</p></div>
+      <div class="card"><h3>Code never “moves into” Azure by hand</h3><p>Code lives in GitHub. A build packages it and Azure runs the package. Merging to <code>main</code> is the deploy button.</p></div>
+      <div class="card"><h3>Badges instead of passwords</h3><p>The app and GitHub prove who they are with Azure managed identities, so no database password or deploy password exists to leak.</p></div>
+      <div class="card"><h3>Still a prototype</h3><p>Anonymous “guest” cards (no sign-in yet) and factory test keys on the chips. Before real customers: turn prototype mode off, connect real accounts, program chips with real keys.</p></div>
+    </div>
+  </section>
+</div>
+
+<div class="tabpanel" id="tab-dotnet" role="tabpanel" hidden>
+<!--DOTNET-TAB-START-->
+  <p class="lead">This tab zooms into the <b>api container</b>, the part rewritten in ASP.NET, and explains the container words around it. Pick a flow, then use <b>Next</b> (or the → key). Each white box is a real C# file.</p>
+  <div class="flows"></div>
+
+  <div class="stage">
+<svg viewBox="0 0 1180 620" role="img" aria-label="Inside the api container">
+  <defs><marker id="head2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path></marker></defs>
+  <rect x="20" y="230" width="190" height="150" rx="14" fill="var(--phone-soft)" stroke="var(--phone)" stroke-opacity=".3"/>
+  <text class="group-label" x="34" y="254" fill="var(--phone)">HOW TO READ THIS</text>
+  <text class="legend-t" x="34" y="278">White box = a C# file in</text>
+  <text class="legend-t" x="34" y="294">services/api-dotnet/Joeyy.Api/</text>
+  <text class="legend-t" x="34" y="316">Blue box = another container</text>
+  <text class="legend-t" x="34" y="332">or Azure service it talks to</text>
+  <text class="legend-t" x="34" y="354">Orange = happening right now</text>
+  <rect x="230" y="70" width="732" height="490" rx="18" fill="#f3f8fd" stroke="var(--azure)" stroke-opacity=".5"/>
+  <text class="group-label" x="246" y="548" fill="var(--azure)">api container · image joeyy-api-dotnet · ASP.NET Core on .NET 10 · runs Joeyy.Api.dll</text>
+  <g>
+    <path id="xa-req" class="arrow" marker-end="url(#head2)" d="M210,160 H246"/>
+    <path id="xa-k-mw" class="arrow" marker-end="url(#head2)" d="M404,160 H426"/>
+    <path id="xa-mw-g" class="arrow" marker-end="url(#head2)" d="M584,160 H606"/>
+    <path id="xa-g-e" class="arrow" marker-end="url(#head2)" d="M764,160 H786"/>
+    <path id="xa-e-store" class="arrow" marker-end="url(#head2)" d="M810,200 L720,228"/>
+    <path id="xa-e-vc" class="arrow" marker-end="url(#head2)" d="M866,200 V228"/>
+    <path id="xa-vc-ver" class="arrow" marker-end="url(#head2)" d="M944,270 H988"/>
+    <path id="xa-store-db" class="arrow" marker-end="url(#head2)" d="M750,310 L798,338"/>
+    <path id="xa-wallet-db" class="arrow" marker-end="url(#head2)" d="M764,380 H786"/>
+    <path id="xa-db-pg" class="arrow" marker-end="url(#head2)" d="M944,380 H988"/>
+    <path id="xa-wallet-render" class="arrow" marker-end="url(#head2)" d="M608,380 H586"/>
+    <path id="xa-worker-wallet" class="arrow" marker-end="url(#head2)" d="M686,448 V422"/>
+    <path id="xa-worker-push" class="arrow" marker-end="url(#head2)" d="M764,490 H786"/>
+    <path id="xa-push-apns" class="arrow" marker-end="url(#head2)" d="M944,490 H988"/>
+    <path id="xa-prog-config" class="arrow" marker-end="url(#head2)" d="M404,270 H426"/>
+    <path id="xa-reply" class="arrow" marker-end="url(#head2)" d="M866,118 V98 H125 V118"/>
+    <path id="xa-apns-phone" class="arrow" marker-end="url(#head2)" d="M1077,532 V590 H220 V190 H212"/>
+  </g>
+  <g>
+    <text class="alabel" data-for="xa-reply" x="420" y="92">reply: card + stamp count</text>
+    <text class="alabel" data-for="xa-apns-phone" x="420" y="584">“pass changed” ping → Wallet wakes up and calls back</text>
+  </g>
+  <g class="node" id="x-phone">
+    <rect x="20" y="120" width="190" height="90" rx="11" fill="#fff" stroke="var(--phone)"/>
+    <text class="t" x="32" y="146">iPhone</text>
+    <text class="s" x="32" y="166">app + Apple Wallet</text>
+  </g>
+  <g class="node" id="x-kestrel">
+    <rect x="248" y="120" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="260" y="146">Kestrel</text>
+    <text class="s" x="260" y="166">ASP.NET’s built-in</text>
+    <text class="s" x="260" y="182">web server (port 8080)</text>
+  </g>
+  <g class="node" id="x-mw">
+    <rect x="428" y="120" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="440" y="146">Request ID</text>
+    <text class="s" x="440" y="166">JoeyyApp.cs: tags each</text>
+    <text class="s" x="440" y="182">reply x-request-id</text>
+  </g>
+  <g class="node" id="x-guard">
+    <rect x="608" y="120" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="620" y="146">Guard filter</text>
+    <text class="s" x="620" y="166">headers, rate limit,</text>
+    <text class="s" x="620" y="182">errors → clean JSON</text>
+  </g>
+  <g class="node" id="x-endpoints">
+    <rect x="788" y="120" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="800" y="146">NativeEndpoints.cs</text>
+    <text class="s" x="800" y="166">the /api/v1 and</text>
+    <text class="s" x="800" y="182">/wallet/v1 routes</text>
+  </g>
+  <g class="node" id="x-program">
+    <rect x="248" y="230" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="260" y="256">Program.cs</text>
+    <text class="s" x="260" y="276">start-up: read settings,</text>
+    <text class="s" x="260" y="292">wire the parts together</text>
+  </g>
+  <g class="node" id="x-config">
+    <rect x="428" y="230" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="440" y="256">NativeConfig.cs</text>
+    <text class="s" x="440" y="276">checks every setting,</text>
+    <text class="s" x="440" y="292">loads the certificates</text>
+  </g>
+  <g class="node" id="x-store">
+    <rect x="608" y="230" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="620" y="256">NativeStore.cs</text>
+    <text class="s" x="620" y="276">users, sessions,</text>
+    <text class="s" x="620" y="292">cards, adding stamps</text>
+  </g>
+  <g class="node" id="x-vclient">
+    <rect x="788" y="230" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="800" y="256">VerifierClient.cs</text>
+    <text class="s" x="800" y="276">checks the link, asks</text>
+    <text class="s" x="800" y="292">the verifier</text>
+  </g>
+  <g class="node" id="x-migrator">
+    <rect x="248" y="340" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="260" y="366">Migrator.cs</text>
+    <text class="s" x="260" y="386">“migrate” mode: applies</text>
+    <text class="s" x="260" y="402">the SQL files, then exits</text>
+  </g>
+  <g class="node" id="x-render">
+    <rect x="428" y="340" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="440" y="366">PassRenderer.cs</text>
+    <text class="s" x="440" y="386">draws + signs the</text>
+    <text class="s" x="440" y="402">Wallet card (.pkpass)</text>
+  </g>
+  <g class="node" id="x-wallet">
+    <rect x="608" y="340" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="620" y="366">NativeWallet.cs</text>
+    <text class="s" x="620" y="386">publish passes, Wallet</text>
+    <text class="s" x="620" y="402">registrations, push queue</text>
+  </g>
+  <g class="node" id="x-db">
+    <rect x="788" y="340" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="800" y="366">Database.cs</text>
+    <text class="s" x="800" y="386">connection pool; Azure</text>
+    <text class="s" x="800" y="402">token = the password</text>
+  </g>
+  <g class="node" id="x-worker">
+    <rect x="608" y="450" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="620" y="476">NativeWorker</text>
+    <text class="s" x="620" y="496">wakes every 15 seconds</text>
+    <text class="s" x="620" y="512">(NativeServices.cs)</text>
+  </g>
+  <g class="node" id="x-push">
+    <rect x="788" y="450" width="156" height="80" rx="11" fill="#fff" stroke="var(--azure)"/>
+    <text class="t" x="800" y="476">ApplePush.cs</text>
+    <text class="s" x="800" y="496">HTTPS/2 to Apple,</text>
+    <text class="s" x="800" y="512">signed by our cert</text>
+  </g>
+  <g class="node" id="x-verifier">
+    <rect x="990" y="230" width="175" height="80" rx="11" fill="#eef5fc" stroke="var(--azure)"/>
+    <text class="t" x="1002" y="256">verifier container</text>
+    <text class="s" x="1002" y="276">Python · 127.0.0.1:5005</text>
+    <text class="s" x="1002" y="292">decrypts the chip data</text>
+  </g>
+  <g class="node" id="x-pg">
+    <rect x="990" y="340" width="175" height="80" rx="11" fill="#fff" stroke="#336791"/>
+    <text class="t" x="1002" y="366">PostgreSQL</text>
+    <text class="s" x="1002" y="386">joeyyRewards (shared by</text>
+    <text class="s" x="1002" y="402">everything in Azure)</text>
+  </g>
+  <g class="node" id="x-apns">
+    <rect x="990" y="450" width="175" height="80" rx="11" fill="var(--apple-soft)" stroke="var(--apple)"/>
+    <text class="t" x="1002" y="476">Apple push (APNs)</text>
+    <text class="s" x="1002" y="496">Apple’s server that</text>
+    <text class="s" x="1002" y="512">pings iPhones</text>
+  </g>
+</svg>
+    <aside class="panel" aria-live="polite">
+      <h2 class="flow-title"></h2>
+      <div class="count flow-sub"></div>
+      <div class="step-title"></div>
+      <p class="step-text"></p>
+      <div class="controls">
+        <button class="prev">← Back</button>
+        <button class="next">Next →</button>
+        <button class="play">▶ Play</button>
+      </div>
+      <ol class="step-list"></ol>
+    </aside>
+  </div>
+
+  <section class="explain">
+    <h2>Container words, in plain English</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>Word</th><th>Think of it as…</th><th>In JOEYY</th></tr>
+      <tr><td><b>Image</b></td><td>A sealed meal kit: your program plus everything it needs to run</td><td class="wrap"><code>joeyy-api-dotnet:1811da01447b</code>. The part after the colon is the git commit it was built from, so you can always tell which code is running.</td></tr>
+      <tr><td><b>Container</b></td><td>The meal kit, cooked and on the counter</td><td class="wrap">A running copy of an image. It has its own files and can’t see the other container’s files. Two run for us: <b>api</b> and <b>verifier</b>.</td></tr>
+      <tr><td><b>Registry</b></td><td>The shelf the kits are stored on</td><td class="wrap">Azure Container Registry <code>joeyydevacrq6nfbh</code>. Building an image there is called <code>az acr build</code>.</td></tr>
+      <tr><td><b>Container App</b></td><td>The manager who runs the containers</td><td class="wrap"><code>joeyy-api</code>. Gives them an HTTPS address, restarts them if they crash, and starts new versions.</td></tr>
+      <tr><td><b>Sidecar</b></td><td>A helper that works beside the main container</td><td class="wrap">The <b>verifier</b>. It shares the same “localhost” as the api, so the api reaches it at <code>127.0.0.1:5005</code> and nothing outside can.</td></tr>
+      <tr><td><b>Ingress</b></td><td>The front door</td><td class="wrap">Azure handles HTTPS for us and forwards plain HTTP to port 8080 of the api container.</td></tr>
+      <tr><td><b>Revision</b></td><td>A numbered snapshot of the app</td><td class="wrap">Every deploy creates one, for example <code>joeyy-api--0000001</code>. The old one stays until the new one is healthy, then it is shut down.</td></tr>
+      <tr><td><b>Replica</b></td><td>One running copy of a revision</td><td class="wrap">We run exactly <b>1</b> (<code>minReplicas = maxReplicas = 1</code>).</td></tr>
+      <tr><td><b>Probe</b></td><td>A health check Azure runs by itself</td><td class="wrap"><b>Startup</b> (is it ready yet?) and <b>liveness</b> (still alive?). Both call <code>/healthz</code>. A failing container is restarted.</td></tr>
+      <tr><td><b>Managed identity</b></td><td>The app’s ID badge</td><td class="wrap"><code>joeyy-api-identity</code>: opens Key Vault, pulls images, signs in to PostgreSQL. No password anywhere.</td></tr>
+    </table></div>
+  </section>
+
+  <section class="explain">
+    <h2>Where each piece of the ASP.NET code lives</h2>
+    <p>All under <code>services/api-dotnet/Joeyy.Api/</code>. The right column is the old Node file it replaced (still in <code>services/api/</code>).</p>
+    <div class="tbl-scroll"><table>
+      <tr><th>File</th><th>What it does</th><th>Node equivalent</th></tr>
+      <tr><td class="path"><code>Program.cs</code></td><td>Start-up. Reads settings, validates, opens the database, starts the server and worker. Also the <code>migrate</code> command.</td><td><code>src/server.ts</code></td></tr>
+      <tr><td class="path"><code>JoeyyApp.cs</code></td><td>Builds the web app: request IDs, <code>/healthz</code>, plugs in the native routes, “no such route” 404.</td><td><code>src/app.ts</code></td></tr>
+      <tr><td class="path"><code>Native/NativeEndpoints.cs</code></td><td>Every web address the iPhone and Wallet call, plus the guard filter. <b>Best place to start reading.</b></td><td><code>src/native/routes.ts</code></td></tr>
+      <tr><td class="path"><code>Native/NativeStore.cs</code></td><td>Customers, sign-in sessions, cards, and the stamp transaction (<code>Award</code>). Password hashing.</td><td><code>src/native/store.ts</code></td></tr>
+      <tr><td class="path"><code>Native/NativeWallet.cs</code></td><td>Publishing passes, Wallet registrations, the “what changed?” list, the push queue.</td><td><code>src/native/wallet.ts</code></td></tr>
+      <tr><td class="path"><code>Native/PassRenderer.cs</code></td><td>Draws the strip image, writes <code>pass.json</code>, makes the manifest and the signature, zips the <code>.pkpass</code>.</td><td><code>wallet.mjs</code> (renderPass)</td></tr>
+      <tr><td class="path"><code>Native/ApplePush.cs</code></td><td>The empty “pass changed” ping to Apple over HTTP/2.</td><td><code>wallet.mjs</code> (applePush)</td></tr>
+      <tr><td class="path"><code>Native/VerifierClient.cs</code></td><td>Checks the chip link and asks the verifier container.</td><td><code>support.mjs</code> (verifyTag)</td></tr>
+      <tr><td class="path"><code>Native/NativeConfig.cs</code></td><td>Reads and validates the settings and the signing certificates.</td><td><code>src/native/config.ts</code></td></tr>
+      <tr><td class="path"><code>Native/NativeServices.cs</code></td><td>Builds the parts, the start-up database check, and the 15-second worker.</td><td><code>src/native/index.ts</code></td></tr>
+      <tr><td class="path"><code>Infrastructure/Database.cs</code></td><td>PostgreSQL connections with the Azure token as password, plus small helpers.</td><td><code>src/db.ts</code></td></tr>
+      <tr><td class="path"><code>Infrastructure/Migrator.cs</code></td><td>Applies the numbered SQL files. The files themselves stay in <code>services/api/db/migrations/</code>.</td><td><code>src/migrate.ts</code></td></tr>
+      <tr><td class="path"><code>Infrastructure/*.cs</code> (rest)</td><td>Small shared helpers: JSON and body reading, the error types, the rate limiter.</td><td><code>support.mjs</code></td></tr>
+      <tr><td class="path"><code>../Joeyy.Api.Tests/</code></td><td>The 31 automated tests. They need a throwaway local database and never touch Azure.</td><td><code>test/*.test.ts</code></td></tr>
+    </table></div>
+  </section>
+
+  <section class="explain">
+    <h2>The Dockerfile, in plain English</h2>
+    <p>A Dockerfile is the recipe for an image. Ours has <b>two stages</b>: a big “kitchen” that compiles the code, and a small “serving tray” that is all that ships.</p>
+    <pre class="code"><span class="c"># STAGE 1: the kitchen (has the .NET compiler, thrown away afterwards)</span>
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+COPY services/api-dotnet/Joeyy.Api/Joeyy.Api.csproj ...      <span class="c"># 1. the shopping list first</span>
+RUN dotnet restore ...                                   <span class="c"># 2. download packages (cached if the list didn't change)</span>
+COPY services/api-dotnet/Joeyy.Api/ ...                       <span class="c"># 3. then the actual code</span>
+COPY services/api/db/migrations/ ...                          <span class="c"># 4. the SQL files, shared with Node</span>
+RUN dotnet publish ... -o /app                           <span class="c"># 5. compile into /app, and check migration 0005 is there</span>
+
+<span class="c"># STAGE 2: the serving tray (small; only the runtime, no compiler)</span>
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+RUN apt-get install fonts-dejavu-core ...                <span class="c"># 6. a font, so cafe names can be drawn on the Wallet card</span>
+COPY --from=build /app .                                 <span class="c"># 7. take only the finished program from the kitchen</span>
+ENV HOST=0.0.0.0 PORT=8080                               <span class="c"># 8. listen on every address inside the container, port 8080</span>
+USER $APP_UID                                            <span class="c"># 9. run as a normal user, not root</span>
+ENTRYPOINT ["dotnet", "Joeyy.Api.dll"]                   <span class="c"># 10. what starts when the container starts</span></pre>
+    <div class="cards">
+      <div class="card"><h3>Why the build starts at the repo root</h3><p>The migrations live in <code>services/api/</code>, outside <code>services/api-dotnet/</code>. A build can only copy files from inside its starting folder, so it starts at the top of the repo. <code>.dockerignore</code> then keeps everything else out.</p></div>
+      <div class="card"><h3>Why “packages first, code second”</h3><p>On a laptop, Docker remembers each step: if only your C# changed, the package download is reused and the rebuild is quick. Azure’s cloud build starts fresh every time, so there it just keeps the recipe tidy.</p></div>
+      <div class="card"><h3>Why it shrinks the image</h3><p>The compiler is only needed to build, so it is left behind. Only the finished program plus the runtime ships, about 270 MB in total.</p></div>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>Settings the container is started with</h2>
+    <p>Set in <code>infra/app.bicep</code> and <code>infra/dev.bicepparam</code>. No settings live inside the image. The same image runs anywhere.</p>
+    <div class="tbl-scroll"><table>
+      <tr><th>Setting</th><th>Example</th><th>What it controls</th></tr>
+      <tr><td class="path"><code>PGHOST</code> <code>PGDATABASE</code> <code>PGUSER</code> <code>PGPORT</code></td><td class="wrap"><code>joeyy-dev-pg…</code>, <code>joeyyRewards</code>, <code>joeyy-api-identity</code></td><td>Which database, and which database login. There is no <code>PGPASSWORD</code> in Azure: the Azure token is the password.</td></tr>
+      <tr><td class="path"><code>AZURE_CLIENT_ID</code></td><td>the badge’s ID</td><td>Which managed identity to ask Azure for a token.</td></tr>
+      <tr><td class="path"><code>NATIVE_NFC_ENABLED</code></td><td><code>1</code></td><td>Turns on the scan and Wallet routes. With <code>0</code> they don’t exist.</td></tr>
+      <tr><td class="path"><code>NATIVE_PROTOTYPE_MODE</code></td><td><code>1</code></td><td>Anonymous guest sessions. The server refuses it if <code>NODE_ENV=production</code>.</td></tr>
+      <tr><td class="path"><code>NATIVE_NFC_KEY_MODE</code> + <code>FACTORY_KEY_TEST</code></td><td><code>factory-test</code> + <code>1</code></td><td>Chips still on their default test key. The two must agree or the app won’t start. Real chips use <code>provisioned</code>.</td></tr>
+      <tr><td class="path"><code>PUBLIC_BASE_URL</code></td><td>the Azure address</td><td>Baked into every Wallet card (<code>webServiceURL</code>). Change it and installed cards can no longer find the server.</td></tr>
+      <tr><td class="path"><code>SDM_BACKEND_URL</code></td><td><code>http://127.0.0.1:5005</code></td><td>Where the verifier sidecar is. Must be a private address.</td></tr>
+      <tr><td class="path"><code>PASS_TYPE_ID</code> + <code>TEAM_ID</code></td><td><code>pass.com.cafewallet.prototype</code></td><td>Apple’s IDs for our Wallet card. Must match the certificate.</td></tr>
+      <tr><td class="path"><code>SIGNER_CERT_PATH</code> <code>SIGNER_KEY_PATH</code> <code>WWDR_CERT_PATH</code></td><td><code>/secrets/…</code></td><td>Where the Wallet certificate files appear. Key Vault puts them there as read-only files.</td></tr>
+      <tr><td class="path"><code>HOST</code> + <code>PORT</code></td><td><code>0.0.0.0</code> + <code>8080</code></td><td>What the web server listens on inside the container.</td></tr>
+      <tr><td class="path">Left over from Node</td><td class="wrap"><code>AUTH_MODE</code> <code>IMAGE_STORE</code> <code>AZURE_STORAGE_ACCOUNT</code> <code>IMAGE_CLEANUP</code> <code>AZURE_TOKEN_CREDENTIALS</code></td><td>The ASP.NET api ignores these. They only mattered for the Node partner side, so they are harmless. <code>NODE_ENV</code> is still read, for the production check.</td></tr>
+    </table></div>
+  </section>
+
+  <section class="explain">
+    <h2>A deploy, step by step (today)</h2>
+    <ol class="plain">
+      <li><b>You commit.</b> <code>infra/deploy.sh</code> refuses to run if <code>services/api/</code>, <code>services/api-dotnet/</code> or <code>infra/</code> have uncommitted changes, so what runs always matches a commit.</li>
+      <li><b>Azure builds the image.</b> <code>az acr build</code> uploads the repo and runs the Dockerfile inside Azure, so Docker isn’t needed on your Mac. Result: <code>joeyy-api-dotnet:&lt;commit&gt;</code> and <code>joeyy-verifier:&lt;commit&gt;</code> on the registry shelf.</li>
+      <li><b>The app is told the new tag.</b> <code>az deployment group create</code> with <code>infra/app.bicep</code> and <code>dev.bicepparam</code> creates a new <b>revision</b>.</li>
+      <li><b>Azure starts it, tests it, switches.</b> The new revision must pass the startup probe on <code>/healthz</code>. Only then does it get 100% of the traffic and the old one is shut down. If the new one never becomes healthy, the old one keeps serving.</li>
+      <li><b>The script confirms.</b> It polls <code>/api/v1/healthz</code> until it says <code>ok</code> and prints “Live”.</li>
+    </ol>
+    <div class="note"><b>Not part of a deploy:</b> database changes. New SQL files are applied by a person with <code>dotnet Joeyy.Api.dll migrate</code> (or <code>npm run migrate</code>) <i>before</i> deploying code that needs them.</div>
+    <div class="note"><b>Going back to Node:</b> the last Node image is <code>joeyy-api:72959913a272</code>. One command puts it back in a few minutes; it is written in <code>infra/README.md</code> under “Going back to the Node backend”.</div>
+  </section>
+
+  <section class="explain">
+    <h2>ASP.NET words you’ll hear</h2>
+    <div class="tbl-scroll"><table>
+      <tr><th>Word</th><th>Plain meaning</th><th>Where you see it</th></tr>
+      <tr><td><b>.NET</b> / <b>ASP.NET Core</b></td><td>.NET is the platform C# runs on. ASP.NET Core is its toolkit for web servers.</td><td class="wrap"><code>net10.0</code> in <code>Joeyy.Api.csproj</code></td></tr>
+      <tr><td><b>Kestrel</b></td><td>The web server built into ASP.NET.</td><td>Listens on 8080 inside the container.</td></tr>
+      <tr><td><b>Minimal API / endpoint</b></td><td>A route written as one short line: “when someone POSTs here, run this”.</td><td class="wrap"><code>api.MapPost("/taps", …)</code> in <code>NativeEndpoints.cs</code></td></tr>
+      <tr><td><b>Middleware / filter</b></td><td>Code that every request passes through on the way in and out, like airport security.</td><td>The request-ID step and the Guard.</td></tr>
+      <tr><td><b>Hosted service</b></td><td>A background job that runs for as long as the server runs.</td><td>The 15-second Wallet worker.</td></tr>
+      <tr><td><b>async / await</b></td><td>“Start this, and let other requests use the thread while it waits for the database.”</td><td>All over the code, mainly around database and network calls.</td></tr>
+      <tr><td><b>NuGet</b> / <b>.csproj</b></td><td>NuGet is the package store (like npm). The <code>.csproj</code> file lists the packages and versions (like <code>package.json</code>).</td><td class="wrap"><code>Npgsql</code> (database), <code>SkiaSharp</code> (drawing), <code>Azure.Identity</code> (badge), <code>BouncyCastle</code> (password hashing)</td></tr>
+      <tr><td><b>Env variables, not appsettings.json</b></td><td>ASP.NET often reads settings from a JSON file. We kept the Node approach of environment variables so <code>app.bicep</code> didn’t change.</td><td>See the settings table above.</td></tr>
+    </table></div>
+  </section>
+
+  <section class="explain">
+    <h2>Known limits and things to watch</h2>
+    <div class="cards">
+      <div class="card"><h3>Rate limits may be shared by everyone</h3><p>The limits (120 requests a minute; 10 guest or sign-in starts per 15 minutes) count by the caller’s connection address. Behind Azure’s front door that address is probably Azure’s own proxy, not each phone, so all phones may share one allowance. Node behaved the same. <b>Not yet checked.</b> Fine for a few testers; to fix before real customers.</p></div>
+      <div class="card"><h3>One copy on purpose</h3><p>One replica keeps the rate limit simple and the worker predictable. The worker’s database locks mean two copies wouldn’t double-send pushes, but the limits would then be per copy.</p></div>
+      <div class="card"><h3>Partner side isn’t here</h3><p>Business setup, image uploads and OIDC sign-in still exist only in the Node code. On the live api, <code>/v1/partner/…</code> now answers “no such route”.</p></div>
+      <div class="card"><h3>Pass images drawn differently</h3><p>Node drew the strip with <code>sharp</code>; .NET draws it with SkiaSharp. Same layout and sizes, but tiny pixel differences in the circles and text are possible.</p></div>
+      <div class="card"><h3>Still a prototype</h3><p>Anonymous guest cards (each phone has its own card) and factory test keys on the chips. Real accounts, real chip keys and a prod environment are still ahead.</p></div>
+    </div>
+  </section>
+
+  <section class="explain">
+    <h2>Cheat sheet: commands</h2>
+    <pre class="code"><span class="c"># Is it up, and which version is running?</span>
+curl https://joeyy-api.happycoast-32e2d60b.westus.azurecontainerapps.io/api/v1/healthz
+az containerapp revision list -g joeyy-dev-rg -n joeyy-api -o table
+
+<span class="c"># What is it logging? (one JSON line per event; chip data and tokens never appear)</span>
+az containerapp logs show -g joeyy-dev-rg -n joeyy-api --container api --tail 50
+
+<span class="c"># Run the tests on your Mac (needs the throwaway local database from services/api-dotnet/README.md)</span>
+export DOTNET_ROOT=$HOME/.dotnet PATH=$HOME/.dotnet:$PATH
+cd backend-dotnet &amp;&amp; dotnet test
+
+<span class="c"># Ship it (after committing)</span>
+infra/deploy.sh
+
+<span class="c"># Put the last Node version back</span>
+az containerapp update -g joeyy-dev-rg -n joeyy-api --container-name api \
+  --image joeyydevacrq6nfbh.azurecr.io/joeyy-api:72959913a272</pre>
+  </section>
+
+<!--DOTNET-TAB-END-->
+</div>
+</main>
+
+<script>
+const flows = {
+  scan: {
+    title: "1 · Scanning a chip",
+    sub: "What happens when a customer taps their iPhone on the NFC chip.",
+    steps: [
+      { nodes: ["n-chip", "n-app"], arrows: [], title: "Tap the chip",
+        text: "The iPhone reads the NFC chip. The chip produces a brand-new encrypted link each time, containing its ID and a read number, plus a signature (CMAC). The app can’t read what’s inside; it only has the scrambled text." },
+      { nodes: ["n-app", "n-api"], arrows: ["a-tap"], title: "Send it to Azure",
+        text: "The app sends the scrambled link to POST /api/v1/taps at the permanent Azure address, along with a unique request ID (so a retry can’t double-count)." },
+      { nodes: ["n-api", "n-verifier"], arrows: ["a-verify"], title: "Ask the private verifier",
+        text: "The api container forwards the encrypted fields to the verifier running right next to it (127.0.0.1:5005). Nothing outside this Container App can reach the verifier." },
+      { nodes: ["n-verifier", "n-api"], arrows: ["a-verified"], title: "Decrypt and check",
+        text: "The verifier decrypts with AES-128, using the chip key that came from Key Vault, and checks the CMAC signature. If anything was edited or forged it says “invalid”. Otherwise it returns the chip ID and read number (e.g. #21)." },
+      { nodes: ["n-api", "n-pg"], arrows: ["a-db"], title: "Award the stamp (one transaction)",
+        text: "In PostgreSQL, all-or-nothing: is the chip linked to a cafe? Is read #21 higher than the last one seen? If so, add 1 stamp (a full card becomes a reward), save the event, remember #21, and mark the Wallet pass as changed." },
+      { nodes: ["n-api", "n-app"], arrows: ["a-reply"], title: "Reply to the phone",
+        text: "The app gets back the new stamp count and “verified · read #21”, then downloads the freshly signed Wallet pass." },
+      { nodes: ["n-app", "n-wallet"], arrows: ["a-add"], title: "Update Apple Wallet",
+        text: "First time: Apple shows “Add to Wallet”. After that, the app replaces the card silently. The Wallet card now shows the new stamp count." },
+    ],
+  },
+  wallet: {
+    title: "2 · Wallet updating by itself",
+    sub: "How the Wallet card updates even when the app is closed.",
+    steps: [
+      { nodes: ["n-wallet", "n-api"], arrows: ["a-fetch"], title: "Wallet registers (once)",
+        text: "When the card is added, Wallet calls /wallet/v1/devices/… on our backend: “tell me when this card changes”. The backend stores that registration in PostgreSQL." },
+      { nodes: ["n-api", "n-pg"], arrows: ["a-db"], title: "A stamp changes the card",
+        text: "After a scan the card is marked “changed” in the database, and the new signed pass is stored there too." },
+      { nodes: ["n-api", "n-apns"], arrows: ["a-push"], title: "Ping Apple",
+        text: "The background worker inside the api container runs every 15 seconds. It sends Apple’s push service an empty “this pass changed” message, signed with the Wallet certificate from Key Vault." },
+      { nodes: ["n-apns", "n-wallet"], arrows: ["a-ping"], title: "Apple wakes up Wallet",
+        text: "Apple delivers the ping to the iPhone. The message contains no data, just “go check”." },
+      { nodes: ["n-wallet", "n-api"], arrows: ["a-fetch"], title: "Wallet downloads the new card",
+        text: "Wallet asks our backend which passes changed, then downloads the new one. That’s why the pass’s address must stay permanent: Wallet always calls the address the card was created with." },
+    ],
+  },
+  deploy: {
+    title: "3 · Shipping new code",
+    sub: "How a code change gets from GitHub into Azure, without anyone’s laptop.",
+    steps: [
+      { nodes: ["n-repo", "n-actions"], arrows: ["a-commit"], title: "Merge to main",
+        text: "A teammate merges a pull request. The Backend workflow runs the tests. If they pass, the Deploy backend workflow starts." },
+      { nodes: ["n-actions", "n-deployer"], arrows: ["a-login"], title: "GitHub signs in to Azure",
+        text: "GitHub proves it is “our repo, main branch” with a short-lived OIDC token. Azure trusts that for the joeyy-github-deployer badge. No password is stored anywhere." },
+      { nodes: ["n-actions", "n-acr"], arrows: ["a-build"], title: "Build in the cloud",
+        text: "infra/deploy.sh asks the Container Registry to build two packages (“images”) from the code: joeyy-api-dotnet (ASP.NET) and joeyy-verifier (Python), tagged with the commit ID." },
+      { nodes: ["n-acr", "n-capp"], arrows: ["a-pull"], title: "Roll out the new version",
+        text: "infra/app.bicep tells the Container App to run the new tag. Azure pulls the images (using the app’s badge), starts the new copy, and switches traffic once it is healthy. No downtime." },
+      { nodes: ["n-capp", "n-logs"], arrows: ["a-logs"], title: "Check it’s healthy",
+        text: "The script waits for /api/v1/healthz to say “ok” (database and verifier both answering). Logs go to Log Analytics if something is wrong." },
+    ],
+  },
+  startup: {
+    title: "4 · App start-up and security",
+    sub: "How the running app gets its secrets and database access with no passwords.",
+    steps: [
+      { nodes: ["n-capp", "n-apiid"], arrows: [], title: "Wear the badge",
+        text: "The Container App is assigned the joeyy-api-identity managed identity. Azure can issue it short-lived tokens; there is no password to store or leak." },
+      { nodes: ["n-apiid", "n-kv"], arrows: ["a-idkv"], title: "Open the safe",
+        text: "Using the badge, Azure reads the four secrets from Key Vault: Wallet certificate, Wallet key, Apple WWDR certificate and the chip master key." },
+      { nodes: ["n-kv", "n-capp"], arrows: ["a-secrets"], title: "Hand secrets to the containers",
+        text: "The Wallet files appear as read-only files in the api container (/secrets/…). The chip master key becomes a setting for the verifier only." },
+      { nodes: ["n-apiid", "n-pg"], arrows: ["a-idpg"], title: "Sign in to the database",
+        text: "The api asks Azure for a database token for its badge and signs in to PostgreSQL as joeyy-api-identity. That login is a member of joeyy-devs, so it has exactly the team’s table access." },
+      { nodes: ["n-capp", "n-logs"], arrows: ["a-logs"], title: "Ready",
+        text: "Startup checks pass: signing identity valid, migrations present, verifier answering. The app is live at its permanent address." },
+    ],
+  },
+};
+
+/*ENGINE-START*/
+const dotnetFlows = {
+  tap: {
+    title: "1 · One tap, inside the api",
+    sub: "What the ASP.NET code does between “request arrives” and “reply sent”.",
+    steps: [
+      { nodes: ["x-phone", "x-kestrel"], arrows: ["xa-req"], title: "A request arrives",
+        text: "The app sends POST /api/v1/taps over HTTPS. Azure’s front door (“ingress”) passes it to port 8080 of the api container. Kestrel, the web server that is built into ASP.NET, is listening there and hands it to our code." },
+      { nodes: ["x-kestrel", "x-mw"], arrows: ["xa-k-mw"], title: "Give it a request ID",
+        text: "A tiny step in JoeyyApp.cs adds a random x-request-id to every reply, so a support question (“my tap failed”) can be matched to one log line. Kestrel also refuses bodies over 64 KB." },
+      { nodes: ["x-mw", "x-guard"], arrows: ["xa-mw-g"], title: "The guard wraps every native route",
+        text: "In NativeEndpoints.cs, one filter does three jobs: it adds the safety headers (no-store, nosniff, no-referrer); it counts requests per caller (120 a minute, and only 10 sign-ins or guest-session starts per 15 minutes); and it catches errors. Known problems become {\"error\": \"…\"} with the right status. Anything surprising becomes a plain 500 with no details." },
+      { nodes: ["x-guard", "x-endpoints"], arrows: ["xa-g-e"], title: "Find the right handler",
+        text: "ASP.NET matches the method and path to the /taps handler. It reads the body (16 KB max, must be JSON) and checks it has a url and a requestId. Anything else is a 400." },
+      { nodes: ["x-endpoints", "x-store"], arrows: ["xa-e-store"], title: "Who is tapping?",
+        text: "NativeStore.Authenticate hashes the bearer token (SHA-256) and looks it up in native_sessions. Guest sessions are only accepted while prototype mode is on. It also checks whether this requestId was already used: a retry skips the verifier completely, so it can never add a second stamp." },
+      { nodes: ["x-endpoints", "x-vclient", "x-verifier"], arrows: ["xa-e-vc", "xa-vc-ver"], title: "Is the chip real?",
+        text: "VerifierClient.cs checks the link is https and ends in /tagtt, that every parameter is plain hex, then calls the verifier on 127.0.0.1:5005 with a 5-second timeout. The verifier decrypts and checks the signature. Mapping: unreadable link 400, forged chip 422, nonsense reply 502, verifier down 503." },
+      { nodes: ["x-store", "x-db", "x-pg"], arrows: ["xa-store-db", "xa-db-pg"], title: "Award the stamp (one transaction)",
+        text: "Database.cs lends out a connection. In ONE all-or-nothing transaction NativeStore locks the customer, then the chip, then the card (always in that order, so two taps can’t deadlock). It checks the chip is linked to a cafe and that this read number is higher than the last one, then adds the stamp (a full card rolls over and earns a reward), saves the event, the new read number and the card’s version." },
+      { nodes: ["x-endpoints", "x-phone"], arrows: ["xa-reply"], title: "Reply to the phone",
+        text: "The handler returns the card, the event ID and, for guest sessions, “verified · read #N”. Guest taps do NOT draw the Wallet card now: the 15-second worker does that. (Accounts built the card during the tap.)" },
+    ],
+  },
+  start: {
+    title: "2 · Start-up and shut-down",
+    sub: "What Program.cs does in the first seconds, and what happens when Azure replaces it.",
+    steps: [
+      { nodes: ["x-program"], arrows: [], title: "Read the settings",
+        text: "Program.cs copies every environment variable into a dictionary. Those were set by infra/app.bicep when the container was created. If you start it with the word “migrate” it applies the database files instead and exits (next step shows that mode)." },
+      { nodes: ["x-program", "x-migrator"], arrows: [], title: "Or: migrate mode",
+        text: "dotnet Joeyy.Api.dll migrate runs Migrator.cs: every numbered SQL file not yet recorded in schema_migrations is applied, in order, each in its own transaction. It never runs by itself at start-up; a person does it before deploying code that needs it." },
+      { nodes: ["x-program", "x-config"], arrows: ["xa-prog-config"], title: "Check every setting",
+        text: "NativeConfig.cs refuses to start, with a message that names the setting (never its value), if anything is wrong: PUBLIC_BASE_URL must be https; the verifier address must be private; factory-test keys need two explicit switches; prototype mode is refused when NODE_ENV=production; the signing certificate and key must match and not be expired." },
+      { nodes: ["x-db", "x-pg"], arrows: ["xa-db-pg"], title: "Open the database connection",
+        text: "Database.cs builds a pool of up to 10 connections with full TLS checking. There is no password: it asks Azure for a short-lived token for the app’s badge (joeyy-api-identity, chosen by AZURE_CLIENT_ID) and uses that as the password, refreshing it every 30 minutes." },
+      { nodes: ["x-db", "x-pg"], arrows: ["xa-db-pg"], title: "Readiness check",
+        text: "NativeReadiness confirms migrations 0004 and 0005 are recorded and the ten native tables exist. If not, the app exits with an error and Azure keeps retrying, so a half-ready database can never serve taps." },
+      { nodes: ["x-store", "x-wallet", "x-vclient", "x-render", "x-push"], arrows: [], title: "Build the parts",
+        text: "NativeServices.Create makes the store, the Wallet publisher, the pass renderer, the verifier client and the Apple push sender and connects them. The Apple connection is only opened on the first push, so an Apple problem can’t stop taps from working." },
+      { nodes: ["x-kestrel", "x-worker"], arrows: [], title: "Start listening and working",
+        text: "Kestrel starts listening on 0.0.0.0:8080 and the worker starts its 15-second loop. Azure’s startup probe calls /healthz every 5 seconds for up to 2 minutes; after that a liveness probe calls it every 30 seconds. A failing app is restarted." },
+      { nodes: ["x-worker", "x-kestrel"], arrows: [], title: "Shut down politely",
+        text: "When a new version is deployed, Azure sends the old copy a stop signal (SIGTERM). The server stops taking new requests, the worker finishes the run it is in, and the process exits with code 0, all within 25 seconds." },
+    ],
+  },
+  worker: {
+    title: "3 · The 15-second worker",
+    sub: "How a stamp becomes an updated Wallet card without anyone opening the app.",
+    steps: [
+      { nodes: ["x-worker"], arrows: [], title: "Wake up",
+        text: "NativeWorker runs one pass every 15 seconds, never two at once. If anything fails it logs one generic warning (no secrets, no chip data) and simply tries again at the next wake-up." },
+      { nodes: ["x-worker", "x-wallet"], arrows: ["xa-worker-wallet"], title: "Find cards whose pass is stale",
+        text: "NativeWallet.Reconcile looks for cards whose pass is missing, older than the card’s version, or built for a different server address (up to 50 at a time). A guest tap just bumps the card’s version; this is what notices." },
+      { nodes: ["x-wallet", "x-render"], arrows: ["xa-wallet-render"], title: "Draw and sign the card",
+        text: "PassRenderer builds the .pkpass: pass.json, three icon sizes, three strip images with the stamp circles (drawn with SkiaSharp), manifest.json (a SHA-1 fingerprint of each file) and a signature made with our Apple certificate plus Apple’s WWDR certificate. Wallet rejects a pass whose signature is wrong." },
+      { nodes: ["x-wallet", "x-db", "x-pg"], arrows: ["xa-wallet-db", "xa-db-pg"], title: "Save it and queue the pings",
+        text: "In one transaction the new pass is saved, its change counter is advanced (under a database-wide lock, so a phone asking “what changed?” can never skip a change), and one push job is queued for every device that registered this card." },
+      { nodes: ["x-worker", "x-push"], arrows: ["xa-worker-push"], title: "Send the pings",
+        text: "NativeWallet.Flush takes up to 50 due jobs. Each job row is locked while it is processed (SKIP LOCKED), so even two running copies would never send the same ping twice." },
+      { nodes: ["x-push", "x-apns"], arrows: ["xa-push-apns"], title: "Apple’s push service",
+        text: "ApplePush opens HTTP/2 to api.push.apple.com using our Wallet certificate as the client certificate, topic = the pass type ID, body {}. 200 means done. 410 or BadDeviceToken means that phone is gone, so forget it. Any other failure is retried later, waiting 30 s, then 60 s, doubling up to 1 hour." },
+      { nodes: ["x-apns", "x-phone"], arrows: ["xa-apns-phone"], title: "Wallet wakes up",
+        text: "Apple delivers the empty ping to the iPhone. Wallet then calls our backend to ask what changed (flow 4). The ping carries no data on purpose." },
+    ],
+  },
+  fetch: {
+    title: "4 · Wallet asks for the new card",
+    sub: "What our server does when Apple Wallet calls back.",
+    steps: [
+      { nodes: ["x-phone", "x-kestrel"], arrows: ["xa-req"], title: "Wallet calls our address",
+        text: "Wallet calls GET /wallet/v1/devices/<device>/registrations/<passType>?passesUpdatedSince=… to ask “which of my cards changed?”. There is no app login here: each pass carries its own secret token." },
+      { nodes: ["x-guard", "x-endpoints"], arrows: ["xa-g-e"], title: "Same guard, same limits",
+        text: "These routes go through the same guard as scans: safety headers, rate limit, clean error handling. The device ID is checked for odd characters before it touches the database." },
+      { nodes: ["x-endpoints", "x-wallet"], arrows: [], title: "Check the pass token",
+        text: "To download a card, Wallet sends “Authorization: ApplePass <token>”. NativeWallet.Authorize compares it with the stored token using a constant-time comparison (so timing can’t leak it). Wrong token or wrong pass type: 401." },
+      { nodes: ["x-wallet", "x-db", "x-pg"], arrows: ["xa-wallet-db", "xa-db-pg"], title: "Publish if needed",
+        text: "If the card changed since the stored pass was made, it is re-signed right now; otherwise the saved bytes are reused. Either way the database is the single source of truth, which is why a restart loses nothing." },
+      { nodes: ["x-endpoints", "x-phone"], arrows: ["xa-reply"], title: "304 or the card",
+        text: "The reply carries an ETag and Last-Modified. If Wallet already has that version it gets 304 (nothing to download). Otherwise it gets 200 with the .pkpass file, and the card on your phone updates." },
+    ],
+  },
+};
+
+function makeTour(root, flows, firstKey) {
+  const q = (sel) => root.querySelector(sel);
+  const qa = (sel) => root.querySelectorAll(sel);
+  let flowKey = firstKey, step = 0, timer = null;
+  function stop() { clearInterval(timer); timer = null; q(".play").textContent = "▶ Play"; }
+  function render() {
+    const flow = flows[flowKey], s = flow.steps[step];
+    qa(".flows button").forEach((b) => b.classList.toggle("active", b.dataset.key === flowKey));
+    const inFlow = new Set(flow.steps.flatMap((x) => x.arrows));
+    qa(".arrow").forEach((a) => {
+      a.classList.toggle("in-flow", inFlow.has(a.id));
+      a.classList.toggle("lit", s.arrows.includes(a.id));
+    });
+    qa(".alabel").forEach((l) => {
+      l.classList.toggle("in-flow", inFlow.has(l.dataset.for));
+      l.classList.toggle("lit", s.arrows.includes(l.dataset.for));
+    });
+    qa(".node").forEach((n) => n.classList.toggle("lit", s.nodes.includes(n.id)));
+    q(".flow-title").textContent = flow.title;
+    q(".flow-sub").textContent = `${flow.sub} Step ${step + 1} of ${flow.steps.length}.`;
+    q(".step-title").textContent = `${step + 1}. ${s.title}`;
+    q(".step-text").textContent = s.text;
+    const list = q(".step-list"); list.innerHTML = "";
+    flow.steps.forEach((x, i) => {
+      const li = document.createElement("li"); li.textContent = x.title;
+      if (i === step) li.className = "current";
+      li.onclick = () => { stop(); step = i; render(); };
+      list.append(li);
+    });
+  }
+  function move(d) { const n = flows[flowKey].steps.length; step = (step + d + n) % n; render(); }
+  for (const [key, flow] of Object.entries(flows)) {
+    const b = document.createElement("button");
+    b.textContent = flow.title; b.dataset.key = key;
+    b.onclick = () => { stop(); flowKey = key; step = 0; render(); };
+    q(".flows").append(b);
+  }
+  q(".next").onclick = () => { stop(); move(1); };
+  q(".prev").onclick = () => { stop(); move(-1); };
+  q(".play").onclick = () => {
+    if (timer) return stop();
+    q(".play").textContent = "⏸ Pause";
+    timer = setInterval(() => move(1), 3500);
+  };
+  render();
+  return { move, stop };
+}
+
+const tours = {
+  azure: makeTour(document.getElementById("tab-azure"), flows, "scan"),
+  dotnet: makeTour(document.getElementById("tab-dotnet"), dotnetFlows, "tap"),
+};
+let activeTab = "azure";
+function showTab(key) {
+  if (!tours[key]) key = "azure";
+  Object.values(tours).forEach((t) => t.stop());
+  activeTab = key;
+  document.querySelectorAll(".tabpanel").forEach((p) => { p.hidden = p.id !== `tab-${key}`; });
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === key));
+  if (location.hash !== `#${key}`) history.replaceState(null, "", `#${key}`);
+}
+document.querySelectorAll(".tabs button").forEach((b) => { b.onclick = () => { showTab(b.dataset.tab); window.scrollTo(0, 0); }; });
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") { tours[activeTab].stop(); tours[activeTab].move(1); }
+  if (e.key === "ArrowLeft") { tours[activeTab].stop(); tours[activeTab].move(-1); }
+});
+showTab(location.hash.slice(1) || "azure");
+</script>
+</body>
+</html>

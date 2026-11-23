@@ -1,0 +1,79 @@
+name: API (.NET)
+
+# The ASP.NET NFC/Wallet api (services/api-dotnet), tested against PostgreSQL 17 with the shared migrations in
+# services/api/db/migrations, plus the Node tests for the release tools in apps/ios/Tools.
+# The Node API has its own gate (api.yml). Pushes to main run this too, then deploy-backend.yml can ship it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/api-dotnet/**
+      - services/api/db/migrations/**
+      - apps/ios/Tools/**
+      - .dockerignore
+      - .github/workflows/api-dotnet.yml
+  pull_request:
+    paths:
+      - services/api-dotnet/**
+      - services/api/db/migrations/**
+      - apps/ios/Tools/**
+      - .dockerignore
+      - .github/workflows/api-dotnet.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-dotnet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api-dotnet
+    services:
+      postgres:
+        # Same major version as the Azure dev server (joeyy-dev-pg).
+        image: postgres:17
+        env:
+          POSTGRES_USER: joeyy
+          POSTGRES_PASSWORD: joeyy
+          POSTGRES_DB: joeyy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U joeyy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: joeyy
+      PGUSER: joeyy
+      PGPASSWORD: joeyy
+      PGSSLMODE: disable
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: services/api-dotnet/global.json
+      - run: sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+      - run: dotnet build -warnaserror
+      - run: dotnet test --no-build
+
+  tools:
+    name: Release tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test apps/ios/Tools/*.test.mjs

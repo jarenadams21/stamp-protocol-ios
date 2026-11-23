@@ -8,6 +8,9 @@ Cross-cutting documentation for the JOEYY monorepo. Docs that belong to one part
 | [design.md](design.md) | The iOS app's shared design system: colors, components, motion, and interaction rules |
 | [architecture/](architecture/) | Architecture diagrams ([shared backend](architecture/shared-backend.svg), with `.excalidraw` sources) |
 | [setup/dev-database.md](setup/dev-database.md) | Run the API and a Postgres database on your Mac |
+| [azure-architecture.html](azure-architecture.html) | Interactive tour of how a scan flows through Azure, plus a tab on the ASP.NET api, containers, the Dockerfile, settings and deploys (open the file in a browser) |
+| [azure-architecture-explained.md](azure-architecture-explained.md) | The same Azure architecture as a plain-English essay |
+| [how-to-update.md](how-to-update.md) | How to update the app, the containers and the database, step by step |
 
 ## Elsewhere
 

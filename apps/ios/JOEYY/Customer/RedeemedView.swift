@@ -8,12 +8,17 @@ struct RedeemedView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    ViewThatFits(in: .horizontal) {
-                        HStack { PageTitle(text: "Redeemed"); Spacer(); memoriesButton }
-                        VStack(alignment: .leading, spacing: 12) {
-                            PageTitle(text: "Redeemed")
-                            memoriesButton
+                    VStack(alignment: .leading, spacing: 8) {
+                        ViewThatFits(in: .horizontal) {
+                            HStack { PageTitle(text: "Redeemed"); Spacer(); memoriesButton }
+                            VStack(alignment: .leading, spacing: 12) {
+                                PageTitle(text: "Redeemed")
+                                memoriesButton
+                            }
                         }
+                        Text("Your rewards, collected in one place.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.muted)
                     }
                     Picker("Rewards", selection: $collection) {
                         Text("Available").tag(CardHistoryCollection.Kind.available)
@@ -29,13 +34,14 @@ struct RedeemedView: View {
                 .frame(maxWidth: .infinity)
             }
             .background { AppBackground() }
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbarVisibility(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingMemories) { MemoriesView() }
         }
     }
 
     private var memoriesButton: some View {
         Button("Memories", systemImage: "rectangle.stack") { showingMemories = true }
+            .foregroundStyle(Color.primary)
             .fixedSize(horizontal: true, vertical: false)
             .frame(minHeight: 44)
             .accessibilityIdentifier("redeemed.memories")
@@ -158,19 +164,34 @@ private struct MemoryStackCover: View {
         let stock = isTicket
             ? AnyShape(TicketShape())
             : AnyShape(RoundedRectangle(cornerRadius: 16))
+        let name = Text(memory.place.name)
+            .font(.system(.headline, design: theme.fontDesign))
+        let countLabel = Label("\(count)", systemImage: "rectangle.stack")
+            .font(.subheadline.monospacedDigit())
+            .fixedSize(horizontal: true, vertical: false)
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                if isTicket {
-                    PlaceMark(place: memory.place, size: 30)
-                        .accessibilityHidden(true)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 12) {
+                    if isTicket {
+                        PlaceMark(place: memory.place, size: 30)
+                            .accessibilityHidden(true)
+                    }
+                    name.fixedSize()
+                    Spacer(minLength: 0)
+                    countLabel
                 }
-                Text(memory.place.name)
-                    .font(.system(.headline, design: theme.fontDesign))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Label("\(count)", systemImage: "rectangle.stack")
-                    .font(.subheadline.monospacedDigit())
-                    .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 12) {
+                        if isTicket {
+                            PlaceMark(place: memory.place, size: 30)
+                                .accessibilityHidden(true)
+                        }
+                        name
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    countLabel
+                }
             }
             if let stamps = memory.stamps, let target = memory.target {
                 PunchCard(place: memory.place, stamps: stamps, compact: true,

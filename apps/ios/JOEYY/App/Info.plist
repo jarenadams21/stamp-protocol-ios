@@ -5,6 +5,14 @@
 	<!-- Merged with the generated Info.plist. The API address comes from the JOEYY_API_BASE_URL build setting (project.yml). -->
 	<key>JOEYY_API_BASE_URL</key>
 	<string>$(JOEYY_API_BASE_URL)</string>
+	<!-- The NFC/Wallet service (the Tap tab). Set in Config/App.xcconfig or the ignored Config/Local.xcconfig. -->
+	<key>LoyaltyAPIBaseURL</key>
+	<string>$(LOYALTY_API_BASE_URL)</string>
+	<key>LoyaltyPrototypeMode</key>
+	<string>$(LOYALTY_PROTOTYPE_MODE)</string>
+	<!-- Only standard operating-system encryption and HTTPS. Revisit if custom on-device encryption is added. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<!-- Lets a build reach a dev API on the local network (for example http://192.168.1.20:8080). -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
