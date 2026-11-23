@@ -57,7 +57,7 @@ export default defineConfig(({ mode, command }) => {
     ...(appMode === 'api'
       ? {
           server: { proxy: { '/v1': { target: apiTarget, changeOrigin: false } } },
-          preview: { proxy: { '/v1': { target: apiTarget, changeOrigin: false } }, allowedHosts: ['.trycloudflare.com'] },
+          preview: { proxy: { '/v1': { target: apiTarget, changeOrigin: false } }, allowedHosts: ['.trycloudflare.com', '.thejoeyy.site'] },
         }
       : {}),
     build: { target: 'es2020', cssMinify: true },
