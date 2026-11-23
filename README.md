@@ -9,6 +9,9 @@ back. This monorepo holds every part of it.
 | iOS app | [`apps/ios`](apps/ios/README.md) | One SwiftUI app (iOS 18+) with both the **customer** side (cards, rewards, discovery) and the **business** side (card designer, overview, profile) |
 | Web | [`apps/web`](apps/web/README.md) | The page a diner sees after tapping a JOEYY stand without the app (stamp card, rewards, Wallet pass, sign-in), plus a demo server with sample data |
 | API | [`services/api`](services/api/README.md) | The shared backend (Node.js, Fastify, PostgreSQL, Azure Blob Storage) used by the apps |
+| NFC/Wallet API | [`services/api-dotnet`](services/api-dotnet/README.md) | The ASP.NET Core service behind the iOS **Tap** tab: chip taps, stamps and Apple Wallet pass updates. Runs on Azure as `joeyy-api`; the Node version of the same code is in `services/api/src/native` |
+| Chip verifier | [`services/verifier`](services/verifier) | Private sidecar that decrypts and checks NTAG 424 DNA chip reads (Python, pinned upstream `sdm-backend`) |
+| Azure hosting | [`infra`](infra/README.md) | Bicep and scripts that run the NFC/Wallet API and verifier in Azure Container Apps (`infra/deploy.sh`) |
 | Docs | [`docs`](docs/README.md) | Backend specification, design system, architecture diagrams, and setup guides |
 
 ## Repository map
@@ -18,9 +21,12 @@ apps/
   ios/            Xcode project (generated from project.yml), JOEYY/{App,Customer,Business,Shared}, tests
   web/            Vite + TypeScript web page; server/ is the demo backend used in demo mode
 services/
-  api/            Shared API: src/, db/migrations/, scripts/, test/
+  api/            Shared API (Node): src/, db/migrations/ (the single source of SQL), scripts/, test/
+  api-dotnet/     NFC/Wallet API (ASP.NET Core): Joeyy.Api/, Joeyy.Api.Tests/
+  verifier/       NTAG 424 chip verifier sidecar (Python)
+infra/            Azure Container Apps hosting (Bicep, deploy.sh)
 docs/             backend-spec.md, design.md, architecture/, setup/
-.github/workflows ios.yml, web.yml, api.yml (pull request gate), post-merge.yml, release.yml
+.github/workflows ios.yml, web.yml, api.yml (pull request gate), api-dotnet.yml, post-merge.yml, release.yml, deploy-backend.yml
 .github/scripts   UI test sharding, result classification, and the post-merge verdict and rollback
 ```
 
@@ -66,6 +72,7 @@ reported but never reverted.
 | [`ios.yml`](.github/workflows/ios.yml) | `apps/ios/**`, `.github/scripts/**` | Every UI test is in a shard; Xcode project matches `project.yml`; build and unit tests; in parallel, a build and the UI smoke tests ([`smoke.txt`](apps/ios/JOEYYUITests/smoke.txt)) |
 | [`web.yml`](.github/workflows/web.yml) | `apps/web/**` | Type-check, demo and production builds |
 | [`api.yml`](.github/workflows/api.yml) | `services/api/**` | Type-check, migrations on an empty Postgres, tests |
+| [`api-dotnet.yml`](.github/workflows/api-dotnet.yml) | `services/api-dotnet/**`, the shared migrations, `apps/ios/Tools/**` | .NET build and tests on Postgres 17, and the Node tests for the release tools. Not yet part of post-merge validation, so it never reverts a merge |
 
 **2. Post-merge validation (about 15 minutes).** [`post-merge.yml`](.github/workflows/post-merge.yml)
 runs on every push to `main`, one run per merge, never cancelled. The UI tests are split across four

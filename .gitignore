@@ -1,5 +1,9 @@
 .DS_Store
 .build/
+.build-native/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+*.xcresult/
+# Machine-specific signing team and NFC service address for the iOS app
+apps/ios/Config/Local.xcconfig

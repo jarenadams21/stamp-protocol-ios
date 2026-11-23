@@ -79,6 +79,12 @@ shortly before it expires. It works like this:
 
 TLS with certificate verification is on for every connection except `PGSSLMODE=disable`.
 
+## Native NFC + Wallet
+
+The customer NFC tap and Apple Wallet pass update path (`src/native/`, switched on with `NATIVE_NFC_ENABLED=1`) is
+documented in [native-nfc.md](native-nfc.md). On Azure it is served by the ASP.NET port in
+[`../api-dotnet/`](../api-dotnet/README.md); this Node version is the reference implementation and the rollback option.
+
 ## Container image
 
 [`Dockerfile`](Dockerfile) builds the API on `node:22-slim`: production dependencies only, run as
@@ -112,7 +118,9 @@ next number instead.
 | `0002_align_with_backend_spec` | OIDC subjects, one business per owner with a single location, the section 3.1 theme JSON, `closed`/archived/favorite cards, punches from readers, notifications, and a trigger that keeps punches within the card's version |
 | `0003_images` | The `images` table (one row per upload), foreign keys so a logo or cover must be an image the same business uploaded, and the `image_deletions` queue with the trigger that fills it |
 | `0004_sign_in` | Hashed refresh tokens grouped into sessions, and hashed phone codes with their send limits |
-| `0006_account_email` | `email` and `last_sign_in_at` on `customers` and `business_owners`. Numbered after the dev database's `0005_native_prototype`, which isn't in this repository |
+| `0004_native_nfc` | Customers, sessions, cafes, chips, cards, events and Wallet tables (`native_*`) for the NFC + Wallet part. Shares the `0004` number with `0004_sign_in`; harmless, since migrations are tracked by full name. See [native-nfc.md](native-nfc.md) |
+| `0005_native_prototype` | Marks anonymous guest customers for the NFC prototype mode. See [native-nfc.md](native-nfc.md) |
+| `0006_account_email` | `email` and `last_sign_in_at` on `customers` and `business_owners`. Numbered after `0005_native_prototype` |
 
 To check what's applied:
 

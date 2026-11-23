@@ -45,6 +45,21 @@ reward terms. Touch targets are at least 44 points.
 | Memories | Saved unfinished snapshots plus automatic completed cards. Exact historical punches, minimal status/date, no reward statistics. Styling uses current branding |
 | `SelectionRow` / `CollectionPager` | Shared checkmark selection and bounded navigation; selection persists independently of visible rows |
 | Buttons | Solid accent primary, paired secondary, or text action; preserve error and confirmation states |
+| Utility controls | Quiet 44-point circular controls with a fine edge; named actions remain available to VoiceOver |
+| Tap | Editorial heading, decorative offline card illustration, inset account form, and named personal cafe cards. One prominent scan action; account utilities stay in a menu |
+
+Use a neutral paper canvas so merchant artwork supplies the character.
+Primary and secondary actions share 12-point corners; inset information panels
+use a fine rule and 16-point corners. Forms have persistent field labels,
+visible focus, keyboard progression, and full-width actions. Small screen
+introductions explain Search, Redeemed, and You without adding dashboard tiles
+or changing the card-led Home layout. Reward headings move their card count
+below the merchant name when space is tight instead of compressing the name.
+
+Tap keeps a visible Test mode label and factory-key/no-real-rewards disclosure.
+Longer technical instructions are expandable, not the main visual hierarchy.
+Loading and service/Wallet messages remain explicit; visual polish never turns
+an error or a local demo stamp into a successful verified visit.
 
 Original rail/cloud/stone treatments are always available offline when no custom
 photo exists. Discovery uses flat bakery, bookshop, and coffee symbols without
@@ -180,7 +195,10 @@ collection or experiment is enabled by this implementation.
 
 ## Integration boundary
 
-Apple Wallet is not a styled substitute for a native pass. Omit placeholder
-Wallet and Show card actions until their integrations exist. Customer
-codes, verified purchases, live stamp delivery, and authentication are also not
-implemented. See the README handoff before connecting a service.
+Apple Wallet is not a styled substitute for a native pass. Local demo cards
+continue to omit placeholder Wallet and Show card actions. The separate Tap
+experience implements customer authentication, NFC verification, and signed
+personal Wallet passes through the backend; see `services/api/native-nfc.md`. Physical
+iPhone confirmation remains necessary, factory-zero keys are not production
+security, and tag verification does not establish a purchase. The decorative
+Tap illustration is not a pass, balance, or reward.
