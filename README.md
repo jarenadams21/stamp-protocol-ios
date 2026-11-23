@@ -55,8 +55,9 @@ See [services/api/README.md](services/api/README.md) for the Azure dev server, o
 
 ## Continuous integration
 
-Pull requests pass a fast gate and merge; the full suite runs **after merge** on `main`, and a merge
-that breaks it is reverted automatically.
+Pull requests pass a fast gate and merge; the full suite runs **after merge** on `main`. A merge that
+breaks unit tests, API tests, or the web build is reverted automatically; UI test failures are
+reported but never reverted.
 
 **1. Pull request gate (about 8 minutes).** Each part runs only when its folder changes:
 
@@ -73,14 +74,20 @@ checks for the parts the merge changed. A failing test is retried once: one that
 broken; one that passes on retry is reported as flaky.
 
 - **Green:** the commit gets a `Post-merge validation` success status and the `verified` tag moves to it.
-- **A test failed twice:** the job reverts the merge on `main` (`git revert -m 1`, no force push),
-  comments on the pull request with the failed tests and the run, and opens or updates the
-  "`main` was rolled back" issue. To reland, fix the test and open a new pull request.
-- **Build, runner, simulator, or audit timeout (-56) errors:** an error status and a comment; nothing
-  is reverted. Re-run the failed jobs.
+- **Unit tests, API type-check or tests, or the web type-check or build failed:** these are
+  deterministic, so the job reverts the merge on `main` (`git revert -m 1`, no force push), comments on
+  the pull request with the failures and the run, and opens or updates the "`main` was rolled back"
+  issue. To reland, fix the failure and open a new pull request.
+- **Only UI tests failed twice:** UI tests can flake even after a retry, so nothing is reverted. The
+  commit gets a failure status, the pull request a comment with the failing tests and the run, and the
+  "UI tests failed after merge" issue is opened or updated. The `verified` tag stays on the last fully
+  green commit, so releases still ship only green commits. Fix the test, revert by hand if the break is
+  real, or quarantine it if it's flaky.
+- **Build, runner, simulator, install, or audit timeout (-56) errors:** an error status and a comment;
+  nothing is reverted. Re-run the failed jobs.
 
-It reverts only the merge it tested, and only if the commit before it passed (a failure inherited from
-an earlier merge is left to that merge's rollback). If the revert conflicts with a later merge, or the
+It reverts only the merge it tested, and only for a failure that's new in it (one inherited from an
+earlier merge is left to that merge's rollback). If the revert conflicts with a later merge, or the
 merge changed workflow files, it opens a "`main` needs attention" issue instead. Its own reverts are
 pushed with the workflow token, so they don't start another run, and are never reverted.
 

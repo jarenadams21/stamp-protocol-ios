@@ -4,8 +4,11 @@ name: Post-merge validation
 # the UI tests split across four parallel macOS jobs, unit tests, and the API and web checks for the
 # parts the merge changed. Quarantined UI tests (apps/ios/JOEYYUITests/quarantine.txt) are skipped.
 #   - All green: the commit gets a "Post-merge validation" success status and the `verified` tag.
-#   - A test failed twice (real failure): the rollback job reverts the merge on main, comments on the
-#     pull request, and opens or updates the "`main` was rolled back" issue.
+#   - Unit tests, API tests, or the web build failed (deterministic): the rollback job reverts the
+#     merge on main, comments on the pull request, and opens or updates the "`main` was rolled back" issue.
+#   - Only UI tests failed (twice): a failure status, a comment on the pull request, and the
+#     "UI tests failed after merge" issue, but no revert (UI tests can flake even after a retry). The
+#     `verified` tag stays on the last fully green commit, so releases still ship only green commits.
 #   - Build, runner, simulator, or audit-timeout errors: an error status and a comment; no revert.
 # Runs are never cancelled, so every merge is checked. The revert is pushed with the workflow token,
 # which doesn't start another run. Nightly, the same suite runs with the quarantined tests and never
@@ -22,7 +25,7 @@ on:
         description: Branch whose latest commit to validate
         default: main
       rollback:
-        description: Revert that commit if a test fails twice (as after a merge)
+        description: Act as after a merge (revert on unit/API/web failures, notify on UI failures)
         type: boolean
         default: false
       include_quarantine:

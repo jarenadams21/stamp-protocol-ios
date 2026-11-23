@@ -373,7 +373,7 @@ GitHub Actions runs these in two stages (see [Continuous integration](../../READ
 | When | What runs |
 | --- | --- |
 | Pull requests that change `apps/ios/` (`.github/workflows/ios.yml`, about 8 minutes) | Shard coverage check, the check that `JOEYY.xcodeproj` matches `xcodegen generate`, the build, unit tests, and in parallel the UI smoke tests in `JOEYYUITests/smoke.txt` |
-| After merge to `main` (`.github/workflows/post-merge.yml`, about 15 minutes) | Unit tests and every UI test, split across four parallel jobs by `JOEYYUITests/shards.txt`; a test that fails twice reverts the merge |
+| After merge to `main` (`.github/workflows/post-merge.yml`, about 15 minutes) | Unit tests and every UI test, split across four parallel jobs by `JOEYYUITests/shards.txt`; a unit test failure reverts the merge, while a UI test that fails twice sets a failure status and opens an issue (no revert) |
 | Nightly at 09:00 UTC, on `main` | The post-merge suite plus the quarantined tests; never reverts |
 
 Every UI test must appear in exactly one shard in `JOEYYUITests/shards.txt` (the gate fails otherwise);

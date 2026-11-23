@@ -3,7 +3,7 @@ name: iOS
 # Pull request gate (about 8 minutes), in two parallel jobs:
 #   - the shard coverage check, the Xcode project check, the build, and unit tests
 #   - a build and the UI smoke tests (apps/ios/JOEYYUITests/smoke.txt)
-# The full UI suite runs after merge, in post-merge.yml, which reverts a merge that breaks it.
+# The full UI suite runs after merge, in post-merge.yml (UI failures are reported, not reverted).
 on:
   pull_request:
     paths:
