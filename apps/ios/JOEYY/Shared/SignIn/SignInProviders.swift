@@ -49,7 +49,8 @@ struct GoogleOAuth: Sendable {
             URLQueryItem(name: "client_id", value: clientID),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: "openid"),
+            // `email` makes Google include the verified address in the ID token, so the backend can store it.
+            URLQueryItem(name: "scope", value: "openid email"),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "state", value: state),
