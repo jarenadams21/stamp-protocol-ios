@@ -90,7 +90,8 @@ function upsertIssue(title, body) {
 }
 
 function moveVerifiedTag(sha, branch) {
-  const tag = branch === "main" ? "verified" : `verified/${branch}`;
+  // Not "verified/<branch>": git can't have both refs/tags/verified and refs/tags/verified/….
+  const tag = branch === "main" ? "verified" : `verified-${branch.replaceAll("/", "-")}`;
   sh("git", ["fetch", "--force", "origin", `+refs/tags/${tag}:refs/tags/${tag}`], { allowFail: true });
   const current = sh("git", ["rev-parse", "-q", "--verify", `refs/tags/${tag}^{commit}`], { allowFail: true });
   if (current && sh("git", ["merge-base", "--is-ancestor", current, sha], { allowFail: true }) === null) {
