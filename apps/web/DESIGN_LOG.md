@@ -10,6 +10,7 @@ shared from its Share menu).
 
 | Version | Date | What changed | Why |
 | --- | --- | --- | --- |
+| [v4.3](#v43-drawn-paper-and-ink-and-the-stamp-page) | 2026-11-22 | Paper and ink are drawn on canvas: real grain, fibres and mottling in each card's paper, patchy rubber-stamp ink with a rocked double edge. A tap opens a stamp page: a wooden stamp, seen from above, presses the place's paper and lifts; the ink spreads and dries; then it flies into the card | Feedback: still dry and plain, no texture; the hand stamp's angle looked off |
 | [v4.2](#v42-search-places) | 2026-11-20 | A search box on Discover finds places by name through the shared backend's Places API; tap a result to see its card | Yemi's task: search the restaurants in our database and open one to see its card |
 | [v4.2](#v42-the-stamp-moment) | 2026-11-22 | A tap opens on a full-screen stamp moment: the cover dims, a big stamp in the visit's ink falls and slams down (shockwave rings, ink spatter, shake, double buzz, "Stamp 4 of 8"), then flies into its slot as the card page shows | Feedback: the stamp still wasn't the main focus; it has to land before the rest of the page |
 | [v4.1](#v41-stamps-with-punch-paper-with-texture) | 2026-11-15 | Stamps land harder (shadow, squash, wet ink drying, ink flecks, the count pops) and look inked (patchy rubber-stamp ink, heavier rims); the card is real paper (fibres, a security print and rosette in the place's ink, darker edges); empty slots printed as targets, the reward slot heavier | Demo feedback: more pop on the stamps, more texture on the card |
@@ -38,6 +39,32 @@ shared from its Share menu).
 | [v1](#v1-paper-card) | 2026-11-11 | First build: punch card matching the iOS app, every tap and error state, redeem and staff screens | First version |
 
 ---
+
+## v4.3: drawn paper and ink, and the stamp page
+
+**Why:** "the animation feels dry and boring… the card design still feels lacking on the texture…
+the animation had no texture as well." Then, from a stamp lab with two motions: a stamp page first,
+moving on by itself, with the hand press; and "the hand press stamp seems off, maybe the angle".
+
+**What changed:**
+- **`src/ui/ink.ts` draws paper and ink on canvas.** CSS circles and SVG masks read as a picture of a
+  stamp. Now each business's paper is drawn once: mottled colour, tooth, fibres, a security print and a
+  rosette in its own ink. Each stamp is a drawn impression: heavy edges where ink pools, gaps where the
+  rubber didn't touch, a faint second edge from the stamp rocking, stray specks. Cached, so each is
+  drawn once.
+- **The card uses them.** The paper texture is set after the first paint (`--paper-texture`), so the
+  page never waits on it. Stamps on the card and on the profile are the drawn impressions, laid into the
+  paper with multiply. The old SVG grain, waves, rosette and ink-mask CSS are gone.
+- **The stamp page** (`src/ui/stamp-moment.ts`) replaces the v4.2 moment. One camera, looking down:
+  a sheet of the place's paper; a wooden rubber stamp comes down toward it (bigger while near the eye,
+  its shadow tightening); it presses (the paper darkens under it, the phone buzzes), and lifts away; the
+  ink spreads from the centre, wet and glossy, then dries. "Stamp 4 of 8" pops in. After 2.5 seconds,
+  or a tap once the stamp has lifted, the impression flies into its slot on the card.
+- The lab page used to choose the motion was removed once the choice was made.
+
+![The stamp pressing, seen from above](docs/iterations/v4.3-stamp-press.png)
+![The ink left behind](docs/iterations/v4.3-stamp-ink.png)
+![The card on drawn paper](docs/iterations/v4.3-card-paper.jpg)
 
 ## v4.2: search places
 

@@ -2,6 +2,7 @@ import { ApiError, type CardState, type Identity, type StampApi } from '../api';
 import { header, identityNote, openSheet, signedInAs, signInBanner, signOutSheet, toast } from '../ui/components';
 import { announce, busy, el, svg } from '../ui/dom';
 import { panelTitle } from '../ui/icons';
+import { stampMark } from '../ui/passport';
 import { emptyState, skeletonCards } from '../ui/placeholders';
 import { recentActivity } from '../ui/progress';
 import { INKS, initials, rotationOf, seedOf, stampLabel } from '../ui/stamp-style';
@@ -159,16 +160,14 @@ function placeStamps(cards: CardState[]) {
         el(
           'a',
           { class: 'entry-stamp', href: `/c?open=${encodeURIComponent(state.business.id)}` },
-          el(
-            'span',
-            {
-              class: 'ink-stamp is-round',
-              style: `--ink: ${INKS[seed % INKS.length]}; --rot: ${rotationOf(index, seed)}deg`,
-              'aria-hidden': 'true',
-            },
-            el('span', { class: 'entry-initials' }, initials(state.business.name)),
-            el('span', { class: 'ink-date' }, stampLabel(state.recentVisits?.[0])),
-          ),
+          stampMark({
+            ink: INKS[seed % INKS.length],
+            shape: 'round',
+            label: initials(state.business.name),
+            sub: stampLabel(state.recentVisits?.[0]),
+            seed,
+            rotate: rotationOf(index, seed),
+          }),
           el('span', { class: 'entry-name' }, state.business.name),
           el('span', { class: 'entry-count' },
             state.rewardsAvailable.length ? 'Reward ready' : visits === 1 ? '1 visit' : `${visits} visits`),

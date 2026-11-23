@@ -2,6 +2,7 @@ import type { CardState } from '../api';
 import { announce, el, haptic, prefersReducedMotion } from './dom';
 import { attachTilt, reinkStamps, sheen } from './motion';
 import { project, rubberband, Spring, THROWN, token, VelocityTracker } from './spring';
+import { impressionURL, paper, type ImpressionSpec } from './ink';
 import { INKS, initials, rotationOf, seedOf, stampLabel } from './stamp-style';
 import { fontFor } from './theme';
 
@@ -24,17 +25,46 @@ function stampDates(state: CardState) {
   return Array.from({ length: count }, (_, index) => visits[count - 1 - index]);
 }
 
-/** One visit's rubber-stamp impression: its shape, ink and angle come from the visit number and the place. */
-export function inkStamp(index: number, seed: number, iso?: string) {
-  const shape = SHAPES[(index + seed) % SHAPES.length];
-  const ink = INKS[(index + seed) % INKS.length];
-  const rotate = rotationOf(index, seed);
-  return el(
-    'span',
-    { class: `ink-stamp is-${shape}`, style: `--ink:${ink};--rot:${rotate}deg;--grain-x:${(index * 47 + seed) % 140}px;--grain-y:${(index * 29 + seed * 3) % 140}px`, 'aria-hidden': 'true' },
-    el('span', { class: 'ink-date' }, stampLabel(iso)),
-    el('span', { class: 'ink-no' }, `NO. ${index + 1}`),
-  );
+/** The impression for visit `index` at a place: its shape and ink come from the visit and the place. */
+export function stampSpec(index: number, seed: number, iso?: string): ImpressionSpec & { rotate: number } {
+  return {
+    ink: INKS[(index + seed) % INKS.length],
+    shape: SHAPES[(index + seed) % SHAPES.length],
+    label: stampLabel(iso),
+    sub: `NO. ${index + 1}`,
+    seed: seed * 31 + index,
+    rotate: rotationOf(index, seed),
+  };
+}
+
+/**
+ * A drawn rubber-stamp impression (ink.ts) as an element, turned to its angle. The ink multiplies
+ * into the paper under it. Drawn again once Oswald has loaded, if it wasn't yet.
+ */
+export function stampMark(spec: ImpressionSpec & { rotate: number }) {
+  const image = el('img', { class: 'ink-image', alt: '', decoding: 'async', src: impressionURL(spec, STAMP_PX) });
+  if ('fonts' in document && document.fonts.status !== 'loaded') {
+    void document.fonts.ready.then(() => { image.src = impressionURL(spec, STAMP_PX); });
+  }
+  return el('span', { class: 'ink-stamp', style: `--ink:${spec.ink};--rot:${spec.rotate}deg`, 'aria-hidden': 'true' }, image);
+}
+
+/** One visit's stamp on the page. */
+export const inkStamp = (index: number, seed: number, iso?: string) => stampMark(stampSpec(index, seed, iso));
+
+/** The stamp's drawn width in CSS pixels: sharp at the card's size on a 2x screen. */
+const STAMP_PX = 120;
+
+/**
+ * The business's paper texture (ink.ts), added after the first paint so the page never waits on
+ * it: until then the card shows its plain paper colour.
+ */
+function applyPaper(root: HTMLElement, state: CardState) {
+  const { lightPaper, lightInk } = state.program.theme;
+  const run = () => root.style.setProperty('--paper-texture', `url("${paper(lightPaper, lightInk).url}")`);
+  // Safari has no requestIdleCallback.
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 300 });
+  else setTimeout(run, 0);
 }
 
 function emptySlot(index: number, total: number) {
@@ -128,6 +158,8 @@ export function passportPage(state: CardState, options: PassportOptions = {}): P
       togo,
     ),
   );
+
+  applyPaper(root, state);
 
   /** The counts in the corner and the foot roll over to the new number. */
   function tickCounts(count: number, pop = false) {
