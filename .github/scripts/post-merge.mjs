@@ -3,12 +3,15 @@
 // API/web jobs) and then, for the tested commit:
 //   passed  commit status success, and the verified tag moves to it
 //   error   (build, runner, simulator, audit timeout) commit status error and a notice; no revert
-//   failed  (a test failed twice) revert the merge on the branch, comment on its pull request, and
-//           open or update the "<branch> was rolled back" issue
+//   failed  commit status failure, and the verified tag stays put. Then:
+//           - unit tests, API tests, or the web build failed (deterministic): revert the merge on the
+//             branch, comment on its pull request, and open or update the "<branch> was rolled back" issue
+//           - only UI tests failed (twice): no revert, since UI tests can flake even after a retry;
+//             comment on the pull request and open or update the "UI tests failed after merge" issue
 // Safety: never reverts a rollback commit, never force-pushes, and only reverts when the failure is
-// new in this commit (the previous commit's validation passed). Anything it can't do safely becomes an
-// issue instead. Environment: SHA, BRANCH, BASE, MODE (merge|manual|nightly), ROLLBACK, EXPECTED
-// (comma-separated suites), RESULTS_DIR, GITHUB_* and GH_TOKEN. DRY_RUN=1 prints actions instead.
+// new in this commit (it didn't already fail on the previous commit). Anything it can't do safely
+// becomes an issue instead. Environment: SHA, BRANCH, BASE, MODE (merge|manual|nightly), ROLLBACK,
+// EXPECTED (comma-separated suites), RESULTS_DIR, GITHUB_* and GH_TOKEN. DRY_RUN=1 prints actions instead.
 import { readFileSync, readdirSync, writeFileSync, appendFileSync, existsSync, mkdtempSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
@@ -16,6 +19,8 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 export const MARKER = "[post-merge rollback]";
+// Suites whose failures are deterministic enough to revert a merge. UI shard failures never revert.
+export const ROLLBACK_SUITES = new Set(["unit-tests", "api-tests", "web-build"]);
 const CONTEXT = "Post-merge validation";
 const env = process.env;
 const dryRun = env.DRY_RUN === "1";
@@ -127,17 +132,29 @@ async function previousVerdict(parent) {
   return null;
 }
 
+export function splitFailures(failures) {
+  return {
+    deterministic: failures.filter((f) => ROLLBACK_SUITES.has(f.suite)),
+    ui: failures.filter((f) => !ROLLBACK_SUITES.has(f.suite)),
+  };
+}
+
+export const uiIssueTitle = (branch) =>
+  branch === "main" ? "UI tests failed after merge" : `UI tests failed after merge to \`${branch}\``;
+
+// `failures` are this commit's deterministic failures; `previous` is the previous commit's verdict run.
 export function decideAttribution(failures, previous) {
   if (!previous) return { revert: true, reason: "no earlier validation of the previous commit" };
   const { verdict } = previous;
-  if (verdict.outcome === "passed") return { revert: true, reason: "the previous commit passed validation" };
-  if (verdict.outcome === "failed") {
-    const before = new Set(verdict.failures.map((f) => f.test));
-    const fresh = failures.filter((f) => !before.has(f.test));
-    if (!fresh.length) return { revert: false, inherited: true, reason: "the same tests already failed on the previous commit" };
-    return { revert: true, reason: "new failures that the previous commit didn't have" };
+  const before = new Set((verdict.failures ?? []).map((f) => f.test));
+  const fresh = failures.filter((f) => !before.has(f.test));
+  if (!fresh.length) return { revert: false, inherited: true, reason: "the same tests already failed on the previous commit" };
+  const unfinished = [...new Set(fresh.map((f) => f.suite))]
+    .filter((suite) => (verdict.suites ?? []).some((s) => s.suite === suite && s.status === "error"));
+  if (unfinished.length) {
+    return { revert: false, reason: `${unfinished.join(", ")} didn't finish on the previous commit, so the failure can't be attributed to this merge` };
   }
-  return { revert: false, reason: "the previous commit's validation didn't finish, so the failure can't be attributed to this merge" };
+  return { revert: true, reason: verdict.outcome === "passed" ? "the previous commit passed validation" : "new failures that the previous commit didn't have" };
 }
 
 function revert(commits, branch, subject, failures) {
@@ -206,42 +223,58 @@ async function main() {
     comment(pr, `### ⚠️ Post-merge validation couldn't finish\n\n${verdict.errors.map((s) => `\`${s}\``).join(", ")} hit a build, runner, or simulator problem, not a test failure, so nothing was reverted. [Run](${runUrl}) — re-run the failed jobs to validate ${short(sha)}.`);
     report("Not a test failure, so nothing was reverted.");
   } else {
-    setStatus(sha, "failure", `${verdict.failures.length} test(s) failed twice after merge`);
-    const attention = (why) => {
-      const body = `Post-merge validation of ${short(sha)}${pr ? ` (#${pr})` : ""} on \`${branch}\` found real test failures, but it **did not revert** because ${why}.\n\n${failureList(verdict.failures)}\n\n[Run](${runUrl})`;
-      upsertIssue(`\`${branch}\` needs attention: post-merge validation failed`, body);
-      comment(pr, `### ❌ Post-merge validation failed (not reverted)\n\n${body}`);
-      report(`Not reverted: ${why}.`);
-    };
-    if (!rollback) {
-      report("Rollback is off for this run, so nothing was reverted.");
-    } else if (commits.some((c) => sh("git", ["log", "-1", "--format=%B", c]).includes(MARKER))) {
-      report("This commit is a rollback; rollbacks are never reverted.");
-    } else if (sh("git", ["log", `origin/${branch}`, "--format=%H", `--grep=This reverts commit ${sha}`]) ) {
-      report(`${short(sha)} has already been reverted.`);
-    } else {
-      const previous = mode === "merge" && base ? await previousVerdict(base) : null;
-      const decision = decideAttribution(verdict.failures, previous);
-      report(`Attribution: ${decision.reason}${previous ? ` ([run](${previous.run.html_url}))` : ""}.`);
-      if (decision.inherited) {
-        comment(pr, `### ❌ Post-merge validation failed\n\nThese tests already failed on the commit before ${short(sha)}, so that merge's rollback covers them and this one was not reverted.\n\n${failureList(verdict.failures)}\n\n[Run](${runUrl})`);
-      } else if (!decision.revert) {
-        attention(decision.reason);
+    const { deterministic, ui } = splitFailures(verdict.failures);
+    const uiSection = ui.length
+      ? `\n\n**UI tests that failed twice** (these don't trigger a rollback on their own):\n${failureList(ui)}`
+      : "";
+    if (!deterministic.length) {
+      setStatus(sha, "failure", `${ui.length} UI test(s) failed twice after merge (not reverted)`);
+      if (!rollback) {
+        report("UI tests failed; notifications are off for this run.");
       } else {
-        const result = revert(commits, branch, subject, verdict.failures);
-        if (result.sha) {
-          const reverted = short(result.sha);
-          comment(pr, `### ↩️ Reverted: tests failed after merge\n\nThis pull request merged as ${short(sha)}. The full test suite then failed on it, so ${reverted} reverted it on \`${branch}\`.\n\n**Failed twice:**\n${failureList(verdict.failures)}\n\n[Run, logs, and test results](${runUrl}) (the \`xcresult-*\` artifacts have screenshots).\n\nTo reland, fix the failure and open a new pull request (you can start by reverting ${reverted}).`);
-          upsertIssue(`\`${branch}\` was rolled back`, `${reverted} reverted ${short(sha)}${pr ? ` (#${pr})` : ""} "${subject}" because tests failed after merge.\n\n${failureList(verdict.failures)}\n\n[Run](${runUrl}). Close this issue once the change relands.`);
-          report(`Reverted in ${reverted}.`);
-        } else if (result.conflict) {
-          attention("a later change depends on it and the revert conflicts; revert it by hand");
-        } else if (result.workflowFiles) {
-          attention("it changes workflow files, which the workflow token can't push; revert it by hand");
-        } else if (result.empty) {
-          report("Reverting produced no changes; nothing pushed.");
+        const body = `Post-merge validation of ${short(sha)}${pr ? ` (#${pr})` : ""} on \`${branch}\`: these UI tests failed twice. UI tests can flake even after a retry, so the merge was **not reverted**, and the \`verified\` tag (releases) stays on the last fully green commit.\n\n${failureList(ui)}\n\n[Run, logs, and test results](${runUrl}) (the \`xcresult-*\` artifacts have screenshots). If the failure is real, fix it or revert the merge; if it's flaky, quarantine the test (#9).`;
+        comment(pr, `### ❌ UI tests failed after merge (not reverted)\n\n${body}`);
+        upsertIssue(uiIssueTitle(branch), body);
+        report("Only UI tests failed, so nothing was reverted.");
+      }
+    } else {
+      setStatus(sha, "failure", `${deterministic.length} unit/API/web failure(s) after merge`);
+      const attention = (why) => {
+        const body = `Post-merge validation of ${short(sha)}${pr ? ` (#${pr})` : ""} on \`${branch}\` found unit, API, or web failures, but it **did not revert** because ${why}.\n\n${failureList(deterministic)}${uiSection}\n\n[Run](${runUrl})`;
+        upsertIssue(`\`${branch}\` needs attention: post-merge validation failed`, body);
+        comment(pr, `### ❌ Post-merge validation failed (not reverted)\n\n${body}`);
+        report(`Not reverted: ${why}.`);
+      };
+      if (!rollback) {
+        report("Rollback is off for this run, so nothing was reverted.");
+      } else if (commits.some((c) => sh("git", ["log", "-1", "--format=%B", c]).includes(MARKER))) {
+        report("This commit is a rollback; rollbacks are never reverted.");
+      } else if (sh("git", ["log", `origin/${branch}`, "--format=%H", `--grep=This reverts commit ${sha}`]) ) {
+        report(`${short(sha)} has already been reverted.`);
+      } else {
+        const previous = mode === "merge" && base ? await previousVerdict(base) : null;
+        const decision = decideAttribution(deterministic, previous);
+        report(`Attribution: ${decision.reason}${previous ? ` ([run](${previous.run.html_url}))` : ""}.`);
+        if (decision.inherited) {
+          comment(pr, `### ❌ Post-merge validation failed\n\nThese tests already failed on the commit before ${short(sha)}, so that merge's rollback covers them and this one was not reverted.\n\n${failureList(deterministic)}${uiSection}\n\n[Run](${runUrl})`);
+        } else if (!decision.revert) {
+          attention(decision.reason);
         } else {
-          attention(`the revert couldn't be pushed (${result.pushFailed})`);
+          const result = revert(commits, branch, subject, deterministic);
+          if (result.sha) {
+            const reverted = short(result.sha);
+            comment(pr, `### ↩️ Reverted: tests failed after merge\n\nThis pull request merged as ${short(sha)}. Unit tests, API tests, or the web build then failed on it, so ${reverted} reverted it on \`${branch}\`.\n\n**Failed:**\n${failureList(deterministic)}${uiSection}\n\n[Run, logs, and test results](${runUrl}).\n\nTo reland, fix the failure and open a new pull request (you can start by reverting ${reverted}).`);
+            upsertIssue(`\`${branch}\` was rolled back`, `${reverted} reverted ${short(sha)}${pr ? ` (#${pr})` : ""} "${subject}" because tests failed after merge.\n\n${failureList(deterministic)}${uiSection}\n\n[Run](${runUrl}). Close this issue once the change relands.`);
+            report(`Reverted in ${reverted}.`);
+          } else if (result.conflict) {
+            attention("a later change depends on it and the revert conflicts; revert it by hand");
+          } else if (result.workflowFiles) {
+            attention("it changes workflow files, which the workflow token can't push; revert it by hand");
+          } else if (result.empty) {
+            report("Reverting produced no changes; nothing pushed.");
+          } else {
+            attention(`the revert couldn't be pushed (${result.pushFailed})`);
+          }
         }
       }
     }

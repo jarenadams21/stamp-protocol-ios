@@ -62,21 +62,26 @@ jobs:
           cache-dependency-path: services/api/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+        id: typecheck
       - name: Migrations apply to an empty database
         run: npm run migrate
       - run: npm test
         id: tests
-      # A failing `npm test` is a real failure (rollback); anything before it is a setup or build error.
+      # A failing type-check or `npm test` is a real failure (post-merge rolls back); a failed install
+      # or migration (database service) is a setup error (notifies only).
       - name: Report the result
         if: always() && inputs.report
         env:
+          TYPECHECK: ${{ steps.typecheck.outcome }}
           OUTCOME: ${{ steps.tests.outcome }}
         run: |
           mkdir -p "$RUNNER_TEMP/results"
           node -e '
-            const o = process.env.OUTCOME;
-            const status = o === "success" ? "passed" : o === "failure" ? "failed" : "error";
-            const broken = status === "failed" ? [{ test: "services/api: npm test", message: "see the API job log" }] : [];
+            const { TYPECHECK: t, OUTCOME: o } = process.env;
+            const broken = [];
+            if (t === "failure") broken.push({ test: "services/api: npm run typecheck", message: "see the API job log" });
+            if (o === "failure") broken.push({ test: "services/api: npm test", message: "see the API job log" });
+            const status = broken.length ? "failed" : o === "success" ? "passed" : "error";
             console.log(JSON.stringify({ suite: "api-tests", status, broken, flaky: [], infra: [], missing: [] }));
           ' > "$RUNNER_TEMP/results/api-tests.json"
       - uses: actions/upload-artifact@v4

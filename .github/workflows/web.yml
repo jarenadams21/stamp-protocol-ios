@@ -41,6 +41,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+        id: install
       - run: npm run typecheck
       - run: npm run build:demo
       - name: Prod build (placeholder API address)
@@ -52,14 +53,19 @@ jobs:
           if grep -l "Preview states\|Norema" dist/assets/*.js; then
             echo "Demo code found in the production bundle" && exit 1
           fi
-      # The web app has no tests, so a failure here is a build error: it notifies but never rolls back.
+      # A failing type-check or build after a clean install is a real failure (post-merge rolls back);
+      # a failed checkout or `npm ci` is a setup error (notifies only).
       - name: Report the result
         if: always() && inputs.report
         env:
-          STATUS: ${{ job.status == 'success' && 'passed' || 'error' }}
+          STATUS: ${{ steps.install.outcome != 'success' && 'error' || job.status == 'success' && 'passed' || 'failed' }}
         run: |
           mkdir -p "$RUNNER_TEMP/results"
-          echo "{\"suite\":\"web-build\",\"status\":\"$STATUS\",\"broken\":[],\"flaky\":[],\"infra\":[],\"missing\":[]}" \
+          BROKEN="[]"
+          if [ "$STATUS" = failed ]; then
+            BROKEN='[{"test":"apps/web: type-check and build","message":"see the Web job log"}]'
+          fi
+          echo "{\"suite\":\"web-build\",\"status\":\"$STATUS\",\"broken\":$BROKEN,\"flaky\":[],\"infra\":[],\"missing\":[]}" \
             > "$RUNNER_TEMP/results/web-build.json"
       - uses: actions/upload-artifact@v4
         if: always() && inputs.report
