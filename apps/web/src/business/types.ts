@@ -1,8 +1,76 @@
-import type { Business, MerchantTheme, ProgramVersion } from '../api/types';
+import type { MerchantTheme, ProgramVersion } from '../api/types';
 
-// The business site's contract with the backend: /v1/partner/*. The owner signs in with their
-// email, describes the place, publishes a card and links stands. Mirrored by server/demo/partner.ts
-// and written up in docs/business-api.md. Like the diner routes, the session is an HttpOnly cookie.
+// The business site's contract with the shared API (services/api): sign-in under /v1/auth with
+// role "partner", then /v1/partner/* with a bearer token. Stands and activity follow
+// docs/web-connect.md. Mirrored by server/demo/partner.ts for demo mode. No import.meta here: the
+// demo server imports this file too.
+
+/** Every error the API sends: `{ error, message }`. `message` is written for people. */
+export interface ApiErrorBody {
+  error: string;
+  message: string;
+}
+
+/** A failed partner call. `status` 0 with code `offline` means the request never got an answer. */
+export class PartnerError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** POST /v1/auth/email/verify and /v1/auth/refresh. */
+export interface Session {
+  accessToken: string;
+  tokenType: 'Bearer';
+  expiresIn: number;
+  refreshToken: string;
+}
+
+/** GET and PUT /v1/partner/business. */
+export interface PartnerBusiness {
+  id: string;
+  clientId: string;
+  name: string;
+  location: string;
+  logoKey: string | null;
+  logoURL: string | null;
+  /** IANA name. PUT resets it to UTC when left out, so every save sends it. */
+  timeZone: string;
+  currentProgramVersionId: string | null;
+}
+
+/** PUT /v1/partner/business. Name 1–40 characters, location at most 120. */
+export interface BusinessInput {
+  name: string;
+  location: string;
+  timeZone: string;
+}
+
+/** The theme as the API returns it (backend-spec §3.1): the cover travels as a key plus a short-lived URL. */
+export interface ApiTheme extends Omit<MerchantTheme, 'coverURL'> {
+  coverKey: string | null;
+  coverURL: string | null;
+}
+
+/** GET /v1/partner/program and POST /v1/partner/program/versions. */
+export interface ApiProgram extends Omit<ProgramVersion, 'theme' | 'minMinutesBetweenStamps'> {
+  theme: ApiTheme;
+  publishedAt: string;
+}
+
+/**
+ * POST /v1/partner/program/versions. `requiredPunches` 3–12, reward 1–60 characters, both
+ * paper/ink pairs at least 4.5:1. `theme.coverKey` keeps the live cover; leaving it out drops it.
+ */
+export interface ProgramInput {
+  requiredPunches: number;
+  rewardDescription: string;
+  theme: Omit<MerchantTheme, 'coverURL'> & { coverKey: string | null };
+}
 
 export interface Stand {
   standId: string;
@@ -10,60 +78,29 @@ export interface Stand {
   /** disabled: the owner turned it off (lost, stolen or replaced). Its taps stamp nothing. */
   status: 'active' | 'disabled';
   linkedAt: string;
-  lastTapAt?: string;
+  lastTapAt: string | null;
 }
 
-export interface PartnerAccount {
-  maskedEmail: string;
-  /** Set once the owner has described the place. */
-  business?: Business;
-  /** The published card. Diners only see a card once it's published and a stand is linked. */
-  program?: ProgramVersion;
+/** GET /v1/partner/stands and every stand change. `pairing` is open while the owner links a stand. */
+export interface Stands {
   stands: Stand[];
-  /** Open while the owner is linking a stand: their next tap on an unlinked stand links it. */
-  pairing?: { expiresAt: string };
+  pairing: { expiresAt: string } | null;
 }
 
-export interface BusinessInput {
-  name: string;
-  category: string;
-  location: string;
-  address?: string;
+/** GET /v1/partner/dashboard?from&to (backend-spec §8.4). Range counts use from <= t < to. */
+export interface Dashboard {
+  enrolledCardholders: number;
+  punches: number;
+  rewardsEarned: number;
+  rewardsRedeemed: number;
+  rewardsWaiting: number;
+  customersWithStackedRewards: number;
 }
 
-export interface CardInput {
-  requiredPunches: number;
-  rewardDescription: string;
-  theme: MerchantTheme;
-}
-
-export type ActivityKind = 'first' | 'stamp' | 'earned' | 'used';
-
+/** GET /v1/partner/activity?from&to: newest first, at most 50. Never says who. */
 export interface Activity {
-  kind: ActivityKind;
+  kind: 'first' | 'stamp' | 'earned' | 'used';
   at: string;
-  /** Which stamp this was, for stamps. */
-  punches?: number;
-}
-
-export interface Today {
-  stamps: number;
-  rewardsUsed: number;
-  newDiners: number;
-  /** The latest taps and rewards today, newest first. Never who: diners stay anonymous to the business. */
-  activity: Activity[];
-}
-
-export interface PartnerApi {
-  /** The signed-in owner's account, or null when this browser isn't signed in to one. */
-  me(): Promise<PartnerAccount | null>;
-  startEmail(email: string): Promise<{ maskedEmail: string }>;
-  verifyEmail(code: string): Promise<PartnerAccount>;
-  signOut(): Promise<void>;
-  saveBusiness(input: BusinessInput): Promise<PartnerAccount>;
-  publishCard(input: CardInput): Promise<PartnerAccount>;
-  startPairing(): Promise<PartnerAccount>;
-  cancelPairing(): Promise<PartnerAccount>;
-  turnOffStand(standId: string): Promise<PartnerAccount>;
-  today(): Promise<Today>;
+  /** Which stamp this was on the diner's card; null for a reward used. */
+  punches: number | null;
 }

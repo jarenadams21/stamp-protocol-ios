@@ -174,9 +174,7 @@ export type WalletPlatform = 'apple' | 'google';
 export class ApiError extends Error {
   constructor(
     readonly code:
-      | 'offline' | 'server' | 'invalidPhone' | 'invalidCode' | 'invalidName' | 'expired' | 'notFound'
-      // The business site (src/business/api.ts).
-      | 'invalidEmail' | 'invalidCard' | 'signedOut',
+      | 'offline' | 'server' | 'invalidPhone' | 'invalidCode' | 'invalidName' | 'expired' | 'notFound',
     message: string,
   ) {
     super(message);

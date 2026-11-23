@@ -11,6 +11,14 @@ export class BadRequest extends Error {
   }
 }
 
+/** A route's answer with a status other than 200 (or 204 for nothing), such as 201 or 202. */
+export class Answer {
+  constructor(
+    readonly status: number,
+    readonly body?: unknown,
+  ) {}
+}
+
 /** Answers with JSON, or with no body when there's nothing to say. */
 export function send(res: ServerResponse, status: number, body?: unknown) {
   res.statusCode = status;

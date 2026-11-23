@@ -1,51 +1,61 @@
 # Business site: backend contract
 
-The business site (`/business`, code in `src/business/`) is where a restaurant owner signs up,
-makes their card, links their stands and sees each day's visits. It calls `/v1/partner/*`, which
-`server/demo/partner.ts` answers in the demo. The types are in `src/business/types.ts`; any change
-updates that file, `src/business/api.ts`, `server/demo/partner.ts`, `server/demo/routes.ts` and this
+The business site (`/business`, code in `src/business/`) is where a restaurant owner signs in, makes
+their card, links their stands and sees each day's visits. It calls the shared API in
+`services/api`, as the partner app does. The full route list and rules are in
+[services/api/README.md](../../../services/api/README.md) and
+[docs/backend-spec.md](../../../docs/backend-spec.md) §3.1, §8.1, §8.4 and §8.5; stands and activity
+are new in [docs/web-connect.md](../../../docs/web-connect.md). This page lists only what the site
+uses and how.
+
+The types are in `src/business/types.ts`, the client in `src/business/api.ts`, and the demo backend
+that answers the same routes in `server/demo/partner.ts`. A route change updates all three and this
 page together.
 
-The session is an HttpOnly cookie, as for diners. A browser can be signed in as a diner and as an
-owner at the same time; the two never mix.
+## Sign-in and session
 
-## Routes
+- `POST /v1/auth/email/start` `{ email }` answers 202 `{ expiresIn, resendAfter }` and emails a
+  6-digit code (the demo's is always 123456 and sends nothing).
+- `POST /v1/auth/email/verify` `{ role: "partner", email, code }` answers
+  `{ accessToken, tokenType, expiresIn, refreshToken }`.
+- The access token stays in memory; the refresh token is kept in `localStorage`
+  (`joeyy-partner-refresh`). After a reload, or on any 401, the client calls
+  `POST /v1/auth/refresh` `{ refreshToken }` once and retries. Refresh tokens rotate and a reused
+  one ends the session, so a refresh is shared within the page and serialized across tabs with a
+  Web Lock.
+- Signing out calls `POST /v1/auth/sign-out` `{ refreshToken }` and forgets both tokens.
+- Every partner call sends `Authorization: Bearer <accessToken>`. Errors are `{ error, message }`;
+  the site shows `message` for a refused change (4xx) and a connection hint otherwise.
 
-| Route | Body | Answer |
-| --- | --- | --- |
-| `GET /v1/partner/me` | | `PartnerAccount`, or **204** when this browser isn't signed in |
-| `POST /v1/partner/email/start` | `{ email }` | `{ maskedEmail }`. Sends a 6-digit code (the demo's is 123456). `invalidEmail` (400) |
-| `POST /v1/partner/email/verify` | `{ code }` | `PartnerAccount`. Makes the account on first sign-in. `invalidCode` (400), `expired` (410) |
-| `POST /v1/partner/sign-out` | | 204 |
-| `PUT /v1/partner/business` | `{ name, category, location, address? }` | `PartnerAccount`. `invalidName` (400) without a name and location |
-| `PUT /v1/partner/card` | `{ requiredPunches, rewardDescription, theme }` | `PartnerAccount`. Publishes a new program version. `invalidCard` (400) |
-| `POST /v1/partner/stands/pairing` | | `PartnerAccount` with `pairing.expiresAt`, 2 minutes from now. Needs a published card |
-| `DELETE /v1/partner/stands/pairing` | | `PartnerAccount` |
-| `POST /v1/partner/stands/:standId/turn-off` | | `PartnerAccount`. The stand's taps stop stamping |
-| `GET /v1/partner/today` | | `Today`: stamps, rewards used, new diners and the day's activity |
+## Screens
 
-Every route except `me` answers `signedOut` (401) without a session.
+| Screen | Route |
+| --- | --- |
+| Any signed-in page | `GET /v1/partner/business` (404 `businessNotFound` means setup hasn't started), then `GET /v1/partner/program` (404 `programNotFound`) and `GET /v1/partner/stands` |
+| Setup: place, Card page | `PUT /v1/partner/business` `{ name, location, timeZone }`. The time zone is the browser's on first save and kept after that, since leaving it out resets it to UTC |
+| Setup: look (publish), Card page | `POST /v1/partner/program/versions` `{ requiredPunches, rewardDescription, theme }`. `theme.coverKey` carries the live cover forward. `409 unchangedProgram` reads as "nothing changed" |
+| Setup: stand, Stands page | `POST` / `DELETE /v1/partner/stands/pairing`, then `GET /v1/partner/stands` every 2 seconds until a new stand shows up. `POST /v1/partner/stands/{standId}/turn-off` |
+| Today | `GET /v1/partner/dashboard?from&to` for stamps, rewards earned and rewards used, and `GET /v1/partner/activity?from&to` for the list. The range is today in the browser's time zone, sent as UTC instants |
 
-## Rules the server applies
+## Preview buttons
 
-- **A card must be readable.** `requiredPunches` is a whole number from 3 to 20, the reward 2 to 50
-  characters, and the light and dark paper/ink pairs at least 4.5:1 (`src/ui/contrast.ts`, the same
-  check the diner page re-runs). The site only offers papers that pass, but the server decides.
-- **Publishing makes a new version.** Diners get it from their next tap. A card already started
-  keeps the number of stamps it began with.
-- **Diners only find a live place.** A business is listed on `/v1/places` once it has a published
-  card and at least one working stand.
-- **Linking a stand** follows flow C in [docs/tag-registration.md](../../../docs/tag-registration.md):
-  pairing opens a 2-minute window; the owner's phone, signed in to the business site, taps a stand
-  allocated to their business; the tap arrives at `POST /v1/web/taps` like any other, and the server
-  links that stand instead of stamping. The window closes when used. A stand allocated to another
-  business is never linked. The demo stands in for the tap with `POST /api/demo/partner/link-stand`.
-- **Diners stay anonymous.** `Today` counts visits and lists them by time and stamp number, never
-  who. No route here returns a diner's name, number, email or ID.
+- **Preview: touch the stand** calls `POST /v1/dev/stands/touch`, which only the development API
+  (`AUTH_MODE=dev`) and the demo answer. Shown in the demo build and the Vite dev server, never in a
+  prod build.
+- **Preview: a diner taps** calls the demo-only `POST /api/demo/stamp` with the business ID, because
+  the partner API doesn't reveal a stand's tag UID. Demo build only.
+
+## Rules worth knowing
+
+- **A card must be readable.** `requiredPunches` 3 to 12, the reward 1 to 60 characters, the name 1
+  to 40, the location at most 120, and the light and dark paper/ink pairs at least 4.5:1. The site
+  only offers papers that pass, but the server decides.
+- **Publishing makes a new version.** Cards with stamps keep their version until they're full; empty
+  cards move to the new one.
+- **Diners stay anonymous.** Activity lists visits by time and stamp number, never who.
 
 ## Not built yet
 
-- Kit claim codes (the welcome card's QR, `merchant-kit.md`) to allocate stands at sign-up.
-- Staff accounts and the staff app (another teammate's repo).
-- Opening hours, a cover photo, and more than one location per business.
-- Renaming a stand, and turning one back on (support does it for now).
+- Logo and cover uploads (`POST /v1/partner/images`) and notifications on the web.
+- Kit claim codes, staff accounts, opening hours, more than one location, renaming a stand and
+  turning one back on.
