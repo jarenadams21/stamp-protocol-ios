@@ -360,9 +360,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					0488B1AA61C4D54EB491D1E2 = {
-						SystemCapabilities = "[\"com.apple.NearFieldCommunicationTagReading\": [\"enabled\": 1], \"com.apple.Wallet\": [\"enabled\": 1]]";
-					};
 					96AC310143C59DA767C25B36 = {
 						TestTargetID = 0488B1AA61C4D54EB491D1E2;
 					};

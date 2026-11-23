@@ -15,12 +15,10 @@ targets:
     type: application
     platform: iOS
     sources: [JOEYY]
-    attributes:
-      SystemCapabilities:
-        com.apple.NearFieldCommunicationTagReading:
-          enabled: 1
-        com.apple.Wallet:
-          enabled: 1
+    # Capabilities (Sign in with Apple, NFC tag reading, Wallet pass types) come from the entitlements file,
+    # which Xcode's automatic signing turns into App ID capabilities. Not repeated as `attributes:
+    # SystemCapabilities`, because XcodeGen writes that dictionary in a random order and the project would
+    # then differ from `xcodegen generate` on about half of all runs (CI compares them).
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.joeyy.customer
