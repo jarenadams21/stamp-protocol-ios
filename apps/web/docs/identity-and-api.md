@@ -19,7 +19,7 @@ cookie it set itself. The page never sends a customer ID.
 | --- | --- |
 | First tap, no cookie | The server verifies the tag, creates an anonymous `Customer` row, and sets a cookie holding a random 128-bit ID. The stamp goes on that customer's card. |
 | Later taps, same browser | The cookie comes back automatically. Same customer, same card. |
-| Signs in (Apple, Google or a phone number) | Apple or Google proves the account, or an SMS code proves the number. If it's new to JOEYY, the anonymous customer is upgraded in place, with nothing to merge. |
+| Signs in (Apple, Google or an email code) | Apple or Google proves the account, or an emailed code proves the address. If it's new to JOEYY, the anonymous customer is upgraded in place, with nothing to merge. |
 | New phone or cleared browser | No cookie, so a new anonymous card starts. Signing in the same way as before merges it back into their existing customer. |
 | Adds the card to Wallet | The pass serial is linked to the customer. It shows progress, but a tap still identifies the diner through the cookie (see below). |
 | Installs the app | Signs in with the same Apple ID, Google account or number, and the server moves the anonymous cards to the app account. |
@@ -51,7 +51,7 @@ powered reader. See "Tap model" below.)
 - A shared phone or browser means shared stamps. That's acceptable; paper cards work the same way.
 - Merging two customers on sign-in: add their open cards' punches up to each card's
   `requiredPunches`, and keep all rewards.
-- Rate-limit `phone/start` per IP and per number (SMS costs money and attracts abuse).
+- Rate-limit `email/start` per IP and per address (sending attracts abuse).
 
 ## Routes
 
@@ -72,16 +72,16 @@ sent by the client.
 | POST | `/v1/web/redeem-intents` | `{ rewardId }` → `RedeemIntent` (2-minute window) |
 | GET | `/v1/web/redeem-intents/{id}` | `{ intent, redemption? }`; the waiting page polls this |
 | DELETE | `/v1/web/redeem-intents/{id}` | Cancel |
-| POST | `/v1/web/phone/start` | `{ phone }` → `{ maskedPhone }`; sends the SMS |
-| POST | `/v1/web/phone/verify` | `{ code }` → `SignInResult`; signs in to that number's account (or creates one) and merges this browser's anonymous cards |
+| POST | `/v1/web/email/start` | `{ email }` → `{ maskedEmail }`; emails a 6-digit code |
+| POST | `/v1/web/email/verify` | `{ code }` → `SignInResult`; signs in to that address's account (or creates one) and merges this browser's anonymous cards |
 | GET | `/v1/web/auth/{provider}/start` | `provider` is `apple` or `google`; query `return_to` (a card path, `/c` or `/c/{businessId}`). Redirects to the provider. See [Sign in with Apple and Google](#sign-in-with-apple-and-google) |
-| GET, POST | `/v1/web/auth/{provider}/callback` | The provider's return. Verifies the ID token, signs this browser in with the same merge as `phone/verify`, then redirects to the page's `/signed-in` |
+| GET, POST | `/v1/web/auth/{provider}/callback` | The provider's return. Verifies the ID token, signs this browser in with the same merge as `email/verify`, then redirects to the page's `/signed-in` |
 | GET | `/v1/web/auth/result` | The `SignInResult` of this browser's last Apple or Google sign-in, readable once; `404` after |
 | POST | `/v1/web/pass-links/{token}` | The "Open my JOEYY card" link on a Wallet pass → `SignInResult` with `businessId`; rotate the token on use |
 | POST | `/v1/web/sign-out` | Ends this browser's session; the account keeps everything |
 | PUT | `/v1/web/me/profile` | Body `{ displayName }`: what the diner wants to be called, 1–40 letters (spaces, `'`, `.` and `-` allowed); `""` clears it. Returns the `Identity`. `404` for an anonymous browser (no account to keep it on), `400 invalidName` otherwise. **Only the diner's own routes return it**: never a business endpoint, the partner app, a redemption or a staff screen |
-| DELETE | `/v1/web/me` | Deletes the account and everything on it: cards, stamps, rewards, sign-ins (phone, Apple, Google), Wallet passes (their pass links and update tokens stop working) and open redemptions. Signs out every browser on it. `204`; `404` for an anonymous browser. Visit counts a business already saw for its own reporting may stay, with no link back to the diner |
-| GET | `/v1/places` | Participating businesses for the Discover tab (`PlaceSummary[]`, already in backend-spec §8.2) |
+| DELETE | `/v1/web/me` | Deletes the account and everything on it: cards, stamps, rewards, sign-ins (email, Apple, Google), Wallet passes (their pass links and update tokens stop working) and open redemptions. Signs out every browser on it. `204`; `404` for an anonymous browser. Visit counts a business already saw for its own reporting may stay, with no link back to the diner |
+| GET | `/v1/places` | Live places for the Discover tab, `{ places: Place[] }` like search (at most 50, newest first); `places()` maps each to a `PlaceSummary`. Being added to the shared backend ([docs/web-connect.md](../../../docs/web-connect.md)) |
 | GET | `/v1/places?query=` | **Built in the shared backend** (`services/api/src/routes/places.ts`), no sign-in. Places whose name contains the query (any case, names starting with it first) or whose ID is exactly it; at most 20, live places only. Answers `{ places: Place[] }` (`src/api/types.ts`); `searchPlaces()` maps each to a `PlaceSummary`. `400` for an empty or over-40-character query |
 | POST | `/v1/web/cards/{cardId}/wallet` | `{ platform: 'apple' \| 'google' }` → `{ url }` for a signed `.pkpass` or a Save to Google Wallet link |
 
@@ -90,7 +90,7 @@ sent by the client.
 
 The TypeScript types in `src/api/types.ts` are the contract: `TapResult`, `CardState`,
 `Reward`, `RedeemIntent`, `Redemption`, `Identity` and `SignInResult`. Errors return
-`{ "code": "offline" | "server" | "invalidPhone" | "invalidCode" | "expired" | "notFound" }`.
+`{ "code": "offline" | "server" | "invalidEmail" | "invalidCode" | "expired" | "notFound" }`.
 
 ### `POST /v1/web/taps` outcomes
 
@@ -104,6 +104,7 @@ The TypeScript types in `src/api/types.ts` are the contract: `TapResult`, `CardS
 | `invalidTag` | Signature or tag unknown | "We couldn't read that stand" |
 | `tagNotActive` | Tag allocated but not activated by the business | "This stand isn't set up yet" |
 | `tagDisabled` | Tag disabled (lost, stolen, replaced) | "This stand is no longer in use" |
+| `standLinked` | The business opened a pairing window on its business site and this is the first tap on one of its allocated stands: the stand is linked, no stamp | "Stand linked" |
 
 Server rules (same as the reader path in backend-spec §5):
 
@@ -132,21 +133,24 @@ different hardware, security and onboarding. The team should pick one before the
 
 The server can't recognise a diner from a tap on a fresh phone: the tap carries only the stand's
 signature and whatever this browser stores. So the page lets the stamp land, then offers
-"Already have cards?". Its Sign in opens three ways in, agreed at the Nov 11 team meeting:
+"Already have cards?". Its Sign in opens three ways in:
 
 1. **Sign in with Apple.**
 2. **Sign in with Google.**
-3. **Mobile number plus text code**, with `autocomplete="one-time-code"`.
+3. **Email plus a 6-digit code.** Text codes are off for now because each one costs money.
+
+The shared API can't finish Apple or Google for the website yet (it has no
+`/v1/web/auth/{provider}` routes, only the app's ID-token sign-in), so outside the demo the sheet
+offers email only. `VITE_SIGN_IN_PROVIDERS=apple,google` turns the buttons back on once it can.
 
 The **Wallet pass link** (`/w/{token}`) still opens the card for diners who added the pass but
 never signed in. Passes move to a new iPhone through iCloud.
 
-Email and password is left out on purpose: throwaway addresses would make it easy to fill the
-servers with fake accounts. Face ID / passkeys (v3.5 to v3.12) are gone too.
+There are no passwords. Face ID / passkeys (v3.5 to v3.12) are gone too.
 
 An `Identity` is `anonymous`, `pass` or `account`. An account has `method` (how this browser
-signed in: `phone`, `apple` or `google`), `maskedPhone` if the account has a number, and
-`maskedEmail` for Apple and Google. One account can have all three; they all lead to the same
+signed in: `email`, `apple` or `google`; `phone` for accounts made in the iOS app),
+`maskedEmail` for the address it signed in with, and `maskedPhone` if the account has a number. One account can have all three; they all lead to the same
 cards.
 
 Merge rules (`SignInResult`):
@@ -193,16 +197,16 @@ sees a token; it only follows redirects, and the session cookie does the rest.
      `aud` = the Services ID or client ID, `exp`, and `nonce`;
    - finds the account by the provider and `sub` (never by email: Apple may give a private relay
      address, and emails can change), or creates one. It stores the email to show the diner, masked;
-   - applies the merge rules above, exactly as `phone/verify` does, and keeps the `SignInResult`
+   - applies the merge rules above, exactly as `email/verify` does, and keeps the `SignInResult`
      for this browser's session;
    - redirects to `<page origin>/signed-in?next=<return_to>`, or
      `/signed-in?next=<return_to>&error=cancelled` if the diner cancelled (`error=access_denied` from
      Google, `user_cancelled_authorize` from Apple), or `&error=failed` for anything else.
 4. The page's `/signed-in` route calls `GET /v1/web/auth/result` (`api.providerSignInResult()`) and
-   shows the same "Welcome back. Stamp 8 added" screen as a phone sign-in, or a "Signed in" toast if
+   shows the same "Welcome back. Stamp 8 added" screen as an email sign-in, or a "Signed in" toast if
    nothing moved. It only ever goes on to a `/c` path, whatever `next` says.
 
-Rate-limit `start` per IP like `phone/start`. Apple's `name` arrives only once, so save it on the
+Rate-limit `start` per IP like `email/start`. Apple's `name` arrives only once, so save it on the
 first sign-in if it's ever needed (the page doesn't use it).
 
 ### What the team needs from Apple and Google
@@ -316,12 +320,12 @@ Where the demo is simpler than production:
 - **Repeat-stamp limits:** only Sunday Ramen sets one (`minMinutesBetweenStamps: 30`), so
   Preview states > "Tapped again too soon" can show the `cooldown` screen. Every other sample
   place stamps on every tap.
-- **Text codes:** nothing is sent. The code is always `123456`.
+- **Email codes:** nothing is sent. The code is always `123456`.
 - **Apple and Google:** the demo can't run OAuth, so the page shows its own consent sheet, marked
   as a preview ("Sign in to JOEYY with Apple?" with the sample email), and calls
   `POST /api/demo/auth/{provider}` instead of `/v1/web/auth/{provider}/start`. That signs in as the
   sample Apple ID (`sample.diner@icloud.com`) or Google account (`sample.diner@gmail.com`), with the
-  same merge as a text code. The sample account in Preview states has the number, the Apple ID and
+  same merge as an email code. The sample account in Preview states has the email, the Apple ID and
   the Google account. None of the three `/v1/web/auth/...` routes exist in the demo.
 - **Demo-only routes,** which only exist in demo mode: `/api/demo/scenarios/{name}` (Preview
   states), `/api/demo/stamp` (Add a stamp), `/api/demo/info` and `/api/demo/settings` (the Preview

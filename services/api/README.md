@@ -23,17 +23,75 @@ The partner MVP diagram's three flows, plus images and notifications:
 | `GET /v1/partner/program` | Live card configuration (spec section 3.1 contract) |
 | `GET /v1/partner/program/versions` | All versions with usage: live, finishing, or retired |
 | `GET /v1/partner/program/publish-impact` | `{ keepRules, switchToNew }` |
-| `POST /v1/partner/program/versions` | Publish: validates, inserts an immutable version (with its cover), moves the live pointer and zero-punch cards in one transaction; `409 unchangedProgram` |
+| `POST /v1/partner/program/versions` | Publish: validates, inserts an immutable version (with its cover), moves the live pointer and zero-punch cards in one transaction; `409 unchangedProgram`. Optional `minMinutesBetweenStamps` (1–1440), the business's own repeat-stamp limit |
 | `GET /v1/partner/dashboard?from&to` | Section 8.4 counts, including `rewardsWaiting` and `customersWithStackedRewards` |
-| `GET /v1/partner/notifications?after&limit` | Newest first, cursor paged |
+| `GET /v1/partner/notifications?after&limit` | Newest first, cursor paged. Stand taps write `card.rolledOver` and `reward.waiting` (`{ rewardsWaiting }`) |
+| `GET /v1/partner/stands` | `{ stands, pairing }`: linked stands (`standId`, `label`, `status`, `linkedAt`, `lastTapAt`) and the open pairing window (`{ expiresAt }` or `null`) |
+| `POST`, `DELETE /v1/partner/stands/pairing` | Opens a 2-minute window (`409 noLiveProgram` before a card is published) or closes it. Same shape |
+| `POST /v1/partner/stands/{standId}/turn-off` | For good: its taps answer `tagDisabled`. Same shape; `404 standNotFound` |
+| `GET /v1/partner/activity?from&to` | `{ activity: [{ kind, at, punches }] }`: `first`, `stamp`, `earned`, `used`; newest first, at most 50, half-open range. Never says who |
+| `GET /v1/places` | No sign-in needed. The Discover list: businesses with a published card and at least one linked stand, newest first, at most 50. `{ places }`, as search |
 | `GET /v1/places?query=` | No sign-in needed. Search places by name (case-insensitive, names starting with the query first) or exact client ID; at most 20, only businesses with a published card |
 | `GET /v1/places/{placeId}` | No sign-in needed. A place: its business fields plus `program`, the live card (section 3.1); `404 placeNotFound` for unknown or unpublished |
+| `/v1/web/…` | The website's diner routes, with a cookie session (see [The website](#the-website)) |
+| `/v1/dev/…` | `AUTH_MODE=dev` only: allocate and link stands, make tap links (see [The website](#the-website)) |
 | `GET /healthz` | Checks the database connection; no token needed |
 | `/v1/auth/…` | Sign-in with Google, Apple, or a one-time code by email or text (see [Sign-in](#sign-in)) |
 
-Not yet implemented: the other customer routes (cards, rewards, groups), NFC punch intake, Apple Wallet, push notifications, and
-redemption (open decision 1). The schema already has the tables for punches, readers, rewards, and
-notifications.
+Not yet implemented: the app's customer routes (cards, rewards, groups), reader punch intake
+(`POST /v1/punches`), Apple Wallet, push notifications, and partner-side redemption (open decision 1).
+
+## The website
+
+The website (`apps/web`) calls `/v1/web/*` with `fetch(..., { credentials: 'include' })`; the plan is
+[docs/web-connect.md](../../docs/web-connect.md) and the contract is
+[apps/web/docs/identity-and-api.md](../../apps/web/docs/identity-and-api.md), with response shapes in
+`apps/web/src/api/types.ts`. Errors are `{ error, code, message }`; the website reads `code`.
+
+A browser is an HttpOnly cookie, `joeyy_web` (`SameSite=Lax`, `Path=/v1/web`, `Secure` unless
+`AUTH_MODE=dev`, 400 days), that points at a customer through `web_sessions`, where only its SHA-256
+is stored. A browser's first tap creates an anonymous customer (`web:<uuid>`). Signing in with a
+code moves the browser to the same customer the iOS app gets for that number or address
+(`phone:<keyed hash>`, `email:<keyed hash>`) and merges the anonymous cards into it.
+
+| Route | |
+| --- | --- |
+| `POST /v1/web/taps` | `{ picc, cmac }` → `TapResult`: `stamped`, `completed`, `cooldown`, `redeemed`, `replayed`, `invalidTag`, `tagNotActive`, `tagDisabled`, or `standLinked` (the owner's pairing tap). Always `200` |
+| `GET /v1/web/me/cards` | `{ identity, cards }`: the diner's order first, then most recent visit |
+| `GET /v1/web/me/cards/{businessId}` | One `CardState`; `404 notFound` |
+| `PUT /v1/web/me/cards/order` | `{ businessIds }` → `204` |
+| `POST /v1/web/redeem-intents` | `{ rewardId }` → `RedeemIntent`, open 2 minutes; the next tap at that business redeems |
+| `GET`, `DELETE /v1/web/redeem-intents/{id}` | `{ intent, redemption? }` for this browser only; cancel → `204` |
+| `POST /v1/web/phone/start`, `/email/start` | `{ phone }` → `{ maskedPhone }`, `{ email }` → `{ maskedEmail }`. Same codes and limits as `/v1/auth` |
+| `POST /v1/web/phone/verify`, `/email/verify` | `{ code }` → `SignInResult`; `400 invalidCode`, `400 expired` with no code started |
+| `POST /v1/web/sign-out` | `204`; ends this browser's session |
+| `PUT /v1/web/me/profile` | `{ displayName }` → `Identity`; `404` for an anonymous browser, `400 invalidName` |
+| `DELETE /v1/web/me` | `204`; deletes the account and everything on it, signs out every browser and the app |
+
+Taps: the tag's counter is accepted with one `UPDATE readers … WHERE last_counter < $counter`, so a
+reloaded or shared link answers `replayed`. The punch (reader = the stand, event ID
+`tag:<uid>:<counter>`), any rollover card, any reward, and the notifications are one transaction.
+There is no built-in limit on repeat taps; a business can publish `minMinutesBetweenStamps`.
+
+Stand links are checked by `TAG_MODE`. `sun` verifies NTAG 424 DNA SUN messages (AES-CMAC, NXP
+AN12196) with `SUN_META_READ_KEY` and `SUN_FILE_READ_KEY`; `dev` (the default outside production)
+also accepts `picc=<tag uid>.<counter>` with any `cmac`.
+
+Development only (`AUTH_MODE=dev`; the routes don't exist otherwise):
+
+| Route | |
+| --- | --- |
+| `POST /v1/dev/stands` | Owner token. Allocates a new stand to the owner's business → `201 { tagUid }` |
+| `POST /v1/dev/stands/touch` | Owner token. The owner's phone touching a new stand while pairing is open: allocates and links one. `409 pairingClosed` |
+| `POST /v1/dev/taps/{tagUid}` | No token. `{ next: "/t?picc=<tagUid>.<counter>&cmac=dev" }` with a counter newer than any seen |
+
+```sh
+TOKEN=$(npm run -s token -- partner my-test-owner)
+curl -X POST -H "Authorization: Bearer $TOKEN" localhost:8080/v1/partner/stands/pairing
+TAG=$(curl -s -X POST -H "Authorization: Bearer $TOKEN" localhost:8080/v1/dev/stands | jq -r .tagUid)
+curl -X POST localhost:8080/v1/web/taps -H 'content-type: application/json' -d "{\"picc\":\"$TAG.1\",\"cmac\":\"dev\"}"   # links it
+curl -c jar -b jar -X POST localhost:8080/v1/web/taps -H 'content-type: application/json' -d "{\"picc\":\"$TAG.2\",\"cmac\":\"dev\"}" # stamps
+```
 
 ## Run it locally
 
@@ -106,6 +164,14 @@ az acr build --registry <registry> --image joeyy-api:$(git rev-parse --short HEA
 and business owner with their email, sign-in method, first and last sign-in, signed-in devices, and
 business. Run it with the `psql` command under [Migrations](#migrations): `psql "…" -f ../../docs/setup/see-signed-up-users.sql`.
 
+### Sample places for development
+
+`npm run seed:places` adds the website demo's eight sample places (from
+`apps/web/server/demo/data.ts`) through the API's own routes, each with a published card and a
+working stand, so Discover and taps have something to show. `AUTH_MODE=dev` only; running it again
+skips places that exist. `POST /v1/dev/places/{businessId}/tap` then makes a fresh tap link for any
+place's first stand.
+
 ## Migrations
 
 `db/migrations/NNNN_name.sql` files are applied in order by `npm run migrate`. Each one runs in a
@@ -121,6 +187,7 @@ next number instead.
 | `0004_native_nfc` | Customers, sessions, cafes, chips, cards, events and Wallet tables (`native_*`) for the NFC + Wallet part. Shares the `0004` number with `0004_sign_in`; harmless, since migrations are tracked by full name. See [native-nfc.md](native-nfc.md) |
 | `0005_native_prototype` | Marks anonymous guest customers for the NFC prototype mode. See [native-nfc.md](native-nfc.md) |
 | `0006_account_email` | `email` and `last_sign_in_at` on `customers` and `business_owners`. Numbered after `0005_native_prototype` |
+| `0007_web` | Stands as `readers` with `kind = 'stand'` (`tag_uid`, `status`, `last_counter`, `activated_at`, `last_tap_at`), a business's pairing window, `program_versions.min_minutes_between_stamps`, `customers.display_name` and `card_order`, `web_sessions`, and `redeem_intents` |
 
 To check what's applied:
 
@@ -280,6 +347,14 @@ with the same key. Dev mode refuses to start when `NODE_ENV=production`.
 | `APPLE_AUDIENCES` | The app's bundle ID (`com.joeyy.customer`) and, for the website, its Services ID |
 | `ACS_ENDPOINT`, `SMS_FROM`, `PHONE_COUNTRY_CODES` | The Communication Services resource and its toll-free number for texts |
 | `TRUST_PROXY` | `true` behind a load balancer, so rate limits see the client's IP |
+
+The website adds:
+
+| Setting | |
+| --- | --- |
+| `WEB_ORIGINS` | The website's origins, comma-separated (for example `https://joeyy.app`). Only these get CORS with credentials, and only on `/v1/web` and `/v1/places`. Unset: none (the Vite dev server proxies `/v1`, so local work needs none) |
+| `TAG_MODE` | `sun` (the default when `NODE_ENV=production`, where `dev` is refused) or `dev` |
+| `SUN_META_READ_KEY`, `SUN_FILE_READ_KEY` | The stands' AES-128 keys as 32 hex characters, the same for every stand for now. Required with `TAG_MODE=sun`; with `dev`, optional and lets real stands work too |
 
 The API signs in to Communication Services with `DefaultAzureCredential`, as it does for the
 database, so there is no access key or connection string.

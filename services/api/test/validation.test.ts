@@ -50,6 +50,13 @@ test("program rules match ProgramDraft.validated()", () => {
     assert.equal(code(() => parseProgram({ ...base, rewardDescription: "   " })), "missingReward");
     assert.equal(code(() => parseProgram({ ...base, rewardDescription: "x".repeat(61) })), "rewardTooLong");
     assert.doesNotThrow(() => parseProgram({ ...base, rewardDescription: "x".repeat(60) }));
+    // The business's own repeat-stamp limit is optional; absent or null means none.
+    assert.equal(parseProgram(base).minMinutesBetweenStamps, null);
+    assert.equal(parseProgram({ ...base, minMinutesBetweenStamps: null }).minMinutesBetweenStamps, null);
+    assert.equal(parseProgram({ ...base, minMinutesBetweenStamps: 30 }).minMinutesBetweenStamps, 30);
+    for (const minutes of [0, 1441, 2.5, "30"]) {
+        assert.equal(code(() => parseProgram({ ...base, minMinutesBetweenStamps: minutes })), "invalidMinMinutes");
+    }
 });
 
 test("business rules match PartnerStore.saveBusiness", () => {

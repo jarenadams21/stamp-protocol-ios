@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --env-file-if-exists=.env --test --test-concurrency=1 'test/**/*.test.ts' 'test/*.test.mjs'",
     "test:legacy": "node --test test/*.test.mjs",
-    "auth:key": "node scripts/auth-key.ts"
+    "auth:key": "node scripts/auth-key.ts",
+    "seed:places": "node --env-file-if-exists=.env scripts/seed-sample-places.ts"
   },
   "dependencies": {
     "@azure/communication-email": "1.1.0",

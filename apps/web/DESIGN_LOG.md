@@ -10,7 +10,11 @@ shared from its Share menu).
 
 | Version | Date | What changed | Why |
 | --- | --- | --- | --- |
+| [v4.5](#v45-the-stamp-stage) | 2026-11-22 | A tap opens on a stage: the page steps back, the real card comes in zoomed on its empty slot and the stamp strikes big; the camera pulls back to the whole card with "Stamp 4 of 8" under it; the card glides into its place as the page fades in. A tap skips ahead | Feedback: on the card alone it was easy to miss; a first-time diner who just tapped expects something that grabs them |
+| [v4.4](#v44-one-gesture-on-the-card) | 2026-11-22 | The separate stamp page is gone. The stamp lands on the card itself as one gesture: its face appears above the slot, strikes, squashes a little and lifts; the ink stays put; the card gives; the count turns over. Full card: a ripple, a light lift, flecks in the place's ink. Ivory accent; badges in the place's ink; no green outline or accent ring | Feedback: the stamp page felt forced, transitions "0/10", everything boxy; orange read as Claude's colours; green clashed |
+| [v4.3](#v43-drawn-paper-and-ink-and-the-stamp-page) | 2026-11-22 | Paper and ink are drawn on canvas: real grain, fibres and mottling in each card's paper, patchy rubber-stamp ink with a rocked double edge. A tap opens a stamp page: a wooden stamp, seen from above, presses the place's paper and lifts; the ink spreads and dries; then it flies into the card | Feedback: still dry and plain, no texture; the hand stamp's angle looked off |
 | [v4.2](#v42-search-places) | 2026-11-20 | A search box on Discover finds places by name through the shared backend's Places API; tap a result to see its card | Yemi's task: search the restaurants in our database and open one to see its card |
+| [v4.2](#v42-the-stamp-moment) | 2026-11-22 | A tap opens on a full-screen stamp moment: the cover dims, a big stamp in the visit's ink falls and slams down (shockwave rings, ink spatter, shake, double buzz, "Stamp 4 of 8"), then flies into its slot as the card page shows | Feedback: the stamp still wasn't the main focus; it has to land before the rest of the page |
 | [v4.1](#v41-stamps-with-punch-paper-with-texture) | 2026-11-15 | Stamps land harder (shadow, squash, wet ink drying, ink flecks, the count pops) and look inked (patchy rubber-stamp ink, heavier rims); the card is real paper (fibres, a security print and rosette in the place's ink, darker edges); empty slots printed as targets, the reward slot heavier | Demo feedback: more pop on the stamps, more texture on the card |
 | [v4.0](#v40-the-business-site) | 2026-11-15 | The business site at `/business`: email sign-in, a four-step setup with the real card filling in as you type, stand linking, Today, Card and Stands. A card made there is live on the diner side | Owners had no way to sign up and make their own card |
 | [v3.16](#v316-landing-page-profile-and-the-cover) | 2026-11-15 | Landing page with a Try a tap sample card; profile with your name, sign out and delete account; the page is now a printed passport cover (security lines, rosette, grain); quieter foil wordmark; no ring over the newest stamp | Feedback: no page for newcomers, a thin profile, a bare background, a loud wordmark, an awkward ring on new stamps |
@@ -38,6 +42,80 @@ shared from its Share menu).
 
 ---
 
+## v4.5: the stamp stage
+
+**Why:** "Not flashy enough… keep the idea of a zone page, something to catch the eye of anyone opening
+this page for the first time… if I click on something and this page opens, I would hardly even catch
+the animation." v4.3's separate stamp page caught the eye but felt boxy and forced; v4.4 on the card
+alone was smooth but easy to miss.
+
+**What changed** (`src/ui/stamp-stage.ts`, used by the tap page for `stamped` and `completed`): a
+camera move on the real card, so nothing is ever handed from one object to another.
+1. The page steps back (fades and drops 14px), the cover dims to a glow in the place's paper colour,
+   and the card comes in zoomed (about 2x) on the empty slot.
+2. The stamp strikes there (v4.4's gesture), so it's big; the glow flares on contact.
+3. The camera pulls back to the whole card, centred; "Stamp 4 of 8" and "4 more to …" rise in under it.
+   A full card plays its ripple, lift and flecks here, then its reward ticket prints after it settles.
+4. After about a second, or a tap anywhere, the card glides down into its place and the header,
+   headline and the rest of the page fade in around it, in that order.
+About three seconds in all. Reduced motion, or a business with motion off, skips the stage.
+
+![Zoomed on the slot, the strike](docs/iterations/v4.5-zoomed-strike.jpg)
+![Pulled back, the count under the card](docs/iterations/v4.5-whole-card.jpg)
+
+## v4.4: one gesture, on the card
+
+**Why:** "the stamp page feels forced, transitions are like a 0/10, everything feels boxy." The orange
+read as Claude's own colours, and the green outline didn't belong.
+
+**How it was decided:** a research pass over Apple Pay's "Done" (WWDC19 *Audio, Haptic and Visual
+Design*), Apple Wallet, the HIG on motion and haptics, Emil Kowalski and Rauno Freiberg on motion,
+Josh Comeau on particles, Duolingo's milestone celebrations, and how a real rubber stamp moves
+(anticipation, strike, small squash, lift; the ink appears at contact). What it said we'd got wrong:
+an overlay that took the card away, ink that moved after it landed, and every effect at once.
+
+**What changed:**
+- **No stamp page, no overlay.** The page stays usable throughout; nothing else dims or moves.
+- **The stamp** (`stampIn`, `src/ui/passport.ts`), 520ms: its inked face appears 24px above the slot,
+  slightly large and turned, and rises 4px; strikes down in 90ms; on contact (230ms) squashes 4%, the
+  ink appears under it from the centre out, the card gives 1.5px, one buzz, and the "New" tag shows; the
+  face lifts 10px and fades. The ink never moves. At 380ms the count turns over.
+- **Cut:** the ink splash ring, the fleck spatter and the count pop on a regular stamp.
+- **A full card:** two taps of haptics; the earlier stamps ripple outward from the last one; the card
+  lifts 3% on a light spring (the only time the whole card moves); a dozen flecks fly up in a 120° cone
+  in the place's own ink. The orange ring around the card is gone.
+- **Colour:** the accent is ivory (tokens, logo, Wallet icon). "Just stamped" and "New" use the place's
+  ink. No outline on a just-stamped card, and no accent ring around the open card.
+- Reduced motion: the ink fades in over 150ms and the count changes; nothing moves.
+
+![The stamp landed on the card](docs/iterations/v4.4-stamp-landed.png)
+
+## v4.3: drawn paper and ink, and the stamp page
+
+**Why:** "the animation feels dry and boring… the card design still feels lacking on the texture…
+the animation had no texture as well." Then, from a stamp lab with two motions: a stamp page first,
+moving on by itself, with the hand press; and "the hand press stamp seems off, maybe the angle".
+
+**What changed:**
+- **`src/ui/ink.ts` draws paper and ink on canvas.** CSS circles and SVG masks read as a picture of a
+  stamp. Now each business's paper is drawn once: mottled colour, tooth, fibres, a security print and a
+  rosette in its own ink. Each stamp is a drawn impression: heavy edges where ink pools, gaps where the
+  rubber didn't touch, a faint second edge from the stamp rocking, stray specks. Cached, so each is
+  drawn once.
+- **The card uses them.** The paper texture is set after the first paint (`--paper-texture`), so the
+  page never waits on it. Stamps on the card and on the profile are the drawn impressions, laid into the
+  paper with multiply. The old SVG grain, waves, rosette and ink-mask CSS are gone.
+- **The stamp page** (`src/ui/stamp-moment.ts`) replaces the v4.2 moment. One camera, looking down:
+  a sheet of the place's paper; a wooden rubber stamp comes down toward it (bigger while near the eye,
+  its shadow tightening); it presses (the paper darkens under it, the phone buzzes), and lifts away; the
+  ink spreads from the centre, wet and glossy, then dries. "Stamp 4 of 8" pops in. After 2.5 seconds,
+  or a tap once the stamp has lifted, the impression flies into its slot on the card.
+- The lab page used to choose the motion was removed once the choice was made.
+
+![The stamp pressing, seen from above](docs/iterations/v4.3-stamp-press.png)
+![The ink left behind](docs/iterations/v4.3-stamp-ink.png)
+![The card on drawn paper](docs/iterations/v4.3-card-paper.jpg)
+
 ## v4.2: search places
 
 **Why:** the team's task list: build a working search over the restaurants in our database, and let
@@ -58,6 +136,23 @@ diners tap one to see its card.
   The demo backend answers `?query=` with the backend's exact rules and shape.
 
 ![Search at 390px](docs/iterations/v4.2-search-390.jpg) ![Search at 320px](docs/iterations/v4.2-search-320.jpg)
+
+## v4.2: the stamp moment
+
+**Why:** "the stamping is still not flashy enough… it needs to be the main focus before the rest of the page loads."
+
+**What changed** (`src/ui/stamp-moment.ts`, called from the tap page for `stamped` and `completed`):
+- Before the card page shows, the cover dims and blurs, lit faintly in the place's paper colour.
+- A big stamp, the same shape, ink and angle the card will show for this visit, falls from above the
+  screen, blurred and turning, while its shadow gathers on a disc of the place's paper.
+- On impact: two shockwave rings and a spatter in the stamp's ink, a short shake, a flash of the
+  place's colour, a double buzz, and the count pops in ("Stamp 4 of 8"; a full card says "Card
+  complete" with a bigger, four-ink burst).
+- After a beat it shrinks and flies into its slot on the card while the dimming lifts; the card
+  counts it and gives a little under it (`stampIn(..., { arrived: true })`).
+- Reduced motion, or a business that turned motion off, skips the moment and gets the plain stamp.
+
+![The stamp moment, just after impact](docs/iterations/v4.2-stamp-moment.jpg)
 
 ## v4.1: stamps with punch, paper with texture
 

@@ -326,6 +326,10 @@ All routes are versioned under `/v1` and use JSON over HTTPS with UTC ISO 8601 t
 | POST | `/v1/partner/program/versions` | Publish a new immutable version |
 | GET | `/v1/partner/dashboard?from&to` | Counts (see 8.4) |
 | GET | `/v1/partner/notifications` | New cards started and rewards waiting |
+| GET | `/v1/partner/stands` | `{ stands, pairing }`: linked counter stands and the open pairing window ([web-connect.md](web-connect.md)) |
+| POST, DELETE | `/v1/partner/stands/pairing` | Open a 2-minute window to link a stand (`409 noLiveProgram` before a card is published), or close it |
+| POST | `/v1/partner/stands/{standId}/turn-off` | Turn a stand off for good; its taps answer `tagDisabled` |
+| GET | `/v1/partner/activity?from&to` | A day's stamps and rewards used (`first`, `stamp`, `earned`, `used`), newest first, at most 50. Never says who |
 | POST | `/v1/partner/rewards/{rewardId}/redeem` | Mark a presented reward redeemed (see open decision 1) |
 
 ### 8.2 Customer (customer token, except places)
@@ -336,6 +340,7 @@ customers.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
+| GET | `/v1/places` | With no query: live places (a published card and at least one linked stand), newest first, at most 50. **No token needed** |
 | GET | `/v1/places?query=` | Search by business name or exact client ID (not location). **No token needed** |
 | GET | `/v1/places/{placeId}` | A business and its live card configuration. **No token needed** |
 | POST | `/v1/customer/cards` | Enroll in a business (idempotent) |
@@ -346,12 +351,31 @@ customers.
 | GET, PUT, DELETE | `/v1/customer/groups[/{id}]` | Groups (unique names, 1–40 characters) |
 | POST | `/v1/customer/cards/{cardId}/pass` | A signed Wallet pass |
 
+### 8.2a Website diners (cookie session)
+
+The website identifies a diner by an HttpOnly cookie, not a token, so a first tap works with no
+account ([web-connect.md](web-connect.md), decision 2). The contract, including tap outcomes and the
+sign-in merge, is [apps/web/docs/identity-and-api.md](../apps/web/docs/identity-and-api.md); the
+routes as built are listed in `services/api/README.md`.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/v1/web/taps` | A stand tap (`picc`, `cmac`): verify the tag, accept its counter once, stamp, redeem, or link a stand during pairing |
+| GET | `/v1/web/me/cards`, `/v1/web/me/cards/{businessId}` | This browser's cards |
+| PUT | `/v1/web/me/cards/order` | The diner's card order |
+| POST, GET, DELETE | `/v1/web/redeem-intents[/{id}]` | A 2-minute window in which the next tap redeems a reward |
+| POST | `/v1/web/phone/start`, `/verify`; `/v1/web/email/start`, `/verify` | Sign in with a code to the same account the app gets, merging this browser's cards |
+| POST | `/v1/web/sign-out` | End this browser's session |
+| PUT | `/v1/web/me/profile` | What the diner is called |
+| DELETE | `/v1/web/me` | Delete the account and everything on it |
+
 ### 8.3 Devices
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | POST | `/v1/punches` | NFC punch intake (section 5) |
 | POST | `/v1/dev/punches` | Development only: a punch without a reader (section 11.3) |
+| POST | `/v1/dev/stands`, `/v1/dev/stands/touch`, `/v1/dev/taps/{tagUid}` | Development only (`AUTH_MODE=dev`): allocate a stand, link one during pairing, make a fresh tap link |
 | Various | `/v1/wallet/…` | Apple PassKit web service (section 6) |
 
 ### 8.4 Dashboard semantics

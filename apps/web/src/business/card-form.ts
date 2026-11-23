@@ -3,7 +3,8 @@ import { coverArt } from '../ui/business';
 import { el, haptic } from '../ui/dom';
 import { passportPage } from '../ui/passport';
 import { fontFor } from '../ui/theme';
-import type { PartnerAccount } from './types';
+import type { LiveProgram } from './api';
+import type { PartnerBusiness, ProgramInput } from './types';
 
 // The card an owner is making, and the controls that change it. Setup asks for it one step at a
 // time; the Card page shows it all at once. Both draw the preview with the diner's own
@@ -11,13 +12,16 @@ import type { PartnerAccount } from './types';
 
 export interface Draft {
   name: string;
-  category: string;
   location: string;
-  address: string;
   reward: string;
   punches: number;
   theme: MerchantTheme;
+  /** The live card's cover, set in the partner app. Publishing from here keeps it. */
+  coverKey: string | null;
 }
+
+/** The API's limits (backend-spec §3.1). */
+export const LIMITS = { name: 40, location: 120, reward: 60, punches: { min: 3, max: 12 } };
 
 /** Paper and ink pairs that pass 4.5:1 in light and dark, so an owner can't pick an unreadable card. */
 export const PAPERS: { name: string; theme: Pick<MerchantTheme, 'lightPaper' | 'lightInk' | 'darkPaper' | 'darkInk'> }[] = [
@@ -46,17 +50,21 @@ const ARTWORK: { value: Artwork; name: string }[] = [
 
 export const REWARD_IDEAS = ['A free coffee', 'A free pastry', 'Any drink on the menu', 'A free bowl'];
 
-export function draftFrom(account: PartnerAccount | null): Draft {
-  const { business, program } = account ?? {};
+export function draftFrom(business: PartnerBusiness | null, program: LiveProgram | null): Draft {
   return {
     name: business?.name ?? '',
-    category: business?.category ?? '',
     location: business?.location ?? '',
-    address: business?.address ?? '',
     reward: program?.rewardDescription ?? '',
     punches: program?.requiredPunches ?? 8,
     theme: program?.theme ?? { ...PAPERS[0].theme, typeface: 'serif', artwork: 'cloud', allowsMotion: true },
+    coverKey: program?.coverKey ?? null,
   };
+}
+
+/** The draft's card as POST /v1/partner/program/versions takes it. */
+export function programInput(draft: Draft): ProgramInput {
+  const { coverURL: _shownOnly, ...theme } = draft.theme;
+  return { requiredPunches: draft.punches, rewardDescription: draft.reward.trim(), theme: { ...theme, coverKey: draft.coverKey } };
 }
 
 /** The draft as a diner's card a few visits in, for the preview. */
@@ -114,19 +122,20 @@ export function ideas(input: () => HTMLInputElement | null, onPick: (value: stri
 
 export function stepper(label: string, value: number, onChange: (value: number) => void) {
   const out = el('output', { class: 'stepper-value', 'aria-live': 'polite' }, String(value));
+  const { min, max } = LIMITS.punches;
   let current = value;
   const set = (next: number) => {
-    current = Math.min(20, Math.max(3, next));
+    current = Math.min(max, Math.max(min, next));
     out.textContent = String(current);
-    less.disabled = current <= 3;
-    more.disabled = current >= 20;
+    less.disabled = current <= min;
+    more.disabled = current >= max;
     haptic(6);
     onChange(current);
   };
   const less = el('button', { class: 'stepper-button', type: 'button', 'aria-label': 'Fewer stamps', onclick: () => set(current - 1) }, '−');
   const more = el('button', { class: 'stepper-button', type: 'button', 'aria-label': 'More stamps', onclick: () => set(current + 1) }, '+');
-  less.disabled = current <= 3;
-  more.disabled = current >= 20;
+  less.disabled = current <= min;
+  more.disabled = current >= max;
   return el('div', { class: 'biz-field' },
     el('span', { class: 'field-label' }, label),
     el('div', { class: 'stepper', role: 'group', 'aria-label': label }, less, out, more),

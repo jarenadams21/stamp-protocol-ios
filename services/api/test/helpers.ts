@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import type pg from "pg";
-import { buildApp } from "../src/app.ts";
+import { buildApp, type AppOptions } from "../src/app.ts";
 import { devSigner, type DevSigner } from "../src/auth.ts";
 import { createPool } from "../src/db.ts";
 import { appleVerifier, googleVerifier, type IdTokenVerifier } from "../src/identity.ts";
@@ -11,6 +11,7 @@ import { LocalImageStore } from "../src/images.ts";
 import { migrate } from "../src/migrate.ts";
 import { MemoryCodeSender } from "../src/senders.ts";
 import type { SignInOptions } from "../src/signIn.ts";
+import { tagVerifier } from "../src/tags.ts";
 
 /**
  * A fresh schema with every migration applied, an app wired to it, and a token signer.
@@ -75,7 +76,9 @@ export const TEST_PEPPER = "test-pepper-test-pepper-test-pepper";
 export const APPLE_TEST_AUDIENCE = "com.joeyy.customer";
 export const GOOGLE_TEST_AUDIENCE = "test-ios.apps.googleusercontent.com";
 
-export async function setUp(): Promise<TestContext> {
+export const TEST_WEB_ORIGIN = "https://joeyy.test";
+
+export async function setUp(overrides: Partial<AppOptions> = {}): Promise<TestContext> {
     const schema = `test_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
     const admin = createPool(process.env, { max: 1 });
     await admin.query(`CREATE SCHEMA ${schema}`);
@@ -101,7 +104,17 @@ export async function setUp(): Promise<TestContext> {
         phoneCountryCodes: ["1", "44"],
         now: () => new Date(Date.now() + ctx.clockOffsetMs),
     };
-    const app = buildApp({ pool, auth: signer.config, images, signIn: signInOptions });
+    // Dev stand links and dev routes, as with AUTH_MODE=dev; the cookie stays Secure as in production.
+    const app = buildApp({
+        pool,
+        auth: signer.config,
+        images,
+        signIn: signInOptions,
+        tags: tagVerifier("dev"),
+        webOrigins: [TEST_WEB_ORIGIN],
+        devRoutes: true,
+        ...overrides,
+    });
     await app.ready();
     return Object.assign(ctx, {
         app,
@@ -135,7 +148,7 @@ export const validTheme = {
 };
 
 /** Calls the API as a signed-in partner. */
-export async function asPartner(ctx: TestContext, subject: string, method: "GET" | "PUT" | "POST", url: string, body?: unknown) {
+export async function asPartner(ctx: TestContext, subject: string, method: "GET" | "PUT" | "POST" | "DELETE", url: string, body?: unknown) {
     const token = await ctx.signer.sign("partner", subject);
     const response = await ctx.app.inject({
         method,
@@ -180,6 +193,49 @@ export async function businessWithProgram(ctx: TestContext, subject: string, req
         theme: validTheme,
     });
     return { businessId: business.body.id as string, versionId: version.body.versionId as string };
+}
+
+/** A browser on the website: keeps the joeyy_web cookie between calls, as fetch with credentials would. */
+export class Browser {
+    cookie: string | undefined;
+    lastSetCookie: string | undefined;
+    private readonly ctx: TestContext;
+
+    constructor(ctx: TestContext) {
+        this.ctx = ctx;
+    }
+
+    async call(method: "GET" | "PUT" | "POST" | "DELETE", url: string, body?: unknown, headers: Record<string, string> = {}) {
+        const response = await this.ctx.app.inject({
+            method,
+            url,
+            headers: { ...(this.cookie ? { cookie: `joeyy_web=${this.cookie}` } : {}), ...headers },
+            ...(body === undefined ? {} : { payload: body as object }),
+        });
+        const set = response.headers["set-cookie"];
+        this.lastSetCookie = Array.isArray(set) ? set[0] : set;
+        const value = this.lastSetCookie?.match(/^joeyy_web=([^;]*)/)?.[1];
+        if (value !== undefined) this.cookie = value || undefined;
+        const json: any = response.body ? response.json() : undefined;
+        return { status: response.statusCode, body: json, headers: response.headers };
+    }
+
+    /** Taps a stand with a dev link. */
+    tap(tagUid: string, counter: number) {
+        return this.call("POST", "/v1/web/taps", { picc: `${tagUid}.${counter}`, cmac: "dev" });
+    }
+}
+
+/** A business with a published card and one linked stand, through the partner and dev routes. */
+export async function businessWithStand(ctx: TestContext, subject: string, requiredPunches = 10) {
+    const ids = await businessWithProgram(ctx, subject, requiredPunches);
+    const allocated = await asPartner(ctx, subject, "POST", "/v1/dev/stands");
+    const tagUid = allocated.body.tagUid as string;
+    await asPartner(ctx, subject, "POST", "/v1/partner/stands/pairing");
+    // The owner's own first tap links the stand (and stamps nothing).
+    const linked = await new Browser(ctx).tap(tagUid, 1);
+    if (linked.body.outcome !== "standLinked") throw new Error(`stand not linked: ${JSON.stringify(linked.body)}`);
+    return { ...ids, tagUid };
 }
 
 // Direct inserts for state that customer and punch handlers will create once they exist.

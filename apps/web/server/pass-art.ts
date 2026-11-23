@@ -121,7 +121,7 @@ export function monogram(initials: string, ink: string, scale: number) {
 /** The app icon Wallet shows on the lock screen and in notifications: the JOEYY tile. */
 export function joeyyIcon(size: number) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 29 29">
-    <rect width="29" height="29" rx="7" fill="#F47B35"/>
+    <rect width="29" height="29" rx="7" fill="#EFE6D2"/>
     <circle cx="14.5" cy="14.5" r="5.8" fill="#111522"/>
   </svg>`;
   return render(svg, size);

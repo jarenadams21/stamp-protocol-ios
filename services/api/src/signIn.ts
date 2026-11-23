@@ -119,14 +119,127 @@ export function parseEmail(value: unknown): string {
 
 // Hashing -----------------------------------------------------------------------------------
 
-type CodeChannel = "phone" | "email";
+export type CodeChannelName = "phone" | "email";
 const hmac = (pepper: string, value: string) => createHmac("sha256", pepper).update(value).digest();
 /** Keyed hash of a normalized phone number or email address. Also the account subject's suffix. */
-export const targetHash = (pepper: string, channel: CodeChannel, target: string) => hmac(pepper, `${channel}:${target}`).toString("hex");
+export const targetHash = (pepper: string, channel: CodeChannelName, target: string) => hmac(pepper, `${channel}:${target}`).toString("hex");
 /** Kept for readability in tests: the phone subject's hash. */
 export const phoneHash = (pepper: string, number: string) => targetHash(pepper, "phone", number);
 const codeHash = (pepper: string, target: string, code: string) => hmac(pepper, `code:${target}:${code}`);
 const refreshHash = (token: string) => createHash("sha256").update(token).digest();
+
+// One-time codes ------------------------------------------------------------------------------
+// Shared by /v1/auth (the apps) and /v1/web (the website), so a number or address has one code and
+// one set of send limits, whichever asked for it.
+
+export interface CodeChannel {
+    method: CodeChannelName;
+    field: "phoneNumber" | "email";
+    parse(value: unknown): string;
+    sender: CodeSender;
+    unavailable(): ApiError;
+}
+
+export function codeChannels(options: SignInOptions): CodeChannel[] {
+    return [
+        {
+            method: "phone",
+            field: "phoneNumber",
+            parse: (value) => parsePhoneNumber(value, options.phoneCountryCodes),
+            sender: options.sms,
+            unavailable: () => new ApiError(503, "smsUnavailable", "We couldn't send a text right now. Try again soon."),
+        },
+        {
+            method: "email",
+            field: "email",
+            parse: parseEmail,
+            sender: options.email,
+            unavailable: () => new ApiError(503, "emailUnavailable", "We couldn't send an email right now. Try again soon."),
+        },
+    ];
+}
+
+/**
+ * Sends a new code to a normalized number or address, within its resend cooldown and hourly limit.
+ * Returns the seconds to wait when it's too soon, otherwise undefined once the code is sent.
+ */
+export async function sendSignInCode(
+    pool: pg.Pool,
+    options: SignInOptions,
+    channel: CodeChannel,
+    target: string,
+    request: FastifyRequest,
+): Promise<number | undefined> {
+    const key = targetHash(options.hashPepper, channel.method, target);
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    const now = options.now?.() ?? new Date();
+    const expiresAt = new Date(now.getTime() + CODE_SECONDS * 1000);
+    const hashed = codeHash(options.hashPepper, key, code);
+
+    return transaction(pool, async (client) => {
+        const existing = await client.query<{ sent_at: Date; window_started_at: Date; sends_in_window: number }>(
+            "SELECT sent_at, window_started_at, sends_in_window FROM auth_codes WHERE target_hash = $1 FOR UPDATE",
+            [key],
+        );
+        const row = existing.rows[0];
+        if (row) {
+            const sinceSent = (now.getTime() - row.sent_at.getTime()) / 1000;
+            if (sinceSent < CODE_RESEND_SECONDS) return Math.ceil(CODE_RESEND_SECONDS - sinceSent);
+            const windowEnds = row.window_started_at.getTime() + 3_600_000;
+            const sameWindow = windowEnds > now.getTime();
+            if (sameWindow && row.sends_in_window >= CODE_SENDS_PER_HOUR) return Math.ceil((windowEnds - now.getTime()) / 1000);
+            await client.query(
+                `UPDATE auth_codes
+                 SET code_hash = $2, expires_at = $3, attempts = 0, sent_at = $4,
+                     window_started_at = $5, sends_in_window = $6
+                 WHERE target_hash = $1`,
+                [key, hashed, expiresAt, now, sameWindow ? row.window_started_at : now, sameWindow ? row.sends_in_window + 1 : 1],
+            );
+        } else {
+            const inserted = await client.query(
+                `INSERT INTO auth_codes (target_hash, channel, code_hash, expires_at, sent_at, window_started_at, sends_in_window)
+                 VALUES ($1, $2, $3, $4, $5, $5, 1) ON CONFLICT (target_hash) DO NOTHING`,
+                [key, channel.method, hashed, expiresAt, now],
+            );
+            // Another request for the same address got there first.
+            if (inserted.rowCount === 0) return CODE_RESEND_SECONDS;
+        }
+        // Sent inside the transaction, so a failed send doesn't use up the cooldown or limit.
+        try {
+            await channel.sender.sendCode(target, code);
+        } catch (error) {
+            request.log.error({ err: error, sender: channel.sender.label }, "sign-in code not sent");
+            throw channel.unavailable();
+        }
+        return undefined;
+    });
+}
+
+/**
+ * Checks a code for the number or address whose keyed hash is `key`, inside the caller's
+ * transaction. A right code is used up; a wrong one counts as a guess, and too many wrong guesses
+ * void the code. The caller must commit even when this returns false, so the guess is counted.
+ */
+export async function useSignInCode(client: pg.PoolClient, options: SignInOptions, key: string, code: string): Promise<boolean> {
+    const now = options.now?.() ?? new Date();
+    const result = await client.query<{ code_hash: Buffer | null; expires_at: Date; attempts: number }>(
+        "SELECT code_hash, expires_at, attempts FROM auth_codes WHERE target_hash = $1 FOR UPDATE",
+        [key],
+    );
+    const row = result.rows[0];
+    if (!row?.code_hash || row.expires_at <= now) return false;
+    if (!timingSafeEqual(row.code_hash, codeHash(options.hashPepper, key, code))) {
+        await client.query(
+            `UPDATE auth_codes SET attempts = $2::int,
+                 code_hash = CASE WHEN $2::int >= $3::int THEN NULL ELSE code_hash END
+             WHERE target_hash = $1`,
+            [key, row.attempts + 1, CODE_MAX_ATTEMPTS],
+        );
+        return false;
+    }
+    await client.query("UPDATE auth_codes SET code_hash = NULL WHERE target_hash = $1", [key]);
+    return true;
+}
 
 // Sessions ----------------------------------------------------------------------------------
 
@@ -231,79 +344,13 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
 
     // One-time codes by text or email -------------------------------------------------------
 
-    interface Channel {
-        method: CodeChannel;
-        field: "phoneNumber" | "email";
-        parse(value: unknown): string;
-        sender: CodeSender;
-        unavailable(): ApiError;
-    }
-    const channels: Channel[] = [
-        {
-            method: "phone",
-            field: "phoneNumber",
-            parse: (value) => parsePhoneNumber(value, options.phoneCountryCodes),
-            sender: options.sms,
-            unavailable: () => new ApiError(503, "smsUnavailable", "We couldn't send a text right now. Try again soon."),
-        },
-        {
-            method: "email",
-            field: "email",
-            parse: parseEmail,
-            sender: options.email,
-            unavailable: () => new ApiError(503, "emailUnavailable", "We couldn't send an email right now. Try again soon."),
-        },
-    ];
-
-    for (const channel of channels) {
+    for (const channel of codeChannels(options)) {
         app.post(`/${channel.method}/start`, async (request, reply) => {
             enabled(channel.method);
             const body = objectBody(request);
             const target = channel.parse(body[channel.field]);
             limit(codeStartsPerIp, request, reply);
-            const key = targetHash(options.hashPepper, channel.method, target);
-            const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-            const now = clock();
-            const expiresAt = new Date(now.getTime() + CODE_SECONDS * 1000);
-            const hashed = codeHash(options.hashPepper, key, code);
-
-            const wait = await transaction(pool, async (client) => {
-                const existing = await client.query<{ sent_at: Date; window_started_at: Date; sends_in_window: number }>(
-                    "SELECT sent_at, window_started_at, sends_in_window FROM auth_codes WHERE target_hash = $1 FOR UPDATE",
-                    [key],
-                );
-                const row = existing.rows[0];
-                if (row) {
-                    const sinceSent = (now.getTime() - row.sent_at.getTime()) / 1000;
-                    if (sinceSent < CODE_RESEND_SECONDS) return Math.ceil(CODE_RESEND_SECONDS - sinceSent);
-                    const windowEnds = row.window_started_at.getTime() + 3_600_000;
-                    const sameWindow = windowEnds > now.getTime();
-                    if (sameWindow && row.sends_in_window >= CODE_SENDS_PER_HOUR) return Math.ceil((windowEnds - now.getTime()) / 1000);
-                    await client.query(
-                        `UPDATE auth_codes
-                         SET code_hash = $2, expires_at = $3, attempts = 0, sent_at = $4,
-                             window_started_at = $5, sends_in_window = $6
-                         WHERE target_hash = $1`,
-                        [key, hashed, expiresAt, now, sameWindow ? row.window_started_at : now, sameWindow ? row.sends_in_window + 1 : 1],
-                    );
-                } else {
-                    const inserted = await client.query(
-                        `INSERT INTO auth_codes (target_hash, channel, code_hash, expires_at, sent_at, window_started_at, sends_in_window)
-                         VALUES ($1, $2, $3, $4, $5, $5, 1) ON CONFLICT (target_hash) DO NOTHING`,
-                        [key, channel.method, hashed, expiresAt, now],
-                    );
-                    // Another request for the same address got there first.
-                    if (inserted.rowCount === 0) return CODE_RESEND_SECONDS;
-                }
-                // Sent inside the transaction, so a failed send doesn't use up the cooldown or limit.
-                try {
-                    await channel.sender.sendCode(target, code);
-                } catch (error) {
-                    request.log.error({ err: error, sender: channel.sender.label }, "sign-in code not sent");
-                    throw channel.unavailable();
-                }
-                return undefined;
-            });
+            const wait = await sendSignInCode(pool, options, channel, target, request);
             if (wait !== undefined) {
                 reply.header("retry-after", String(wait));
                 throw tooManyRequests("A code was sent recently. Wait a bit before asking for another.");
@@ -319,27 +366,11 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
             if (typeof body.code !== "string" || !/^\d{6}$/.test(body.code)) throw invalidCode();
             const code = body.code;
             const key = targetHash(options.hashPepper, channel.method, target);
-            const now = clock();
 
             // A wrong guess must be counted even though the request fails, so the transaction
             // returns the outcome instead of throwing.
             const outcome = await transaction(pool, async (client) => {
-                const result = await client.query<{ code_hash: Buffer | null; expires_at: Date; attempts: number }>(
-                    "SELECT code_hash, expires_at, attempts FROM auth_codes WHERE target_hash = $1 FOR UPDATE",
-                    [key],
-                );
-                const row = result.rows[0];
-                if (!row?.code_hash || row.expires_at <= now) return { ok: false as const };
-                if (!timingSafeEqual(row.code_hash, codeHash(options.hashPepper, key, code))) {
-                    await client.query(
-                        `UPDATE auth_codes SET attempts = $2::int,
-                             code_hash = CASE WHEN $2::int >= $3::int THEN NULL ELSE code_hash END
-                         WHERE target_hash = $1`,
-                        [key, row.attempts + 1, CODE_MAX_ATTEMPTS],
-                    );
-                    return { ok: false as const };
-                }
-                await client.query("UPDATE auth_codes SET code_hash = NULL WHERE target_hash = $1", [key]);
+                if (!(await useSignInCode(client, options, key, code))) return { ok: false as const };
                 // The address is proven by the code; a phone number is never stored.
                 const email = channel.method === "email" ? target : undefined;
                 return { ok: true as const, session: await signIn(pool, options, role, `${channel.method}:${key}`, email, client) };

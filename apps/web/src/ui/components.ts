@@ -321,7 +321,8 @@ const PROVIDER_NAME: Record<SignInProvider, string> = { apple: 'Apple', google: 
 export function accountName(identity: Identity, form: 'short' | 'long') {
   if (identity.method === 'apple') return form === 'short' ? 'Apple ID' : 'your Apple ID';
   if (identity.method === 'google') return form === 'short' ? 'Google' : 'your Google account';
-  return (identity.maskedPhone ?? '').replace('••• ••• ', '••• ') || (form === 'short' ? 'Account' : 'your account');
+  if (identity.method === 'email' && identity.maskedEmail) return form === 'short' ? identity.maskedEmail : `your email ${identity.maskedEmail}`;
+  return (identity.maskedEmail ?? identity.maskedPhone ?? '').replace('••• ••• ', '••• ') || (form === 'short' ? 'Account' : 'your account');
 }
 
 /**
@@ -362,12 +363,12 @@ function providerButton(provider: SignInProvider, onClick: (button: HTMLButtonEl
   return button;
 }
 
-function phoneGlyph() {
+function mailGlyph() {
   return svg(
     'svg',
-    { class: 'idp-logo', width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'aria-hidden': 'true' },
-    svg('path', { d: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3z' }),
-    svg('path', { d: 'M11 18h2' }),
+    { class: 'idp-logo', width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+    svg('path', { d: 'M4.5 5.5h15A1.5 1.5 0 0 1 21 7v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17V7a1.5 1.5 0 0 1 1.5-1.5z' }),
+    svg('path', { d: 'M3.5 7l8.5 6 8.5-6' }),
   );
 }
 
@@ -418,18 +419,27 @@ async function signInWithProvider(api: StampApi, onSignedIn: SignedIn, provider:
   } catch (error) {
     notice('Couldn’t sign you in', error instanceof ApiError && error.code === 'offline'
       ? 'Check your connection and try again.'
-      : 'Try again, or use your mobile number.');
+      : 'Try again, or use your email.');
   } finally {
     button.disabled = false;
     button.removeAttribute('aria-busy');
   }
 }
 
+/** Apple and Google, where the backend can finish them (env.d.ts). Email codes always work. */
+const PROVIDERS = (import.meta.env.VITE_SIGN_IN_PROVIDERS ?? (isDemo ? 'apple,google' : ''))
+  .split(',')
+  .filter((name): name is SignInProvider => name === 'apple' || name === 'google');
+
 /**
- * The three ways in, agreed at the Nov 11 team meeting: Apple, Google, or a mobile number with a
- * text code. No email and password, so throwaway addresses can't fill the servers with accounts.
+ * The ways in: Apple, Google, or a one-time code by email. Text codes are off for now because
+ * each one costs money. No passwords anywhere. With email the only way, it opens straight away.
  */
 function signInSheet(api: StampApi, onSignedIn: SignedIn, mode: 'signin' | 'save' = 'signin') {
+  if (!PROVIDERS.length) {
+    emailSheet(api, onSignedIn, mode);
+    return;
+  }
   openSheet((close) => {
     const choose = (provider: SignInProvider) => (button: HTMLButtonElement) => {
       // The demo's consent sheet replaces this one; the real flow leaves the page.
@@ -444,18 +454,17 @@ function signInSheet(api: StampApi, onSignedIn: SignedIn, mode: 'signin' | 'save
       el('p', { class: 'sheet-text' }, mode === 'signin'
         ? 'Sign in the way you did before. Today’s stamp comes with you.'
         : 'Sign in once and your cards follow you to any phone.'),
-      providerButton('apple', choose('apple')),
-      providerButton('google', choose('google')),
+      ...PROVIDERS.map((provider) => providerButton(provider, choose(provider))),
       el('p', { class: 'signin-or', 'aria-hidden': 'true' }, el('span', {}, 'or')),
       el('button', {
-        class: 'button button-secondary idp-phone',
+        class: 'button button-secondary idp-email',
         type: 'button',
         onclick: () => {
           close();
-          phoneSheet(api, onSignedIn, mode);
+          emailSheet(api, onSignedIn, mode);
         },
-      }, phoneGlyph(), 'Use my mobile number'),
-      el('p', { class: 'signin-small' }, 'No password. Restaurants never see your name, email or number.'),
+      }, mailGlyph(), 'Use my email'),
+      el('p', { class: 'signin-small' }, 'No password. Restaurants never see your name or email.'),
       el('button', { class: 'button button-quiet', type: 'button', onclick: close }, 'Not now'),
     );
   }, mode === 'signin' ? 'Sign in' : 'Keep your stamps');
@@ -474,7 +483,7 @@ export function signInBanner(api: StampApi, onSignedIn: SignedIn, title = 'Alrea
       'div',
       { class: 'signin-copy' },
       el('p', { class: 'signin-title', id: 'signin-title' }, title),
-      el('p', { class: 'keep-sub' }, 'Apple, Google or phone'),
+      el('p', { class: 'keep-sub' }, PROVIDERS.length ? 'Apple, Google or email' : 'With your email'),
     ),
     el('button', { class: 'signin-go', type: 'button', onclick: () => signInSheet(api, onSignedIn, 'signin') }, 'Sign in'),
   );
@@ -509,7 +518,7 @@ export function signedInAs(identity: Identity) {
   if (identity.method === 'apple' || identity.method === 'google') {
     return `Signed in with ${PROVIDER_NAME[identity.method]}${identity.maskedEmail ? ` as ${identity.maskedEmail}` : ''}`;
   }
-  return `Signed in as ${identity.maskedPhone}`;
+  return `Signed in as ${identity.method === 'email' ? identity.maskedEmail : identity.maskedPhone}`;
 }
 
 /** The header chip: who this browser is signed in as, linking to the profile page (/me). */
@@ -552,24 +561,24 @@ export function signOutSheet(api: StampApi, identity: Identity) {
   }, 'Sign out');
 }
 
-function phoneSheet(api: StampApi, onSignedIn: SignedIn, mode: 'save' | 'signin' = 'save') {
+function emailSheet(api: StampApi, onSignedIn: SignedIn, mode: 'save' | 'signin' = 'save') {
   openSheet((close) => {
     const body = el('div', { class: 'sheet-body' });
 
     const showStart = () => {
-      const error = el('p', { class: 'field-error', id: 'phone-error', role: 'alert' });
+      const error = el('p', { class: 'field-error', id: 'email-error', role: 'alert' });
       const input = el('input', {
-        class: 'field-input', id: 'phone', name: 'tel', type: 'tel', inputmode: 'tel',
-        autocomplete: 'tel', placeholder: '(604) 555-0123', required: true, 'aria-describedby': 'phone-help phone-error',
+        class: 'field-input', id: 'email', name: 'email', type: 'email', inputmode: 'email', autocapitalize: 'off',
+        autocomplete: 'email', placeholder: 'you@example.com', required: true, spellcheck: 'false', 'aria-describedby': 'email-help email-error',
       });
-      const submit = el('button', { class: 'button button-primary', type: 'submit' }, 'Text me a code');
+      const submit = el('button', { class: 'button button-primary', type: 'submit' }, 'Email me a code');
       const form = el(
         'form',
         { class: 'form', novalidate: true },
-        el('h2', { class: 'sheet-title' }, mode === 'signin' ? 'Sign in with your number' : 'Keep your stamps'),
-        el('label', { class: 'field-label', for: 'phone' }, 'Mobile number'),
+        el('h2', { class: 'sheet-title' }, mode === 'signin' ? 'Sign in with your email' : 'Keep your stamps'),
+        el('label', { class: 'field-label', for: 'email' }, 'Email'),
         input,
-        el('p', { class: 'field-help', id: 'phone-help' }, 'You’ll get a text with a 6-digit code. Restaurants never see your number.'),
+        el('p', { class: 'field-help', id: 'email-help' }, 'We’ll email you a 6-digit code. Restaurants never see your email.'),
         error,
         submit,
         el('button', { class: 'button button-quiet', type: 'button', onclick: close }, 'Cancel'),
@@ -577,19 +586,19 @@ function phoneSheet(api: StampApi, onSignedIn: SignedIn, mode: 'save' | 'signin'
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         error.textContent = '';
-        if (input.value.replace(/\D/g, '').length < 10) {
-          error.textContent = 'Enter a 10-digit mobile number, including the area code.';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.value.trim())) {
+          error.textContent = 'Enter an email address, like you@example.com.';
           input.focus();
           return;
         }
         const done = busy(submit, 'Sending code…');
         try {
-          const { maskedPhone } = await api.startPhone(input.value);
-          showVerify(maskedPhone);
+          const { maskedEmail } = await api.startEmail(input.value.trim());
+          showVerify(maskedEmail);
         } catch (err) {
           error.textContent = err instanceof ApiError && err.code === 'offline'
             ? 'No connection. Check your signal and try again.'
-            : 'That number didn’t work. Check it and try again.';
+            : 'That email didn’t work. Check it and try again.';
           done();
           input.focus();
         }
@@ -599,7 +608,7 @@ function phoneSheet(api: StampApi, onSignedIn: SignedIn, mode: 'save' | 'signin'
       setTimeout(() => input.focus(), 50);
     };
 
-    const showVerify = (maskedPhone: string) => {
+    const showVerify = (maskedEmail: string) => {
       const error = el('p', { class: 'field-error', id: 'code-error', role: 'alert' });
       const input = el('input', {
         class: 'field-input is-code', id: 'code', name: 'code', type: 'text', inputmode: 'numeric',
@@ -610,31 +619,31 @@ function phoneSheet(api: StampApi, onSignedIn: SignedIn, mode: 'save' | 'signin'
         'form',
         { class: 'form', novalidate: true },
         el('h2', { class: 'sheet-title' }, 'Enter your code'),
-        el('label', { class: 'field-label', for: 'code' }, `Sent to ${maskedPhone}`),
+        el('label', { class: 'field-label', for: 'code' }, `Sent to ${maskedEmail}`),
         input,
         el('p', { class: 'field-help', id: 'code-help' },
-          isDemo ? 'Preview code: 123456. On a phone, the keyboard offers the code from your texts.' : 'Your keyboard offers the code from your texts. One tap fills it in.'),
+          isDemo ? 'Preview code: 123456.' : 'It can take a minute. Check your junk folder too.'),
         error,
         submit,
-        el('button', { class: 'link-button', type: 'button', onclick: showStart }, 'Use a different number'),
+        el('button', { class: 'link-button', type: 'button', onclick: showStart }, 'Use a different email'),
       );
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         error.textContent = '';
         if (!/^\d{6}$/.test(input.value.trim())) {
-          error.textContent = 'Enter the 6-digit code from the text.';
+          error.textContent = 'Enter the 6-digit code from the email.';
           input.focus();
           return;
         }
         const done = busy(submit, 'Checking…');
         try {
-          const result = await api.verifyPhone(input.value);
+          const result = await api.verifyEmail(input.value);
           close();
-          announce(`Signed in as ${result.identity.maskedPhone}`);
+          announce(`Signed in as ${result.identity.maskedEmail}`);
           onSignedIn(result);
         } catch (err) {
           error.textContent = err instanceof ApiError && err.code === 'invalidCode'
-            ? 'That code doesn’t match. Check the text and try again.'
+            ? 'That code doesn’t match. Check the email and try again.'
             : 'Something went wrong. Request a new code.';
           done();
           input.focus();
@@ -647,5 +656,5 @@ function phoneSheet(api: StampApi, onSignedIn: SignedIn, mode: 'save' | 'signin'
 
     showStart();
     return body;
-  }, mode === 'signin' ? 'Sign in' : 'Add mobile number');
+  }, mode === 'signin' ? 'Sign in' : 'Add email');
 }

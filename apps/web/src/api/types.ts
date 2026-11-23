@@ -93,6 +93,10 @@ export interface Place {
   name: string;
   location: string;
   logoURL: string | null;
+  /** Not in the shared API yet (it has name and location only); the demo sends them for Discover. */
+  category?: string;
+  address?: string;
+  hoursToday?: Business['hoursToday'];
   program: Omit<ProgramVersion, 'theme'> & { theme: Omit<MerchantTheme, 'coverURL'> & { coverURL: string | null } };
 }
 
@@ -100,16 +104,17 @@ export type SignInProvider = 'apple' | 'google';
 
 export interface Identity {
   /**
-   * anonymous: this browser only. account: signed in to an account, with Apple, Google or a
-   * verified mobile number. pass: signed in from the link on the diner's Wallet pass, no account
+   * anonymous: this browser only. account: signed in to an account, with Apple, Google or an
+   * emailed code. pass: signed in from the link on the diner's Wallet pass, no account
    * sign-in yet. Never sent by the page: the server reads its session cookie.
    */
   kind: 'anonymous' | 'account' | 'pass';
   /** How this browser signed in to the account. */
-  method?: 'phone' | SignInProvider;
-  /** The account's mobile number, masked ("••• ••• 0123"), if it has one. */
+  /** `phone` only for accounts made in the iOS app; the page offers email, Apple and Google. */
+  method?: 'phone' | 'email' | SignInProvider;
+  /** The account's mobile number, masked ("••• ••• 0123"), if it signed in with one in the app. */
   maskedPhone?: string;
-  /** The Apple or Google email this browser signed in with, masked ("s•••@icloud.com"). */
+  /** The email this browser signed in with (a code, Apple or Google), masked ("s•••@icloud.com"). */
   maskedEmail?: string;
   /**
    * What the diner asked to be called, for greetings and their passport. Only the diner sees it:
@@ -156,7 +161,9 @@ export type TapResult =
   | { outcome: 'replayed'; state?: CardState }
   | { outcome: 'invalidTag' }
   | { outcome: 'tagNotActive'; business?: Business }
-  | { outcome: 'tagDisabled'; business?: Business };
+  | { outcome: 'tagDisabled'; business?: Business }
+  // The owner's own tap while their business site is linking a stand: it linked, no stamp.
+  | { outcome: 'standLinked'; business?: Business };
 
 export interface RedeemIntent {
   intentId: string;
@@ -170,9 +177,7 @@ export type WalletPlatform = 'apple' | 'google';
 export class ApiError extends Error {
   constructor(
     readonly code:
-      | 'offline' | 'server' | 'invalidPhone' | 'invalidCode' | 'invalidName' | 'expired' | 'notFound'
-      // The business site (src/business/api.ts).
-      | 'invalidEmail' | 'invalidCard' | 'signedOut',
+      | 'offline' | 'server' | 'invalidEmail' | 'invalidCode' | 'invalidName' | 'expired' | 'notFound',
     message: string,
   ) {
     super(message);
@@ -186,9 +191,9 @@ export interface StampApi {
   startRedeem(rewardId: string): Promise<RedeemIntent>;
   redeemIntent(intentId: string): Promise<{ intent: RedeemIntent; redemption?: Redemption }>;
   cancelRedeem(intentId: string): Promise<void>;
-  startPhone(phone: string): Promise<{ maskedPhone: string }>;
+  startEmail(email: string): Promise<{ maskedEmail: string }>;
   /** Signs in to the account with that number, or creates one, merging this browser's cards. */
-  verifyPhone(code: string): Promise<SignInResult>;
+  verifyEmail(code: string): Promise<SignInResult>;
   /**
    * Signs in with Apple or Google: the page goes to `/v1/web/auth/{provider}/start` and comes back
    * to /signed-in, where providerSignInResult() reads the merge. In production this never resolves

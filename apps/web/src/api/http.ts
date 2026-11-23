@@ -33,8 +33,9 @@ export class HttpStampApi implements StampApi {
     // 204 No Content (sign out, cancel, reorder) has no body to read.
     if (response.status === 204) return undefined as T;
     if (response.ok) return (await response.json()) as T;
-    const detail = (await response.json().catch(() => ({}))) as { code?: ApiError['code'] };
-    throw new ApiError(detail.code ?? 'server', `HTTP ${response.status}`);
+    // The shared API answers { error, message }; older routes answered { code }.
+    const detail = (await response.json().catch(() => ({}))) as { code?: ApiError['code']; error?: ApiError['code'] };
+    throw new ApiError(detail.error ?? detail.code ?? 'server', `HTTP ${response.status}`);
   }
 
   tap(picc: string, cmac: string) {
@@ -58,11 +59,11 @@ export class HttpStampApi implements StampApi {
   async cancelRedeem(intentId: string) {
     await this.request<unknown>('DELETE', `/v1/web/redeem-intents/${encodeURIComponent(intentId)}`);
   }
-  startPhone(phone: string) {
-    return this.request<{ maskedPhone: string }>('POST', '/v1/web/phone/start', { phone });
+  startEmail(email: string) {
+    return this.request<{ maskedEmail: string }>('POST', '/v1/web/email/start', { email });
   }
-  verifyPhone(code: string) {
-    return this.request<SignInResult>('POST', '/v1/web/phone/verify', { code });
+  verifyEmail(code: string) {
+    return this.request<SignInResult>('POST', '/v1/web/email/verify', { code });
   }
 
   /**
@@ -94,8 +95,9 @@ export class HttpStampApi implements StampApi {
       { platform },
     );
   }
-  places() {
-    return this.request<PlaceSummary[]>('GET', '/v1/places');
+  async places() {
+    const { places } = await this.request<{ places: Place[] }>('GET', '/v1/places');
+    return places.map(toPlaceSummary);
   }
   async searchPlaces(query: string) {
     const { places } = await this.request<{ places: Place[] }>('GET', `/v1/places?query=${encodeURIComponent(query)}`);
@@ -116,7 +118,10 @@ export class HttpStampApi implements StampApi {
 export function toPlaceSummary(place: Place): PlaceSummary {
   const { theme, ...program } = place.program;
   return {
-    business: { id: place.id, name: place.name, location: place.location },
+    business: {
+      id: place.id, name: place.name, location: place.location,
+      category: place.category, address: place.address, hoursToday: place.hoursToday,
+    },
     program: { ...program, theme: { ...theme, coverURL: theme.coverURL ?? undefined } },
   };
 }

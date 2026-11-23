@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Business, ProgramVersion, RedeemIntent, Redemption, Reward } from '../../src/api/types';
+import type { RedeemIntent, Redemption, Reward } from '../../src/api/types';
+import type { ApiProgram, PartnerBusiness, Stand } from '../../src/business/types';
 
 // The demo backend's data, shaped like the real server's tables: customers own cards, devices
 // (browsers, identified by an HttpOnly cookie) point at a customer, and Wallet passes belong to a
@@ -37,11 +38,11 @@ export interface StoredPass {
   updatedAt?: number;
 }
 
-/** Anonymous until it has a sign-in (number, Apple or Google). A device signed in from a pass link has kind "pass". */
+/** Anonymous until it has a sign-in (email code, Apple or Google). A device signed in from a pass link has kind "pass". */
 export interface Customer {
   id: string;
-  phone?: string;
-  /** The Apple ID and Google account emails that sign in to this account. */
+  /** The email that signs in with a code, and the Apple ID and Google account emails. */
+  email?: string;
   apple?: string;
   google?: string;
   cards: StoredCard[];
@@ -60,23 +61,28 @@ export interface Device {
   /** Signed in from a Wallet pass link, to an account with no sign-in of its own yet. */
   viaPass?: boolean;
   /** How this device signed in to its account. */
-  signedInWith?: 'phone' | 'apple' | 'google';
-  pendingPhone?: string;
+  signedInWith?: 'email' | 'apple' | 'google';
+  pendingEmail?: string;
   /** Preview switches for this device. */
   offline?: boolean;
-  /** The business owner signed in on this browser (the business site), and the email awaiting its code. */
-  partnerId?: string;
-  pendingEmail?: string;
 }
 
 /** A business owner's account on the business site, with what they've set up so far. */
 export interface Partner {
   id: string;
   email: string;
-  business?: Business;
-  program?: ProgramVersion;
-  stands: { standId: string; tagKey: string; label: string; status: 'active' | 'disabled'; linkedAt: string }[];
+  business?: PartnerBusiness;
+  /** The live version, as GET /v1/partner/program answers it. */
+  program?: ApiProgram;
+  stands: (Omit<Stand, 'lastTapAt'> & { tagKey: string })[];
   pairingUntil?: number;
+}
+
+/** A business owner's bearer token. Opaque random strings, like the API's refresh tokens. */
+export interface PartnerToken {
+  partnerId: string;
+  kind: 'access' | 'refresh';
+  expiresAt: number;
 }
 
 interface StoredIntent extends RedeemIntent {
@@ -92,6 +98,9 @@ interface State {
   /** The highest counter seen from each stand; a tap must beat it (replay protection). */
   tagCounters: Record<string, number>;
   partners: Record<string, Partner>;
+  /** Email sign-in codes waiting to be used, by address: when each expires. The code is always 123456. */
+  partnerCodes: Record<string, number>;
+  partnerTokens: Record<string, PartnerToken>;
 }
 
 export const newId = () => randomUUID();
@@ -102,7 +111,7 @@ const DIR = join(process.cwd(), '.demo');
 const FILE = join(DIR, 'state.json');
 
 function load(): State {
-  const empty: State = { customers: {}, devices: {}, intents: {}, tagCounters: {}, partners: {} };
+  const empty: State = { customers: {}, devices: {}, intents: {}, tagCounters: {}, partners: {}, partnerCodes: {}, partnerTokens: {} };
   try {
     if (!existsSync(FILE)) return empty;
     const loaded: State = { ...empty, ...(JSON.parse(readFileSync(FILE, 'utf8')) as Partial<State>) };
@@ -144,6 +153,8 @@ export function syncFromDisk() {
   state.intents = fresh.intents;
   state.tagCounters = fresh.tagCounters;
   state.partners = fresh.partners;
+  state.partnerCodes = fresh.partnerCodes;
+  state.partnerTokens = fresh.partnerTokens;
   seen = onDisk;
 }
 
@@ -205,7 +216,7 @@ export function newCustomerFor(device: Device) {
  */
 export function forgetIfOrphaned(customer: Customer | undefined) {
   if (!customer) return;
-  const reachable = customer.phone || customer.apple || customer.google || customer.passes.length
+  const reachable = customer.email || customer.apple || customer.google || customer.passes.length
     || Object.values(state.devices).some((device) => device.customerId === customer.id);
   if (!reachable) delete state.customers[customer.id];
 }

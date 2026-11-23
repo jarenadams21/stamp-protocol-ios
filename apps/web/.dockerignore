@@ -1,0 +1,6 @@
+# The image builds the page itself; keep local builds, demo state and Wallet secrets out of it.
+node_modules
+dist
+dist-api
+.demo
+.wallet

@@ -6,7 +6,7 @@ import { customerOf, emptyCustomer, forgetIfOrphaned, newCustomerFor, newId, sta
 // The Preview states panel: each scenario sets up this device's data on the demo server and says
 // which page to open next. They only exist in the demo; production has no such routes.
 
-const SAMPLE_PHONE = '6045550123';
+const SAMPLE_EMAIL = 'sample.diner@example.com';
 const DAY = 86_400_000;
 
 /** A tap URL for a stand, the way a phone would open it, with a counter newer than any before. */
@@ -50,7 +50,7 @@ function addReward(customer: Customer, businessId: string, daysAgo = 3) {
 /** A regular's account on the server: five cards and a reward. Replaces any older sample account. */
 function sampleAccount(extra: Partial<Customer>): Customer {
   for (const customer of Object.values(state.customers)) {
-    const clashes = (extra.phone && customer.phone === extra.phone)
+    const clashes = (extra.email && customer.email === extra.email)
       || (extra.apple && customer.apple === extra.apple)
       || (extra.google && customer.google === extra.google)
       || extra.passes?.some((pass) => customer.passes.some((item) => item.token === pass.token));
@@ -65,9 +65,9 @@ function sampleAccount(extra: Partial<Customer>): Customer {
   return account;
 }
 
-/** A fresh phone, with the sample account (its number, Apple ID and Google account) on the server. */
+/** A fresh phone, with the sample account (its email, Apple ID and Google account) on the server. */
 function newPhone(device: Device) {
-  sampleAccount({ phone: SAMPLE_PHONE, apple: SAMPLE_EMAILS.apple, google: SAMPLE_EMAILS.google });
+  sampleAccount({ email: SAMPLE_EMAIL, apple: SAMPLE_EMAILS.apple, google: SAMPLE_EMAILS.google });
   newCustomerFor(device);
   return tapUrl('norema-counter');
 }
@@ -99,11 +99,11 @@ export const SCENARIOS: Record<string, Scenario> = {
     return '/w/demo-pass-norema';
   },
   'signed-in': (device) => {
-    const account = sampleAccount({ phone: SAMPLE_PHONE, apple: SAMPLE_EMAILS.apple, google: SAMPLE_EMAILS.google });
+    const account = sampleAccount({ email: SAMPLE_EMAIL, apple: SAMPLE_EMAILS.apple, google: SAMPLE_EMAILS.google });
     const previous = customerOf(device);
     device.customerId = account.id;
     device.viaPass = undefined;
-    device.signedInWith = 'phone';
+    device.signedInWith = 'email';
     forgetIfOrphaned(previous);
     return tapUrl('norema-counter');
   },
