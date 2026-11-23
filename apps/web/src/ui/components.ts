@@ -321,6 +321,7 @@ const PROVIDER_NAME: Record<SignInProvider, string> = { apple: 'Apple', google: 
 export function accountName(identity: Identity, form: 'short' | 'long') {
   if (identity.method === 'apple') return form === 'short' ? 'Apple ID' : 'your Apple ID';
   if (identity.method === 'google') return form === 'short' ? 'Google' : 'your Google account';
+  if (identity.method === 'email' && identity.maskedEmail) return form === 'short' ? identity.maskedEmail : `your email ${identity.maskedEmail}`;
   return (identity.maskedPhone ?? '').replace('••• ••• ', '••• ') || (form === 'short' ? 'Account' : 'your account');
 }
 
@@ -509,7 +510,7 @@ export function signedInAs(identity: Identity) {
   if (identity.method === 'apple' || identity.method === 'google') {
     return `Signed in with ${PROVIDER_NAME[identity.method]}${identity.maskedEmail ? ` as ${identity.maskedEmail}` : ''}`;
   }
-  return `Signed in as ${identity.maskedPhone}`;
+  return `Signed in as ${identity.method === 'email' ? identity.maskedEmail : identity.maskedPhone}`;
 }
 
 /** The header chip: who this browser is signed in as, linking to the profile page (/me). */

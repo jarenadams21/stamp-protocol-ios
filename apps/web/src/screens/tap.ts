@@ -159,5 +159,15 @@ export async function tapScreen(api: StampApi, query: URLSearchParams) {
         action: { label: 'Open your cards', href: '/c' },
       });
       return;
+    case 'standLinked':
+      // The owner's phone, linking a stand from the business site: that page says "You're live" too.
+      messagePage({
+        api,
+        drawing: 'stand',
+        headline: 'Stand linked',
+        message: `Diners who tap it now get a stamp${result.business ? ` at ${result.business.name}` : ''}.`,
+        action: { label: 'Open your stands', href: '/business/stands' },
+      });
+      return;
   }
 }

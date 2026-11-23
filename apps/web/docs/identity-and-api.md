@@ -104,6 +104,7 @@ The TypeScript types in `src/api/types.ts` are the contract: `TapResult`, `CardS
 | `invalidTag` | Signature or tag unknown | "We couldn't read that stand" |
 | `tagNotActive` | Tag allocated but not activated by the business | "This stand isn't set up yet" |
 | `tagDisabled` | Tag disabled (lost, stolen, replaced) | "This stand is no longer in use" |
+| `standLinked` | The business opened a pairing window on its business site and this is the first tap on one of its allocated stands: the stand is linked, no stamp | "Stand linked" |
 
 Server rules (same as the reader path in backend-spec §5):
 

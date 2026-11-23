@@ -110,7 +110,8 @@ export interface Identity {
    */
   kind: 'anonymous' | 'account' | 'pass';
   /** How this browser signed in to the account. */
-  method?: 'phone' | SignInProvider;
+  /** `email` only from the shared API's email-code sign-in; the page itself offers phone, Apple and Google. */
+  method?: 'phone' | 'email' | SignInProvider;
   /** The account's mobile number, masked ("••• ••• 0123"), if it has one. */
   maskedPhone?: string;
   /** The Apple or Google email this browser signed in with, masked ("s•••@icloud.com"). */
@@ -160,7 +161,9 @@ export type TapResult =
   | { outcome: 'replayed'; state?: CardState }
   | { outcome: 'invalidTag' }
   | { outcome: 'tagNotActive'; business?: Business }
-  | { outcome: 'tagDisabled'; business?: Business };
+  | { outcome: 'tagDisabled'; business?: Business }
+  // The owner's own tap while their business site is linking a stand: it linked, no stamp.
+  | { outcome: 'standLinked'; business?: Business };
 
 export interface RedeemIntent {
   intentId: string;
