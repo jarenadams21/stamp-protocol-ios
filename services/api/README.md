@@ -79,27 +79,6 @@ shortly before it expires. It works like this:
 
 TLS with certificate verification is on for every connection except `PGSSLMODE=disable`.
 
-## Container image
-
-[`Dockerfile`](Dockerfile) builds the API on `node:22-slim`: production dependencies only, run as
-the non-root `node` user, listening on port 8080. Settings come from environment variables (as in
-`.env.example`); `.dockerignore` keeps `.env`, `.dev/`, and `node_modules` out of the build, so the
-image holds no secrets. Every pull request that changes the API builds it and checks that (the
-`Container image builds` job in `.github/workflows/api.yml`).
-
-```sh
-cd services/api
-docker build -t joeyy-api .
-# or build in Azure Container Registry, without Docker locally:
-az acr build --registry <registry> --image joeyy-api:$(git rev-parse --short HEAD) .
-```
-
-## See who signed up
-
-[docs/setup/see-signed-up-users.sql](../../docs/setup/see-signed-up-users.sql) lists every customer
-and business owner with their email, sign-in method, first and last sign-in, signed-in devices, and
-business. Run it with the `psql` command under [Migrations](#migrations): `psql "…" -f ../../docs/setup/see-signed-up-users.sql`.
-
 ## Migrations
 
 `db/migrations/NNNN_name.sql` files are applied in order by `npm run migrate`. Each one runs in a
@@ -112,7 +91,6 @@ next number instead.
 | `0002_align_with_backend_spec` | OIDC subjects, one business per owner with a single location, the section 3.1 theme JSON, `closed`/archived/favorite cards, punches from readers, notifications, and a trigger that keeps punches within the card's version |
 | `0003_images` | The `images` table (one row per upload), foreign keys so a logo or cover must be an image the same business uploaded, and the `image_deletions` queue with the trigger that fills it |
 | `0004_sign_in` | Hashed refresh tokens grouped into sessions, and hashed phone codes with their send limits |
-| `0006_account_email` | `email` and `last_sign_in_at` on `customers` and `business_owners`. Numbered after the dev database's `0005_native_prototype`, which isn't in this repository |
 
 To check what's applied:
 
@@ -237,13 +215,8 @@ Sign-in returns `{ accessToken, tokenType: "Bearer", expiresIn, refreshToken }`.
   their last use and rotate on every refresh. If an old one comes back, the whole session is revoked.
   Only their SHA-256 hashes are stored.
 - **Subjects** are `google:<Google user ID>`, `email:<keyed hash>`, `apple:<Apple user ID>`, or
-  `phone:<keyed hash>`. Email addresses are trimmed and lowercased first. Subjects and tokens never
-  contain an email address or phone number.
-- **Who signed up.** `customers` and `business_owners` also keep `email` and `last_sign_in_at`,
-  updated on every sign-in: the address from a Google (or Apple) token with `email_verified`, or the
-  address an email code was just verified for. A sign-in without one keeps the saved address. Phone
-  numbers are never stored. [docs/setup/see-signed-up-users.sql](../../docs/setup/see-signed-up-users.sql)
-  lists everyone.
+  `phone:<keyed hash>`. Email addresses are trimmed and lowercased first. Neither email addresses
+  nor phone numbers are stored or put in tokens.
 - **Codes** (email and text work the same way) expire in 10 minutes and allow 5 guesses. An address
   or number can get one code every 30 seconds and 5 an hour. Each IP address gets 10 code requests
   and 60 sign-in calls an hour. Only countries in `PHONE_COUNTRY_CODES` (the US and Canada by

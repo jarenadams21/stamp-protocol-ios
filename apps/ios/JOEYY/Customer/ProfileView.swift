@@ -6,8 +6,6 @@ struct ProfileView: View {
     @AppStorage("accent") private var accent = AppAccent.orange.rawValue
     @AppStorage("rewardReminders") private var rewardReminders = false
     @AppStorage("newsAndOffers") private var newsAndOffers = false
-    @State private var editingServer = false
-    @State private var serverText = ""
 
     var body: some View {
         NavigationStack {
@@ -95,32 +93,7 @@ struct ProfileView: View {
                     Text("Local demo. Rewards are not valid in store. Businesses are unaffiliated.")
                         .foregroundStyle(Color.muted)
                         .accessibilityIdentifier("settings.demoDisclosure")
-                        // Hidden for developers: view or change the API server.
-                        .onLongPressGesture {
-                            serverText = AppConfiguration.apiBaseURL.absoluteString
-                            editingServer = true
-                        }
                 }
-            }
-            .alert("API server", isPresented: $editingServer) {
-                TextField("https://…", text: $serverText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                Button("Save") {
-                    guard let url = AppConfiguration.serverURL(serverText) else { return }
-                    if url == AppConfiguration.builtInAPIBaseURL {
-                        UserDefaults.standard.removeObject(forKey: AppConfiguration.apiBaseURLKey)
-                    } else {
-                        UserDefaults.standard.set(url.absoluteString, forKey: AppConfiguration.apiBaseURLKey)
-                    }
-                }
-                Button("Use built-in") {
-                    UserDefaults.standard.removeObject(forKey: AppConfiguration.apiBaseURLKey)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Built-in: \(AppConfiguration.builtInAPIBaseURL.absoluteString)\nChanges apply the next time you open the app.")
             }
             .scrollContentBackground(.hidden)
             .background(Color.paper.ignoresSafeArea())

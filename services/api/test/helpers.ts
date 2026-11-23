@@ -36,16 +36,7 @@ export interface TestContext {
 /** Stands in for Apple or Google: signs ID tokens the API accepts as theirs. */
 export interface FakeProvider {
     verifier: IdTokenVerifier;
-    idToken(claims: {
-        sub: string;
-        nonce: string;
-        aud?: string;
-        iss?: string;
-        iat?: number;
-        exp?: string | number;
-        email?: string;
-        email_verified?: boolean | string;
-    }): Promise<string>;
+    idToken(claims: { sub: string; nonce: string; aud?: string; iss?: string; iat?: number; exp?: string | number }): Promise<string>;
 }
 
 async function fakeProvider(make: typeof appleVerifier, issuer: string, audience: string): Promise<FakeProvider> {
@@ -55,10 +46,7 @@ async function fakeProvider(make: typeof appleVerifier, issuer: string, audience
     return {
         verifier,
         idToken: (claims) => {
-            const extra: Record<string, unknown> = {};
-            if (claims.email !== undefined) extra.email = claims.email;
-            if (claims.email_verified !== undefined) extra.email_verified = claims.email_verified;
-            const jwt = new SignJWT({ nonce: claims.nonce, ...extra })
+            const jwt = new SignJWT({ nonce: claims.nonce })
                 .setProtectedHeader({ alg: "RS256", kid: "fake" })
                 .setIssuer(claims.iss ?? issuer)
                 .setAudience(claims.aud ?? audience)

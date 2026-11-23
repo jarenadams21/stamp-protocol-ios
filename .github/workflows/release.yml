@@ -43,30 +43,21 @@ jobs:
         with:
           xcode-version: latest-stable
       - name: Build unsigned app
-        env:
-          # Optional repository variable; unset, the Release build setting in project.yml is used.
-          API_BASE_URL: ${{ vars.JOEYY_API_BASE_URL }}
         run: |
           set +e
-          BUILD_SETTINGS=()
+          VERSION_SETTINGS=()
           if [ "$IS_RELEASE" = "true" ]; then
-            BUILD_SETTINGS=(MARKETING_VERSION="${GITHUB_REF_NAME#v}")
-          fi
-          if [ -n "$API_BASE_URL" ]; then
-            BUILD_SETTINGS+=(JOEYY_API_BASE_URL="$API_BASE_URL")
+            VERSION_SETTINGS=(MARKETING_VERSION="${GITHUB_REF_NAME#v}")
           fi
           xcodebuild build -project JOEYY.xcodeproj -scheme JOEYY \
             -configuration Release -sdk iphoneos -destination "generic/platform=iOS" \
             -derivedDataPath build \
-            "${BUILD_SETTINGS[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            "${VERSION_SETTINGS[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             > release-build.log 2>&1
           status=$?
           grep -E "error:|\*\* BUILD" release-build.log | tail -100
-          [ $status -eq 0 ] || exit $status
-          API=$(/usr/libexec/PlistBuddy -c "Print :JOEYY_API_BASE_URL" build/Build/Products/Release-iphoneos/JOEYY.app/Info.plist)
-          echo "API server: $API"
-          echo "### API server: \`$API\`" >> "$GITHUB_STEP_SUMMARY"
+          exit $status
       - name: Package IPA
         run: |
           mkdir -p Payload
@@ -85,7 +76,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<EOF
-          Unsigned build of JOEYY ${GITHUB_REF_NAME} (customer and business sides) for sideloading. Sign-in uses the hosted dev API; cards and rewards are still sample data.
+          Unsigned build of JOEYY ${GITHUB_REF_NAME} (customer and business sides) for sideloading. Uses sample data only.
 
           ## Install on iPhone
           1. Download \`JOEYY-${GITHUB_REF_NAME}.ipa\` below.

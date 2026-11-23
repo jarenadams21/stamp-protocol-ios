@@ -88,35 +88,11 @@ protocol AuthAPI: Sendable {
 }
 
 enum AppConfiguration {
-    /// The user default that overrides the API address, set with the launch argument
-    /// `-apiBaseURL <url>` or the hidden "API server" field (long-press the App setup footer on You).
-    static let apiBaseURLKey = "apiBaseURL"
-    static let fallbackAPIBaseURL = URL(string: "http://localhost:8080")!
-
-    /// Where the apps reach the backend: the `apiBaseURL` user default, else the address the build
-    /// was made with (the `JOEYY_API_BASE_URL` build setting), else localhost.
+    /// Where the apps reach the backend. Override with the `apiBaseURL` user default, for example
+    /// to reach a dev server on your Mac from a phone.
     static var apiBaseURL: URL {
-        resolveAPIBaseURL(override: UserDefaults.standard.string(forKey: apiBaseURLKey), built: builtInAPIBaseURLString)
-    }
-
-    /// The address this build was made with, ignoring any override.
-    static var builtInAPIBaseURL: URL { resolveAPIBaseURL(override: nil, built: builtInAPIBaseURLString) }
-
-    private static var builtInAPIBaseURLString: String? {
-        Bundle.main.object(forInfoDictionaryKey: "JOEYY_API_BASE_URL") as? String
-    }
-
-    static func resolveAPIBaseURL(override: String?, built: String?) -> URL {
-        serverURL(override) ?? serverURL(built) ?? fallbackAPIBaseURL
-    }
-
-    /// An http or https address with a host, or nil (also for an unset build setting).
-    static func serverURL(_ value: String?) -> URL? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty,
-              let url = URL(string: value), let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https", let host = url.host(), !host.isEmpty
-        else { return nil }
-        return url
+        if let value = UserDefaults.standard.string(forKey: "apiBaseURL"), let url = URL(string: value) { return url }
+        return URL(string: "http://localhost:8080")!
     }
 
     /// The Google OAuth iOS client "JOEYY iOS" (project joeyy-515223, bundle com.joeyy.customer). Not a secret.

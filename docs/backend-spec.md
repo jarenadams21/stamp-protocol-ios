@@ -377,11 +377,8 @@ customers.
   last use, rotate on every refresh, and are stored only as hashes. Reusing an old one revokes the
   session.
 - **Subjects** are `google:<id>`, `email:<keyed hash>`, `apple:<id>`, or `phone:<keyed hash>`.
-  Email addresses are trimmed and lowercased first. Subjects never contain an address or number.
-- **Account email.** So the team can see who signed up, each customer and business owner record
-  also keeps a readable `email` and `last_sign_in_at`, updated on every sign-in: the address from a
-  Google (or Apple) token that marks it verified, or the address an email code was verified for.
-  Phone numbers are never stored (section 10).
+  Email addresses are trimmed and lowercased first. No email address or phone number is stored
+  (section 10).
 - **One-time codes** are sent through Azure Communication Services (Email, and SMS for texts).
   They expire in 10 minutes, allow 5 guesses, and are limited per address or number and per IP
   address. Only allowed countries can get texts.
@@ -393,7 +390,7 @@ customers.
 | --- | --- |
 | Business | `id` PK, `ownerSubject` UNIQUE, `clientId` UNIQUE, `name`, `location`, `logoKey`, `timeZone`, `currentProgramVersionId` FK |
 | ProgramVersion | `id` PK, `businessId` FK, `version`, `requiredPunches`, `rewardDescription`, `theme` (JSON per 3.1), `coverKey`, `publishedAt`; UNIQUE(`businessId`, `version`) |
-| Customer | `id` PK, `subject` UNIQUE, `email` (verified, nullable), `createdAt`, `lastSignInAt` |
+| Customer | `id` PK, `subject` UNIQUE, `createdAt` |
 | Card | `id` PK, `businessId` FK, `customerId` FK, `programVersionId` FK, `punches`, `status` (`active`, `completed`, `closed`), `archived`, `favorite`, `createdAt`, `completedAt`; at most one `active` card per (`customerId`, `businessId`) |
 | PunchEvent | `id` PK, `businessId` FK, `cardId` FK, `readerId` FK, `eventId` UNIQUE, `occurredAt`, `receivedAt` |
 | Reward | `id` PK, `businessId` FK, `cardId` FK UNIQUE, `customerId` FK, `earnedAt`, `redeemedAt` (nullable) |
@@ -403,8 +400,7 @@ customers.
 | Image | `id` PK, `businessId` FK, `kind` (logo or cover), `storageKey` UNIQUE, `contentType`, `byteSize`, `width`, `height`, `createdAt` |
 | Group, GroupMember | Customer groups and their cards |
 
-As built (`services/api/db/migrations`): owners are a `business_owners` table keyed by `subject`
-(with the same `email` and `last_sign_in_at` as customers), and the
+As built (`services/api/db/migrations`): owners are a `business_owners` table keyed by `subject`, and the
 business `id` doubles as the client ID. `PunchEvent.eventId` is unique per business, so one
 business's reader can't affect another's deduplication. A business's `logoKey` and a version's
 `coverKey` are foreign keys to an Image of the same business.
@@ -417,8 +413,7 @@ Constraints: one reward per completed card; `punches` between 0 and the card's v
 
 - Tokens are verified on every request, and authorization is scoped to the resolved business or customer.
 - Sign-in is Google, Apple, or a one-time email or text code only; refresh tokens and codes are stored as hashes,
-  and sign-in routes are rate limited (section 8.5). An account's verified email address is stored
-  in the clear on its customer or owner record so the team can see who signed up; phone numbers aren't.
+  and sign-in routes are rate limited (section 8.5).
 - Readers use separate, revocable credentials; NFC payloads are signed; punch events are idempotent.
 - The Wallet signing certificate and APNs keys live in a secrets store, never in the apps or the repository.
 - Images: PNG or JPEG only (the apps convert HEIC photos on the device before uploading), at most

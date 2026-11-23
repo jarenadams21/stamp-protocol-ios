@@ -23,7 +23,7 @@ export interface SignInOptions {
     google: IdTokenVerifier;
     sms: CodeSender;
     email: CodeSender;
-    /** Secret key for hashing phone numbers, email addresses, and codes in subjects and code records. */
+    /** Secret key for hashing phone numbers, email addresses, and codes, so none is stored in the clear. */
     hashPepper: string;
     /** Country calling codes that may receive texts, without "+". Limits SMS fraud and cost. */
     phoneCountryCodes: string[];
@@ -159,19 +159,14 @@ async function issueSession(
     };
 }
 
-/**
- * Signs in to one side: creates the customer or owner record on first sign-in, records the verified
- * email address (kept when this sign-in didn't carry one) and the time, then starts a session.
- */
-async function signIn(pool: pg.Pool, options: SignInOptions, audience: Audience, subject: string, email: string | undefined, client?: pg.PoolClient) {
+/** Signs in to one side: creates the customer or owner record on first sign-in, then a session. */
+async function signIn(pool: pg.Pool, options: SignInOptions, audience: Audience, subject: string, client?: pg.PoolClient) {
     const run = async (c: pg.PoolClient) => {
-        const table = audience === "customer" ? "customers" : "business_owners";
-        await c.query(
-            `INSERT INTO ${table} AS account (subject, email, last_sign_in_at) VALUES ($1, $2, $3)
-             ON CONFLICT (subject) DO UPDATE
-             SET email = COALESCE(EXCLUDED.email, account.email), last_sign_in_at = EXCLUDED.last_sign_in_at`,
-            [subject, email ?? null, options.now?.() ?? new Date()],
-        );
+        if (audience === "customer") {
+            await c.query("INSERT INTO customers (subject) VALUES ($1) ON CONFLICT (subject) DO NOTHING", [subject]);
+        } else {
+            await c.query("INSERT INTO business_owners (subject) VALUES ($1) ON CONFLICT (subject) DO NOTHING", [subject]);
+        }
         return issueSession(c, options, audience, subject);
     };
     return client ? run(client) : transaction(pool, run);
@@ -221,9 +216,9 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
         const token = parseString(body[tokenField], tokenField, 1, 8192);
         const nonce = parseString(body.nonce, "nonce", 16, 128);
         if (verifier.audiences.length === 0) throw signInUnavailable();
-        const identity = await verifyIdToken(verifier, token, nonce);
-        if (!identity) throw signInFailed();
-        return signIn(pool, options, role, `${verifier.provider}:${identity.sub}`, identity.email);
+        const sub = await verifyIdToken(verifier, token, nonce);
+        if (!sub) throw signInFailed();
+        return signIn(pool, options, role, `${verifier.provider}:${sub}`);
     };
 
     app.post("/apple", providerRoute(options.apple, "identityToken"));
@@ -340,9 +335,7 @@ export async function signInRoutes(app: FastifyInstance, options: SignInOptions 
                     return { ok: false as const };
                 }
                 await client.query("UPDATE auth_codes SET code_hash = NULL WHERE target_hash = $1", [key]);
-                // The address is proven by the code; a phone number is never stored.
-                const email = channel.method === "email" ? target : undefined;
-                return { ok: true as const, session: await signIn(pool, options, role, `${channel.method}:${key}`, email, client) };
+                return { ok: true as const, session: await signIn(pool, options, role, `${channel.method}:${key}`, client) };
             });
             if (!outcome.ok) throw invalidCode();
             return outcome.session;

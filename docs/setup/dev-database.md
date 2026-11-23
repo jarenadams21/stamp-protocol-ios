@@ -115,29 +115,15 @@ The second command should give Test Cafe back.
 
 ## 6. Point the app at it
 
-The app reaches the API at `http://localhost:8080` by default in Debug builds (Release builds, like
-the sideloadable IPA, use the hosted dev API), which the iOS Simulator maps to your
+The app reaches the API at `http://localhost:8080` by default, which the iOS Simulator maps to your
 Mac. To use another address (for example your Mac's address from a phone), set the `apiBaseURL`
 user default, such as the launch argument `-apiBaseURL http://192.168.1.20:8080` under
 **Product > Scheme > Edit Scheme > Run > Arguments**.
 
 Sign in from the person button with an email code; in dev mode the code appears in the API's log.
 
-The app allows plain `http://` to local network addresses (`NSAllowsLocalNetworking` in
-`apps/ios/JOEYY/App/Info.plist`); anything else must be `https://`.
-
-## See who signed up
-
-Each sign-in creates or updates a row in `customers` or `business_owners` (one per side), with the
-verified `email` and `last_sign_in_at`. [see-signed-up-users.sql](see-signed-up-users.sql) lists
-them all with the sign-in method, signed-in devices, and business name:
-
-```sh
-psql joeyy -f docs/setup/see-signed-up-users.sql      # from the repository root
-```
-
-For the Azure dev database, use the `psql` connection under
-[Migrations](../../services/api/README.md#migrations) in the API README with `-f`.
+If iOS blocks a plain `http://` request (an App Transport Security error), allow local networking
+(`NSAllowsLocalNetworking`) for debug builds in `apps/ios/project.yml`.
 
 ## Partner routes
 

@@ -392,10 +392,6 @@ and skipped everywhere except nightly. Logs and JSON results are uploaded for ev
 `-many-rewards` similarly creates 12 additional completed Cloud City cards to
 exercise repeated-card browsing and independent reward use.
 `-business-sample` (with `-ui-testing -reset-demo`) loads the Norema business sample.
-`-apiBaseURL <url>` points sign-in at another API. Without it, the app uses the
-`JOEYY_API_BASE_URL` build setting in `project.yml`: `http://localhost:8080` for Debug, and the
-hosted dev API for Release (the sideloadable IPA; `release.yml` overrides it with the repository
-variable `JOEYY_API_BASE_URL` when set). On a device, long-press the "Local demo…" note at the
-bottom of **You** to view or change the API server; it takes effect the next time the app opens.
-See [docs/setup/dev-database.md](../../docs/setup/dev-database.md).
+`-apiBaseURL <url>` points sign-in at another API (default `http://localhost:8080`; see
+[docs/setup/dev-database.md](../../docs/setup/dev-database.md)).
 Automated checks do not replace a VoiceOver or physical-device review.
