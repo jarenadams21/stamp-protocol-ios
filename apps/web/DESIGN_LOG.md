@@ -10,6 +10,7 @@ shared from its Share menu).
 
 | Version | Date | What changed | Why |
 | --- | --- | --- | --- |
+| [v4.5](#v45-the-stamp-stage) | 2026-11-22 | A tap opens on a stage: the page steps back, the real card comes in zoomed on its empty slot and the stamp strikes big; the camera pulls back to the whole card with "Stamp 4 of 8" under it; the card glides into its place as the page fades in. A tap skips ahead | Feedback: on the card alone it was easy to miss; a first-time diner who just tapped expects something that grabs them |
 | [v4.4](#v44-one-gesture-on-the-card) | 2026-11-22 | The separate stamp page is gone. The stamp lands on the card itself as one gesture: its face appears above the slot, strikes, squashes a little and lifts; the ink stays put; the card gives; the count turns over. Full card: a ripple, a light lift, flecks in the place's ink. Ivory accent; badges in the place's ink; no green outline or accent ring | Feedback: the stamp page felt forced, transitions "0/10", everything boxy; orange read as Claude's colours; green clashed |
 | [v4.3](#v43-drawn-paper-and-ink-and-the-stamp-page) | 2026-11-22 | Paper and ink are drawn on canvas: real grain, fibres and mottling in each card's paper, patchy rubber-stamp ink with a rocked double edge. A tap opens a stamp page: a wooden stamp, seen from above, presses the place's paper and lifts; the ink spreads and dries; then it flies into the card | Feedback: still dry and plain, no texture; the hand stamp's angle looked off |
 | [v4.2](#v42-search-places) | 2026-11-20 | A search box on Discover finds places by name through the shared backend's Places API; tap a result to see its card | Yemi's task: search the restaurants in our database and open one to see its card |
@@ -40,6 +41,27 @@ shared from its Share menu).
 | [v1](#v1-paper-card) | 2026-11-11 | First build: punch card matching the iOS app, every tap and error state, redeem and staff screens | First version |
 
 ---
+
+## v4.5: the stamp stage
+
+**Why:** "Not flashy enough… keep the idea of a zone page, something to catch the eye of anyone opening
+this page for the first time… if I click on something and this page opens, I would hardly even catch
+the animation." v4.3's separate stamp page caught the eye but felt boxy and forced; v4.4 on the card
+alone was smooth but easy to miss.
+
+**What changed** (`src/ui/stamp-stage.ts`, used by the tap page for `stamped` and `completed`): a
+camera move on the real card, so nothing is ever handed from one object to another.
+1. The page steps back (fades and drops 14px), the cover dims to a glow in the place's paper colour,
+   and the card comes in zoomed (about 2x) on the empty slot.
+2. The stamp strikes there (v4.4's gesture), so it's big; the glow flares on contact.
+3. The camera pulls back to the whole card, centred; "Stamp 4 of 8" and "4 more to …" rise in under it.
+   A full card plays its ripple, lift and flecks here, then its reward ticket prints after it settles.
+4. After about a second, or a tap anywhere, the card glides down into its place and the header,
+   headline and the rest of the page fade in around it, in that order.
+About three seconds in all. Reduced motion, or a business with motion off, skips the stage.
+
+![Zoomed on the slot, the strike](docs/iterations/v4.5-zoomed-strike.jpg)
+![Pulled back, the count under the card](docs/iterations/v4.5-whole-card.jpg)
 
 ## v4.4: one gesture, on the card
 

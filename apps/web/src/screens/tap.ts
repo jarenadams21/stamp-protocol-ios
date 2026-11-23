@@ -1,6 +1,7 @@
-import { ApiError, type Identity, type StampApi, type TapResult } from '../api';
+import { ApiError, type CardState, type Identity, type StampApi, type TapResult } from '../api';
 import { header } from '../ui/components';
 import { announce, el, prefersReducedMotion } from '../ui/dom';
+import { stampStage } from '../ui/stamp-stage';
 import { clearMerchantTheme } from '../ui/theme';
 import { cardPage, footer, messagePage, mount, plural, printTicket, skeletonPassport } from './shared';
 import { staffScreen } from './staff';
@@ -11,6 +12,14 @@ import { staffScreen } from './staff';
 
 /** The stamp waits for the card to arrive (enterPage) before it comes down: cause, then effect. */
 const cardArrived = () => new Promise((done) => window.setTimeout(done, prefersReducedMotion() ? 0 : 420));
+
+/** The stamp stage for the card that was just tapped (stamp-stage.ts), or null when motion is off. */
+function presentStamp(card: HTMLElement, state: CardState, options: { complete?: boolean } = {}) {
+  const page = card.closest<HTMLElement>('main');
+  const stack = card.closest<HTMLElement>('.wallet-stack');
+  const slot = card.querySelector<HTMLElement>(`.ink-slot[data-index="${state.card.punches - 1}"]`);
+  return page && stack && slot ? stampStage(page, stack, slot, state, options) : null;
+}
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
@@ -78,8 +87,15 @@ export async function tapScreen(api: StampApi, query: URLSearchParams) {
           ? `Stamp 1 of ${state.card.requiredPunches}. Your last reward is still waiting below.`
           : `${plural(left, 'more stamp', 'more stamps')} to your ${state.rewardsAvailable.length ? 'next ' : ''}reward.`,
       });
-      await cardArrived();
-      await passport.stampIn(state.card.punches - 1);
+      const stage = presentStamp(passport.root, state);
+      if (stage) {
+        await stage.ready;
+        await passport.stampIn(state.card.punches - 1);
+        await stage.finish();
+      } else {
+        await cardArrived();
+        await passport.stampIn(state.card.punches - 1);
+      }
       announce(`Stamp added. ${state.card.punches} of ${state.card.requiredPunches}.`);
       return;
     }
@@ -95,11 +111,20 @@ export async function tapScreen(api: StampApi, query: URLSearchParams) {
       // Hold the new ticket back until the last stamp lands and the page celebrates, then print it.
       const fresh = tickets.at(-1);
       if (fresh) fresh.style.visibility = 'hidden';
-      await cardArrived();
-      await passport.stampIn(state.card.punches - 1);
-      const celebrating = passport.celebrate();
-      window.setTimeout(() => printTicket(fresh), prefersReducedMotion() ? 0 : 360);
-      await celebrating;
+      const stage = presentStamp(passport.root, state, { complete: true });
+      if (stage) {
+        await stage.ready;
+        await passport.stampIn(state.card.punches - 1);
+        // The full-card moment plays with the whole card centred, before it settles into the page.
+        await stage.finish(() => passport.celebrate());
+        printTicket(fresh);
+      } else {
+        await cardArrived();
+        await passport.stampIn(state.card.punches - 1);
+        const celebrating = passport.celebrate();
+        window.setTimeout(() => printTicket(fresh), prefersReducedMotion() ? 0 : 360);
+        await celebrating;
+      }
       announce(`Card complete. Reward ready: ${result.reward.rewardDescription}.`);
       return;
     }

@@ -912,3 +912,77 @@ a.wallet-back {
     filter: brightness(1.04);
   }
 }
+
+/* ---------- The stamp stage (stamp-stage.ts) ---------- */
+
+/* While the stamp is presented, everything on the page but the card steps back; the card rises
+   above a dimmed cover lit in the place's colour. When it settles, the page comes back in. */
+.page.is-presenting > :not(.wallet-stack) {
+  opacity: 0;
+  transform: translateY(14px);
+  pointer-events: none;
+}
+
+.page.is-presenting .wallet-stack {
+  position: relative;
+  z-index: 60;
+}
+
+.page.is-presenting .wallet-back,
+.page.is-presenting .stack-hint {
+  opacity: 0;
+}
+
+.page.is-revealing > :not(.wallet-stack) {
+  transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out);
+}
+
+.page.is-revealing > .topbar { transition-delay: 0ms; }
+.page.is-revealing > .hero { transition-delay: 60ms; }
+.page.is-revealing > :nth-child(n + 4) { transition-delay: 140ms; }
+
+.page.is-revealing .wallet-back {
+  transition: opacity 300ms var(--ease-out) 120ms;
+}
+
+.stamp-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background:
+    radial-gradient(70% 45% at 50% 42%, color-mix(in srgb, var(--page-paper) 26%, transparent), transparent 70%),
+    color-mix(in srgb, var(--paper) 94%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.stage-caption {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 61;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--gutter);
+  text-align: center;
+  pointer-events: none;
+}
+
+.stage-count {
+  color: var(--text);
+  font-family: var(--font-stamp);
+  font-size: clamp(2rem, 10vw, 2.75rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.stage-note {
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+}
